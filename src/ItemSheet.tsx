@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { itemWarnings, lineCost, money, parseQty, syncedLabel, vendorOf, type Product } from './lib/order'
+import { SHOW_SALES, itemWarnings, lineCost, money, parseQty, syncedLabel, vendorOf, type Product } from './lib/order'
 import { useEscape } from './lib/useEscape'
 import type { OrderLine } from './lib/supabase'
 
@@ -49,7 +49,7 @@ export default function ItemSheet({ product, existing, conflict, busy, onDone, o
         <dl className="facts">
           <div><dt>In stock</dt><dd className="num">{num(stock?.inventory)}</dd></div>
           <div><dt>On order</dt><dd className="num">{num(stock?.qty_on_po)}</dd></div>
-          <div><dt>Sold last week</dt><dd className="num">{num(stock?.sales_qty)}</dd></div>
+          {SHOW_SALES && <div><dt>Sold last week</dt><dd className="num">{num(stock?.sales_qty)}</dd></div>}
           <div><dt>Minimum (MOQ)</dt><dd className="num">{num(stock?.moq)}</dd></div>
           <div><dt>Your cost</dt><dd className="num">{stock ? money(stock.store_cost) : '–'}</dd></div>
           <div><dt>Price</dt><dd className="num">{item.price != null ? money(item.price) : '–'}</dd></div>

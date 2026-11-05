@@ -376,7 +376,7 @@ tr.inactive { opacity: 0.6; }
 .people.vendors .person-actions { justify-content: flex-start; }
 table.items.order { min-width: 760px; }
 table.items.order th:nth-child(n) { width: auto; }
-table.items.order th:nth-child(1) { width: 11%; } table.items.order th:nth-child(2) { width: 25%; } table.items.order th:nth-child(7) { width: 11%; } table.items.order th:nth-child(9) { width: 48px; }
+table.items.order th:nth-child(1) { width: 12%; } table.items.order th:nth-child(2) { width: 34%; }
 table.items.order td.desc small { display: block; }
 @media (max-width: 44rem) {
   table.items.order { min-width: 0; }

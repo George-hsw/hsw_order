@@ -1,4 +1,4 @@
-// Writes supabase/migrations/005_seed_stores.sql from src/data/stores.json.
+// Writes supabase/migrations/005_seed_stores.sql from src/data/stores.json. 005 is already applied: do not rerun this to change stores, add a new migration instead.
 // Run again only if the store list changes: node scripts/make-seed-stores.mjs
 import { readFileSync, writeFileSync } from 'node:fs'
 

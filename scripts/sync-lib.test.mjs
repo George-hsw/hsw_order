@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ITEM_FIELDS, STOCK_FIELDS, bool, groupStock, itemFingerprint, num, planChanges, removalLooksWrong, stockFingerprint, storeProblem, toItem, toStock } from './sync-lib.mjs'
+import { ITEM_FIELDS, STOCK_FIELDS, bool, groupStock, itemFingerprint, locationFilter, num, planChanges, removalLooksWrong, stockFingerprint, storeProblem, toItem, toStock } from './sync-lib.mjs'
 
 describe('values', () => {
   it('reads NAV numbers and Yes/No', () => {
@@ -15,8 +15,8 @@ describe('values', () => {
 
 describe('items', () => {
   it('keeps item numbers as text, leading zeros and all', () => {
-    const i = toItem({ No: '00123', Description: ' Soap dish ', Price: '12.949', Blocked: 'Yes', Barcode_No: '' }, ITEM_FIELDS)
-    expect(i).toMatchObject({ code: '00123', description: 'Soap dish', price: 12.95, blocked: true, barcode: null })
+    const i = toItem({ No: '00123', Description: ' Soap dish ', Unit_Price_Including_VAT: '12.949', Exclude_from_Replenishment: true, BarcodeNo: '', Minimum_Order_Quantity: 6, Store_Cost: 5.12 }, ITEM_FIELDS)
+    expect(i).toMatchObject({ code: '00123', description: 'Soap dish', price: 12.95, exclude_from_replen: true, blocked: false, barcode: null, _moq: 6, _store_cost: 5.12 })
   })
   it('a changed field changes the fingerprint, an unrelated one does not', () => {
     const a = toItem({ No: 'A', Description: 'x' }, ITEM_FIELDS)
@@ -28,7 +28,7 @@ describe('items', () => {
 describe('stock', () => {
   const items = new Map([['A1', { _moq: 6, _store_cost: 5.12 }]])
   it('takes MOQ and cost from the item list when the stock service has none', () => {
-    const s = toStock({ Item_No: 'A1', Location_Code: '14122', Inventory: 6, Quantity_on_Purchase_Order: '2', Vendor_No: 'MYHO001', PO_Blocked: 'No' }, STOCK_FIELDS, items)
+    const s = toStock({ Item_No: 'A1', Location_Code: '14122', Inventory: 6, Quantity_on_Purchase_Order: '2', Vendor_No: 'MYHO001' }, STOCK_FIELDS, items)
     expect(s).toMatchObject({ location: '14122', inventory: 6, qty_on_po: 2, moq: 6, store_cost: 5.12, vendor_no: 'MYHO001', po_blocked: false, sales_qty: 0 })
   })
   it('falls back to MOQ 1 and cost 0 when neither has them', () => {
@@ -45,6 +45,13 @@ describe('stock', () => {
   it('reports an item that appears twice for one store', () => {
     const { byStore } = groupStock([{ location: '1', item_code: 'A1' }, { location: '1', item_code: 'A1' }], [{ id: 's', code: '1' }], new Set(['A1']))
     expect(byStore.get('s').duplicates).toEqual(['A1'])
+  })
+})
+
+describe('location filter', () => {
+  it('asks NAV for just our stores', () => {
+    expect(locationFilter('Location_Code', ['14122', '12064'])).toBe("Location_Code eq '14122' or Location_Code eq '12064'")
+    expect(locationFilter('Location_Code', [])).toBe('')
   })
 })
 

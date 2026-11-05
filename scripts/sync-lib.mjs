@@ -17,15 +17,18 @@ export const hash = (parts) => createHash('sha1').update(JSON.stringify(parts)).
 
 /** The names of the fields on YOUR web services. Override either with DYN_ITEMS_FIELD_MAP / DYN_STOCK_FIELD_MAP (JSON). */
 export const ITEM_FIELDS = {
-  code: 'No', description: 'Description', vendor_no: 'Vendor_No', vendor_item_no: 'Vendor_Item_No', barcode: 'Barcode_No',
-  division: 'Division_Code', category: 'Item_Category_Code', status: 'Status_Code', price: 'Price',
-  sales_uom: 'Sales_Unit_of_Measure', base_uom: 'Base_Unit_of_Measure', blocked: 'Blocked', exclude_from_replen: 'Exclude_from_Replenishment',
-  moq: null, store_cost: null, // not in the Replen. Qty. field list: set these if they live on the item list
+  code: 'No', description: 'Description', vendor_no: 'Vendor_No', vendor_item_no: 'Vendor_Item_No', barcode: 'BarcodeNo',
+  division: 'Division_Code', category: 'Item_Category_Code', status: 'Status_Code', price: 'Unit_Price_Including_VAT',
+  sales_uom: 'Sales_Unit_of_Measure', base_uom: 'Base_Unit_of_Measure', exclude_from_replen: 'Exclude_from_Replenishment',
+  blocked: null, // the Power_BI_Retail_Items service has no Blocked field
+  moq: 'Minimum_Order_Quantity', store_cost: 'Store_Cost', // item-level: the same for every store
 }
 export const STOCK_FIELDS = {
   item_code: 'Item_No', location: 'Location_Code', variant: 'Variant_Code', inventory: 'Inventory', qty_on_po: 'Quantity_on_Purchase_Order',
-  vendor_no: 'Vendor_No', po_blocked: 'PO_Blocked',
-  moq: null, store_cost: null, sales_qty: null, // optional: set these if the stock service has them
+  vendor_no: 'Vendor_No',
+  po_blocked: null, // the Uber_Automation_Replen_Item_Quantities service has no PO Blocked field
+  moq: null, store_cost: null, // taken from the item list unless the stock service has its own
+  sales_qty: null, // no per-store weekly sales field on this service (Daily_Sales is not filled in)
 }
 
 /** One OData row -> an item. */
@@ -132,3 +135,6 @@ export function planChanges(rows, existing, key, fingerprint, { fullPull = true 
 
 /** A sudden mass removal is far more likely a partial response than a real clear-out. */
 export const removalLooksWrong = (removeCount, activeCount) => activeCount > 0 && removeCount > Math.max(50, activeCount * 0.2)
+
+/** OData filter for just our stores' locations, so NAV sends a few tens of thousands of rows instead of every location's. */
+export const locationFilter = (field, codes) => (codes.length ? codes.map((c) => `${field} eq '${String(c).replace(/'/g, "''")}'`).join(' or ') : '')

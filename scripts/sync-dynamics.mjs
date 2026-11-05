@@ -18,7 +18,8 @@
 //
 // First run on a new setup:  node scripts/sync-dynamics.mjs --discover   prints the real field names for both services.
 import { createClient } from '@supabase/supabase-js'
-import { ITEM_FIELDS, STOCK_FIELDS, groupStock, itemFingerprint, planChanges, removalLooksWrong, stockFingerprint, storeProblem, toItem, toStock } from './sync-lib.mjs'
+import { readFileSync } from 'node:fs'
+import { ITEM_FIELDS, STOCK_FIELDS, groupStock, itemFingerprint, locationFilter, planChanges, removalLooksWrong, stockFingerprint, storeProblem, toItem, toStock } from './sync-lib.mjs'
 
 const env = (k, req = true) => {
   const v = process.env[k]
@@ -99,13 +100,29 @@ async function loadExisting(sb, table, key, where) {
 
 const chunks = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
-/** The item list. Returns Map(code -> item) of everything now in NAV. */
-async function syncItems(sb, auth) {
+/** Reads the item list from NAV. */
+async function fetchItems(auth) {
   console.log('Items (Retail Items)')
   const raw = await fetchAll(env('DYN_ITEMS_URL'), ITEMS, process.env.DYN_ITEMS_FILTER, auth)
   const items = raw.map((r) => toItem(r, ITEMS)).filter((i) => i.code)
   if (items.length < 100) throw new Error(`Only ${items.length} items returned, refusing to sync`)
+  return items
+}
 
+/** Reads every store's stock from NAV and groups it by store. Only our stores' locations are requested. */
+async function fetchStock(sb, auth, itemsByCode) {
+  console.log('Stock (Replen. Qty.)')
+  const { data: stores, error } = await sb.from('stores').select('id,name,code').eq('active', true)
+  if (error) throw error
+  const filter = process.env.DYN_STOCK_FILTER ?? locationFilter(STOCK.location, stores.map((s) => s.code))
+  const raw = await fetchAll(env('DYN_STOCK_URL'), STOCK, filter, auth)
+  const { byStore, skipped } = groupStock(raw.map((r) => toStock(r, STOCK, itemsByCode)), stores, new Set(itemsByCode.keys()))
+  console.log(`  ${raw.length} rows. Left out: ${skipped.unknownLocation} for other locations, ${skipped.variant} variant rows, ${skipped.unknownItem} items not in the item list`)
+  return { stores, byStore }
+}
+
+/** Writes the item list. Only items that are ranged in at least one store are kept: the rest of NAV's catalogue is not orderable here. */
+async function writeItems(sb, items) {
   const existing = await loadExisting(sb, 'items', 'code')
   const plan = planChanges(items, existing, 'code', itemFingerprint)
   const activeCount = [...existing.values()].filter((e) => !e.removed).length
@@ -122,19 +139,11 @@ async function syncItems(sb, auth) {
     const { error } = await sb.from('items').update({ removed: true, synced_at: at }).in('code', codes)
     if (error) throw error
   }
-  console.log(`  ${items.length} items: ${plan.toUpsert.length} written, ${plan.unchanged} unchanged, ${plan.toRemove.length} removed`)
-  return { itemsByCode: new Map(items.map((i) => [i.code, i])), count: items.length }
+  console.log(`  ${items.length} ranged items: ${plan.toUpsert.length} written, ${plan.unchanged} unchanged, ${plan.toRemove.length} removed`)
 }
 
-/** Stock, one store at a time. Returns how many stores failed. */
-async function syncStock(sb, auth, itemsByCode) {
-  console.log('Stock (Replen. Qty.)')
-  const { data: stores, error } = await sb.from('stores').select('id,name,code').eq('active', true)
-  if (error) throw error
-  const raw = await fetchAll(env('DYN_STOCK_URL'), STOCK, process.env.DYN_STOCK_FILTER, auth)
-  const { byStore, skipped } = groupStock(raw.map((r) => toStock(r, STOCK, itemsByCode)), stores, new Set(itemsByCode.keys()))
-  console.log(`  ${raw.length} rows. Left out: ${skipped.unknownLocation} for other locations, ${skipped.variant} variant rows, ${skipped.unknownItem} items not in the item list`)
-
+/** Publishes each store on its own. Returns how many stores failed and kept their previous data. */
+async function writeStock(sb, stores, byStore) {
   let failed = 0
   for (const store of stores) {
     const { data: run } = await sb.from('sync_runs').insert({ store_id: store.id }).select('id').single()
@@ -169,24 +178,59 @@ async function syncStock(sb, auth, itemsByCode) {
   return failed
 }
 
+/**
+ * Reads everything from NAV and works out what each store would get, using the store list in src/data/stores.json.
+ * Needs only the DYN_* settings (no Supabase) and writes nothing anywhere.
+ */
+async function dryRun() {
+  const auth = await authHeader()
+  const stores = JSON.parse(readFileSync(new URL('../src/data/stores.json', import.meta.url), 'utf8')).map((s) => ({ id: s.code, code: s.code, name: s.name }))
+  console.log('Items (Retail Items)')
+  const rawItems = await fetchAll(env('DYN_ITEMS_URL'), ITEMS, process.env.DYN_ITEMS_FILTER, auth)
+  const items = rawItems.map((r) => toItem(r, ITEMS)).filter((i) => i.code)
+  const byCode = new Map(items.map((i) => [i.code, i]))
+  const noVendor = items.filter((i) => !i.vendor_no).length
+  console.log(`  ${items.length} items, ${noVendor} with no vendor, ${items.filter((i) => i.barcode).length} with a barcode, ${items.filter((i) => i._moq > 1).length} with a MOQ above 1`)
+
+  console.log('Stock (Replen. Qty.)')
+  const filter = process.env.DYN_STOCK_FILTER ?? locationFilter(STOCK.location, stores.map((s) => s.code))
+  const raw = await fetchAll(env('DYN_STOCK_URL'), STOCK, filter, auth)
+  const { byStore, skipped } = groupStock(raw.map((r) => toStock(r, STOCK, byCode)), stores, new Set(byCode.keys()))
+  console.log(`  ${raw.length} rows. Left out: ${skipped.unknownLocation} other locations, ${skipped.variant} variant rows, ${skipped.unknownItem} items not in the item list`)
+  for (const s of stores) {
+    const e = byStore.get(s.id)
+    if (!e) { console.log(`  ${s.name.padEnd(18)} ${s.code}  NO ROWS`); continue }
+    const rows = [...e.rows.values()]
+    const vendors = new Set(rows.map((r) => r.vendor_no).filter(Boolean))
+    const problem = storeProblem(rows.length, 0, e.duplicates)
+    console.log(`  ${s.name.padEnd(18)} ${s.code}  ${String(rows.length).padStart(5)} items, ${vendors.size} vendors, ${rows.filter((r) => r.inventory > 0).length} in stock, ${rows.filter((r) => !r.vendor_no).length} without a vendor${problem ? '  PROBLEM: ' + problem : ''}`)
+  }
+}
+
 async function main() {
   if (process.argv.includes('--discover')) return discover()
+  if (process.argv.includes('--dry-run')) return dryRun()
   const sb = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } })
   const auth = await authHeader()
 
   const { data: run } = await sb.from('sync_runs').insert({ store_id: null }).select('id').single() // the item list itself
   const finishItems = (patch) => sb.from('sync_runs').update({ finished_at: new Date().toISOString(), ...patch }).eq('id', run?.id)
-  let items
+  let stores, byStore
   try {
-    items = await syncItems(sb, auth)
-    await finishItems({ ok: true, rows: items.count, message: 'Item list synced' })
+    const all = await fetchItems(auth)
+    ;({ stores, byStore } = await fetchStock(sb, auth, new Map(all.map((i) => [i.code, i]))))
+    const ranged = new Set([...byStore.values()].flatMap((e) => [...e.rows.keys()]))
+    const items = all.filter((i) => ranged.has(i.code))
+    if (items.length < 100) throw new Error(`Only ${items.length} ranged items found, refusing to sync`)
+    await writeItems(sb, items)
+    await finishItems({ ok: true, rows: items.length, message: 'Item list synced' })
   } catch (e) {
     await finishItems({ ok: false, message: String(e.message ?? e).slice(0, 500) })
     if (String(e.message).includes('Dynamics rejected')) await discover().catch(() => {})
     throw e // no item list, no stock: every store keeps yesterday's data
   }
 
-  const failed = await syncStock(sb, auth, items.itemsByCode)
+  const failed = await writeStock(sb, stores, byStore)
   if (failed) throw new Error(`${failed} store(s) kept their previous data. See the Stores tab.`)
 }
 

@@ -5,6 +5,12 @@ export interface Product { item: ItemRow; stock: StockRow | undefined }
 
 // ---------- Money and quantities ----------
 
+/**
+ * Last week's sales per store. NAV's Replen. Qty. service has no weekly sales field (Daily_Sales is not filled in), so the figure
+ * is hidden rather than shown as zeros. Switch this on once a real source is syncing into store_stock.sales_qty.
+ */
+export const SHOW_SALES = false
+
 export const money = (n: number) => n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })
 const cents = (n: number) => Math.round(n * 100)
 

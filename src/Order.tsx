@@ -6,7 +6,7 @@ import StatusChip from './StatusChip'
 import { useToast } from './Toast'
 import { api, ConflictError, type Catalogue } from './lib/api'
 import { beep, primeAudio } from './lib/beep'
-import { findByScan, isStale, itemWarnings, lineCost, money, parseQty, rangeFor, searchItems, syncedLabel, totals, vendorOf, vendorOptions, type Product } from './lib/order'
+import { SHOW_SALES, findByScan, isStale, itemWarnings, lineCost, money, parseQty, rangeFor, searchItems, syncedLabel, totals, vendorOf, vendorOptions, type Product } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
 interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void }
@@ -293,7 +293,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                   <div className="tablewrap">
                     <table className="items order">
                       <thead>
-                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th><th className="r">Sold last wk</th><th className="r">MOQ</th><th>Order qty</th><th className="r">Cost</th></tr>
+                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th>Order qty</th><th className="r">Cost</th></tr>
                       </thead>
                       <tbody>
                         {rows.slice(0, limit).map((p) => {
@@ -308,7 +308,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                               </td>
                               <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}</td>
                               <td data-label="On order" className="r">{p.stock?.qty_on_po ?? '–'}</td>
-                              <td data-label="Sold last week" className="r">{p.stock?.sales_qty ?? '–'}</td>
+                              {SHOW_SALES && <td data-label="Sold last week" className="r">{p.stock?.sales_qty ?? '–'}</td>}
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>
                               <td data-label="Order qty"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} onCommit={(text) => setQty(p, text)} /></td>
                               <td data-label="Cost" className="r">{l ? money(lineCost(l.qty, l.unit_cost)) : ''}</td>
