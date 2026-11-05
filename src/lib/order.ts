@@ -98,7 +98,7 @@ export function applyLine(lines: OrderLine[], orderId: string, who: string, inpu
   const prev = lines.find((l) => l.item_code === input.item.code)
   const line: OrderLine = {
     id: prev?.id ?? `line-${orderId}-${input.item.code}`, order_id: orderId, item_code: input.item.code, qty: input.qty,
-    unit_cost: input.unitCost, vendor_no: input.vendorNo !== undefined ? input.vendorNo : input.item.vendor_no, division: input.item.division, description: input.item.description,
+    unit_cost: input.unitCost, vendor_no: input.vendorNo !== undefined ? input.vendorNo : input.item.vendor_no, division: input.item.division, vendor_item_no: input.item.vendor_item_no, uom: input.item.base_uom ?? input.item.sales_uom, description: input.item.description,
     revision: (prev?.revision ?? 0) + 1, updated_by: who, updated_at: now.toISOString(),
   }
   return [...rest, line]
@@ -134,14 +134,20 @@ export function groupByVendor(lines: OrderLine[]): VendorGroup[] {
 // ---------- Copy for NAV ----------
 
 /**
- * The columns of a NAV purchase order line, in the order the lines grid shows them. Only Type, No. and Quantity are filled:
- * NAV supplies the unit of measure, description and cost when the item number is validated, and Inventory is a calculated
- * field that cannot be pasted into. Columns after the last one filled are left off the pasted rows.
+ * The columns of a NAV purchase order line, in the order the lines grid shows them. Always filled: Type, No. and Quantity.
+ * Left for NAV: Variant, Inventory (a calculated field that cannot be pasted into) and every cost column.
+ * `detail` columns (Vendor Item No., Description, Unit of Measure Code) are sent only when PASTE_DETAILS is on: a test line where
+ * only the item number was changed came back with a blank description and unit, but that was an edit of an existing line, not a
+ * paste. Turn it on if a clean paste into a new line leaves them blank. Our unit is the item's base unit, which may not be the
+ * purchase unit NAV would pick, so it stays off until that is shown to be needed.
  */
-export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string }[] = [
+export const PASTE_DETAILS = false
+export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string; detail?: boolean }[] = [
   { header: 'Type', value: () => 'Item' },
   { header: 'No.', value: (l) => l.item_code },
-  { header: 'Vendor Item No.' }, { header: 'Variant Code' }, { header: 'Description' }, { header: 'Unit of Measure Code' }, { header: 'Inventory' },
+  { header: 'Vendor Item No.', value: (l) => l.vendor_item_no ?? '', detail: true }, { header: 'Variant Code' },
+  { header: 'Description', value: (l) => [...l.description].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join(''), detail: true }, // no tabs or line breaks inside a cell
+  { header: 'Unit of Measure Code', value: (l) => l.uom ?? '', detail: true }, { header: 'Inventory' },
   { header: 'Quantity', value: (l) => String(l.qty) },
   { header: 'Qty. to Receive' }, { header: 'Qty. To Invoice' }, { header: 'Description 2' }, { header: 'Location Code' },
   { header: 'Direct Unit Cost Excl. VAT' }, { header: 'Line Amount Excl. VAT' }, { header: 'Vendor Invoice Cost' }, { header: 'Vendor Invoice Qty' },
@@ -150,9 +156,10 @@ export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string }[]
 const NAV_WIDTH = NAV_COLUMNS.reduce((n, c, i) => (c.value ? i + 1 : n), 0)
 
 /** Tab-separated purchase lines, one per item, ready to paste into the NAV lines grid. Item numbers stay text so leading zeros survive. */
-export function navText(group: VendorGroup, withHeader = false): string {
+export function navText(group: VendorGroup, withHeader = false, details = PASTE_DETAILS): string {
   const cols = NAV_COLUMNS.slice(0, NAV_WIDTH)
-  const rows = group.lines.map((l) => cols.map((c) => c.value?.(l) ?? '').join('\t'))
+  const cell = (c: (typeof NAV_COLUMNS)[number], l: OrderLine) => (c.detail && !details ? '' : c.value?.(l) ?? '')
+  const rows = group.lines.map((l) => cols.map((c) => cell(c, l)).join('\t'))
   return [...(withHeader ? [cols.map((c) => c.header).join('\t')] : []), ...rows].join('\n')
 }
 

@@ -58,10 +58,10 @@ export default function ItemSheet({ product, existing, conflict, busy, focusQty,
         <dl className="facts">
           <div><dt>In stock</dt><dd className="num">{num(stock?.inventory)}</dd></div>
           <div><dt>On order</dt><dd className="num">{num(stock?.qty_on_po)}</dd></div>
-          <div><dt>Arriving by transfer</dt><dd className="num">{num(stock?.transfer_in)}</dd></div>
+          <div><dt>Transfer in</dt><dd className="num">{num(stock?.transfer_in)}</dd></div>
           {(stock?.unavailable ?? 0) > 0 && <div><dt>Unavailable</dt><dd className="num">{stock!.unavailable}</dd></div>}
           {SHOW_SALES && <div><dt>Sold last week</dt><dd className="num">{num(stock?.sales_qty)}</dd></div>}
-          <div><dt>Minimum (MOQ)</dt><dd className="num">{num(stock?.moq)}</dd></div>
+          <div><dt>MOQ</dt><dd className="num">{num(stock?.moq)}</dd></div>
           <div><dt>Your cost</dt><dd className="num">{stock ? money(stock.store_cost) : '–'}</dd></div>
           <div><dt>Price</dt><dd className="num">{item.price != null ? money(item.price) : '–'}</dd></div>
         </dl>

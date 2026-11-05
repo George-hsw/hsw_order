@@ -65,7 +65,7 @@ describe('order lines', () => {
 
 describe('vendor groups and Copy for NAV', () => {
   const mk = (code: string, vendor: string | null, qty: number): OrderLine => ({
-    id: code, order_id: 'o', item_code: code, qty, unit_cost: 1, vendor_no: vendor, division: null, description: code, revision: 1, updated_by: null, updated_at: '',
+    id: code, order_id: 'o', item_code: code, qty, unit_cost: 1, vendor_no: vendor, division: null, vendor_item_no: null, uom: null, description: code, revision: 1, updated_by: null, updated_at: '',
   })
   const lines = [mk('B2', 'ZED001', 2), mk('A1', 'ANAS001', 1), mk('A0', 'ANAS001', 5), mk('X9', null, 3)]
   it('orders vendors, then items, with no-vendor lines last', () => {
@@ -78,6 +78,10 @@ describe('vendor groups and Copy for NAV', () => {
     const g = groupByVendor([mk('00123', 'V1', 4)])[0]
     expect(navText(g)).toBe('Item\t00123\t\t\t\t\t\t4')
     expect(navText(g, true)).toBe('Type\tNo.\tVendor Item No.\tVariant Code\tDescription\tUnit of Measure Code\tInventory\tQuantity\nItem\t00123\t\t\t\t\t\t4')
+  })
+  it('matches a line typed by hand: type, no., vendor item no., blank variant, description, unit, blank inventory, quantity', () => {
+    const l: OrderLine = { ...mk('EIC16047', 'MYHO001', 24), vendor_item_no: 'RB16047', uom: 'EA', description: 'TOOTHBRSH HLDR MRBL-LOOK BK' }
+    expect(navText(groupByVendor([l])[0], false, true).split('\t')).toEqual(['Item', 'EIC16047', 'RB16047', '', 'TOOTHBRSH HLDR MRBL-LOOK BK', 'EA', '', '24'])
   })
 })
 

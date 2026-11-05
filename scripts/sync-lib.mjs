@@ -73,13 +73,14 @@ export function toStock(row, F, itemsByCode) {
     unavailable: F.unavailable ? num(row[F.unavailable]) : 0,
     moq: moq ?? item?._moq ?? 1,
     store_cost: cost ?? item?._store_cost ?? 0,
-    sales_qty: F.sales_qty ? num(row[F.sales_qty]) : 0,
+    // Left out unless NAV provides it, so the nightly sync never overwrites sales that were uploaded.
+    ...(F.sales_qty ? { sales_qty: num(row[F.sales_qty]) } : {}),
     vendor_no: str(row[F.vendor_no]),
     po_blocked: bool(row[F.po_blocked]),
   }
 }
 
-export const stockFingerprint = (s) => hash([s.item_code, s.inventory, s.qty_on_po, s.transfer_in, s.unavailable, s.moq, s.store_cost, s.sales_qty, s.vendor_no, s.po_blocked])
+export const stockFingerprint = (s) => hash([s.item_code, s.inventory, s.qty_on_po, s.transfer_in, s.unavailable, s.moq, s.store_cost, s.sales_qty ?? null, s.vendor_no, s.po_blocked])
 
 /**
  * Group raw stock rows by store. Rows are kept out (and counted) when:

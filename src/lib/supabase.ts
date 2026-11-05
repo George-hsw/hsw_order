@@ -103,6 +103,8 @@ export interface OrderLine {
   unit_cost: number // store cost when the line was saved
   vendor_no: string | null
   division: string | null
+  vendor_item_no: string | null // for Copy for NAV
+  uom: string | null // unit of measure, for Copy for NAV
   description: string
   revision: number
   updated_by: string | null

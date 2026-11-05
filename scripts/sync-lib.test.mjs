@@ -29,7 +29,8 @@ describe('stock', () => {
   const items = new Map([['A1', { _moq: 6, _store_cost: 5.12 }]])
   it('takes MOQ and cost from the item list when the stock service has none', () => {
     const s = toStock({ Item_No: 'A1', Location_Code: '14122', Inventory: 6, Quantity_on_Purchase_Order: '2', Quantity_in_Transfer_In: 4, Unavailable_Qty: 1, Vendor_No: 'MYHO001' }, STOCK_FIELDS, items)
-    expect(s).toMatchObject({ location: '14122', inventory: 6, qty_on_po: 2, transfer_in: 4, unavailable: 1, moq: 6, store_cost: 5.12, vendor_no: 'MYHO001', po_blocked: false, sales_qty: 0 })
+    expect(s).toMatchObject({ location: '14122', inventory: 6, qty_on_po: 2, transfer_in: 4, unavailable: 1, moq: 6, store_cost: 5.12, vendor_no: 'MYHO001', po_blocked: false })
+    expect(s).not.toHaveProperty('sales_qty') // never overwrite uploaded sales
   })
   it('falls back to MOQ 1 and cost 0 when neither has them', () => {
     expect(toStock({ Item_No: 'ZZ', Location_Code: '1' }, STOCK_FIELDS, new Map())).toMatchObject({ moq: 1, store_cost: 0 })

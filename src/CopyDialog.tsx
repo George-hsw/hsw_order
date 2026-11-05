@@ -59,7 +59,7 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onCl
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
         </button>
         <h2 id="copy-title">Copy for NAV</h2>
-        <p className="muted">Copy one vendor at a time, paste it into the NAV order for that vendor, then enter the NAV order number below.</p>
+        <p className="muted">Copy the lines, paste them into the NAV purchase order for this vendor, then enter the NAV order number below.</p>
 
         <ul className="people vendors">
           {groups.map((g) => (
@@ -80,7 +80,7 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onCl
         <form className="addperson" onSubmit={(e) => { e.preventDefault(); if (valid) onOrdered(ref.trim()) }}>
           <h3>Entered in NAV?</h3>
           <div className="grid one">
-            <label>NAV order number <small>for several vendors, list them with commas</small>
+            <label>NAV order number
               <input name="navRef" autoComplete="off" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="PO-004512" />
             </label>
           </div>

@@ -303,7 +303,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                             <tr key={p.item.code} className={l ? 'ordering' : undefined}>
                               <td data-label="Item" className="num">{p.item.code}</td>
                               <td data-label="Description" className="desc">
-                                <button type="button" className="quiet rowlink" onClick={() => open(p)}>{p.item.description}</button>
+                                {p.item.description}
                                 {warnings.map((w) => <small key={w.text} className={'chk ' + w.level}>{w.text}</small>)}
                               </td>
                               <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}</td>
@@ -326,7 +326,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
               </section>
             </div>
 
-            <aside className="ledger" aria-label="Totals and actions">
+            <aside className="ledger orderledger" aria-label="Totals and actions">
               <div className="ledger-head" role="status">
                 <p>{t.lines === 0 ? `Nothing ordered from ${vendor} yet` : `${t.lines} ${t.lines === 1 ? 'line' : 'lines'}, ${t.units} units`}</p>
               </div>

@@ -48,6 +48,6 @@ export const demoOrder = (): OrderRow => ({
   created_at: dayAgo(0).toISOString(), copied_at: null, ordered_at: null, stores: { name: 'Artarmon' },
 })
 export const demoLines = (): OrderLine[] => [
-  { id: 'l1', order_id: 'o1', item_code: 'ANA01092', qty: 12, unit_cost: 5.12, vendor_no: 'ANAS001', division: 'BATHROOM', description: 'HUSH SOAP DISH WHT', revision: 1, updated_by: 'sam@hsw.com.au', updated_at: dayAgo(0).toISOString() },
-  { id: 'l2', order_id: 'o1', item_code: 'ANA01095', qty: 6, unit_cost: 20.43, vendor_no: 'ANAS001', division: 'BATHROOM', description: 'HUSH TOILET BRUSH WHT', revision: 1, updated_by: 'sam@hsw.com.au', updated_at: dayAgo(0).toISOString() },
+  { id: 'l1', order_id: 'o1', item_code: 'ANA01092', qty: 12, unit_cost: 5.12, vendor_no: 'ANAS001', division: 'BATHROOM', vendor_item_no: null, uom: 'EA', description: 'HUSH SOAP DISH WHT', revision: 1, updated_by: 'sam@hsw.com.au', updated_at: dayAgo(0).toISOString() },
+  { id: 'l2', order_id: 'o1', item_code: 'ANA01095', qty: 6, unit_cost: 20.43, vendor_no: 'ANAS001', division: 'BATHROOM', vendor_item_no: null, uom: 'EA', description: 'HUSH TOILET BRUSH WHT', revision: 1, updated_by: 'sam@hsw.com.au', updated_at: dayAgo(0).toISOString() },
 ]

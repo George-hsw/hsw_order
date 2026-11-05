@@ -278,7 +278,6 @@ tr.inactive { opacity: 0.6; }
   table.book.stores td.rowactions { grid-column: span 2; order: 2; }
   table.book.stores td[data-label="Code"] { grid-column: span 2; order: 3; }
   table.book.stores td[data-label="People"] { grid-column: span 2; order: 4; }
-  table.book.stores td[data-label="ABN"] { grid-column: span 2; order: 5; }
   table.book.stores td[data-label="Managers"] { grid-column: 1 / -1; order: 6; }
   table.book.stores td[data-label="Store"]::before { display: none; }
   table td.r { text-align: left; }
@@ -359,7 +358,7 @@ tr.inactive { opacity: 0.6; }
   .tour-grow { animation: none; transform: none; }
 }
 
-/* ---------- Orders: item sheet, quantity stepper, vendor rows ---------- */
+/* ---------- Orders: item details, quantity stepper, vendor list, phone cards ---------- */
 /* Built from existing tokens only. The stock figures sit on the same hairline grid as the phone table cards. */
 .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: var(--space-md) 0 var(--space-xs); background: var(--color-rule); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); overflow: hidden; }
 .facts > div { background: var(--color-paper-2); padding: var(--space-xs) var(--space-sm); min-height: 56px; }
@@ -369,84 +368,104 @@ tr.inactive { opacity: 0.6; }
 .modalbox form { display: grid; gap: var(--space-sm); }
 .modalbox .chk { margin: 0; }
 .modalbox .actions.quick { justify-content: flex-start; margin-top: 0; }
+.modalbox label small { white-space: nowrap; }
 .stepper { display: flex; gap: var(--space-xs); }
 .stepper input { flex: 1; min-width: 0; text-align: center; font-size: var(--text-xl); }
 .stepper .btn { width: var(--hit); min-height: var(--hit); padding: 0; font-size: var(--text-xl); }
 .ledger dl > div { display: contents; }
 .people.vendors .person-actions { justify-content: flex-start; }
-table.items.order { min-width: 760px; }
-table.items.order th:nth-child(n) { width: auto; }
-table.items.order th:nth-child(1) { width: 12%; } table.items.order th:nth-child(2) { width: 34%; }
-table.items.order td.desc small { display: block; }
-@media (max-width: 44rem) {
-  table.items.order { min-width: 0; }
-  table.items.order td[data-label="Item"] { grid-column: 1 / -1; }
-  table.items.order td[data-label="Order qty"], table.items.order td[data-label="Cost"] { grid-column: auto; }
-  table.items.order td.r { text-align: left; }
-}
-
-/* Orders list, order detail, reports and the sync column on Stores: phone cards on the same hairline grid as Documents */
-table.book.detail { min-width: 0; }
 .modalbox.panel section + section { margin-top: var(--space-md); }
 .modalbox.panel section h3 small { font-weight: 400; margin-left: var(--space-xs); }
 .modalbox.panel section .actions { justify-content: flex-start; margin-top: var(--space-xs); }
-@media (max-width: 44rem) {
-  /* Orders: when and status, who and store, the three figures, the NAV number, then Open */
-  table.book.orders td[data-label="Started"] { grid-column: span 4; order: 1; font-weight: 600; }
-  table.book.orders td[data-label="Status"] { grid-column: span 2; order: 2; }
-  table.book.orders td[data-label="Store"] { grid-column: span 3; order: 3; }
-  table.book.orders td[data-label="By"] { grid-column: span 3; order: 4; }
-  table.book.orders td[data-label="Lines"], table.book.orders td[data-label="Units"], table.book.orders td[data-label="Cost"] { grid-column: span 2; order: 5; }
-  table.book.orders td[data-label="NAV order"] { grid-column: 1 / -1; order: 6; }
-  table.book.orders td.rowactions { grid-column: 1 / -1; order: 7; }
-  table.book.orders:not(:has(td[data-label="Store"])) td[data-label="By"] { grid-column: 1 / -1; }
-  table.book.orders td[data-label="Started"]::before, table.book.orders td[data-label="Status"]::before { display: none; }
-  /* Order detail lines: item and qty, description, cost */
-  table.book.detail td[data-label="Item"] { grid-column: span 4; order: 1; }
-  table.book.detail td[data-label="Qty"] { grid-column: span 2; order: 2; }
-  table.book.detail td[data-label="Description"] { grid-column: 1 / -1; order: 3; }
-  table.book.detail td[data-label="Cost"] { grid-column: 1 / -1; order: 4; }
-  /* Reports: the name, then four figures */
-  table.book.reports td:first-child { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
-  table.book.reports td:first-child::before { display: none; }
-  table.book.reports td.r { grid-column: span 3; order: 2; }
-  /* Stores: the sync result sits beside People */
-  table.book.stores td[data-label="Last sync"] { grid-column: span 4; order: 5; }
-  table.book.stores td[data-label="Managers"] { order: 6; }
-}
+.who .quiet { white-space: nowrap; }
 
-/* Store and Vendor pickers at the top of the Order tab: one per row on phones so neither runs off the screen */
-.pagehead .actions label.inline select { width: auto; min-width: 0; max-width: 100%; }
-@media (max-width: 44rem) {
-  .pagehead .actions label.inline { flex: 1 1 100%; }
-  .pagehead .actions label.inline select { flex: 1; width: 100%; }
-}
-
-/* Order by vendor: the product name in a row opens its details, a row with a quantity is marked, and what is on hold sits under the actions */
-.rowlink { min-height: 0; text-align: left; text-decoration: none; font-weight: 400; color: var(--color-ink); }
-@media (hover: hover) { .rowlink:hover { color: var(--color-link); text-decoration: underline; } }
-table.items.order tr.ordering td { background: var(--color-accent-soft); }
-table.items.order input.qty { min-width: 72px; }
-.onhold { display: grid; gap: var(--space-2xs); margin-top: var(--space-md); padding-top: var(--space-sm); border-top: var(--rule-hair) solid var(--color-rule); justify-items: start; }
-.onhold small { color: var(--color-muted); }
-.onhold .quiet { min-height: 36px; }
-@media (max-width: 44rem) {
-  table.items.order tr.ordering { background: var(--color-accent-soft); }
-  table.book.orders td[data-label="Vendor"] { grid-column: span 3; order: 3; }
-  table.book.orders td[data-label="Store"] { grid-column: span 3; order: 3; }
-  table.book.orders:not(:has(td[data-label="Store"])) td[data-label="Vendor"] { grid-column: span 6; }
-}
-
-/* Item details: the extra facts sit in a collapsed section; each list row has a Details button */
+/* Collapsible sections (Store details, More about this item) show a chevron, drawn with borders so it can turn with a transform */
+.storedetails summary { gap: var(--space-xs); }
+.storedetails summary::after { content: ''; flex: none; margin-left: auto; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform var(--dur-micro) var(--ease-out); }
+.storedetails[open] summary::after { transform: translateY(2px) rotate(-135deg); }
 .itemabout { margin-top: 0; margin-bottom: var(--space-md); border-top: var(--rule-hair) solid var(--color-rule); }
 .aboutlist { display: grid; gap: var(--space-2xs) var(--space-md); margin: 0 0 var(--space-xs); grid-template-columns: auto minmax(0, 1fr); }
 .aboutlist > div { display: contents; }
 .aboutlist dt { color: var(--color-muted); font-size: var(--text-sm); }
 .aboutlist dd { margin: 0; overflow-wrap: anywhere; }
+
+/* The vendor's range: sized to fit its box (the Details button was clipped by a fixed minimum width). A row with a quantity gets a bar and a heavier box. */
+table.items.order { table-layout: auto; min-width: 0; }
+table.items.order th:nth-child(n) { width: auto; }
+table.items.order th, table.items.order td { padding-inline: var(--space-xs); }
+table.items.order td.desc small { display: block; }
+table.items.order input.qty { width: 72px; min-width: 0; }
 table.items.order td.det { text-align: right; white-space: nowrap; }
 table.items.order td.det .btn { min-height: 36px; }
+table.items.order tr.ordering td:first-child { box-shadow: inset 3px 0 0 var(--color-accent-edge); }
+table.items.order tr.ordering input.qty { border-color: var(--color-accent-edge); font-weight: 600; }
+.onhold { display: grid; gap: var(--space-2xs); margin-top: var(--space-md); padding-top: var(--space-sm); border-top: var(--rule-hair) solid var(--color-rule); justify-items: start; }
+.onhold small { color: var(--color-muted); }
+.onhold .quiet { min-height: 36px; }
+
+/* Store and Vendor pickers at the top of the Order tab */
+.pagehead .actions label.inline select { width: auto; min-width: 0; max-width: 100%; }
+
+@media (max-width: 64rem) {
+  /* The sticky bar already shows lines, units and cost, so the totals card keeps only the details and the actions */
+  .ledger.orderledger .ledger-head, .ledger.orderledger .ledger-body > dl:first-child { display: none; }
+}
+
 @media (max-width: 44rem) {
-  table.items.order td.det { grid-column: 1 / -1; text-align: left; }
+  /* Pickers: label and field on one line each, fields lined up */
+  .pagehead .actions label.inline { flex: 1 1 100%; display: grid; grid-template-columns: 4rem minmax(0, 1fr); align-items: center; }
+  .pagehead .actions label.inline select { width: 100%; grid-column: auto; }
+
+  /* Tap targets: 44px on phones, as DESIGN.md says */
+  .segmented button, .rowactions .btn, .person-actions .btn, .person-actions select, .onhold .quiet { min-height: var(--hit); }
+
+  /* The vendor's range as compact cards: code and name on top, the four figures in a row, then quantity beside Details */
+  table.items.order tr { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-xs) var(--space-sm); }
+  table.items.order td { padding: 0; }
+  table.items.order td::before { margin-bottom: 0; }
+  table.items.order tr { padding-left: var(--space-sm); }
+  table.items.order tr.ordering td:first-child { box-shadow: none; }
+  table.items.order tr.ordering { box-shadow: inset 4px 0 0 var(--color-accent-edge); }
+  table.items.order td[data-label="Item"] { grid-column: 1 / -1; order: 1; color: var(--color-muted); font-size: var(--text-sm); }
+  table.items.order td[data-label="Description"] { grid-column: 1 / -1; order: 2; font-weight: 600; }
+  table.items.order td[data-label="Item"]::before, table.items.order td[data-label="Description"]::before { display: none; }
+  table.items.order td[data-label="In stock"] { grid-column: span 3; order: 3; }
+  table.items.order td[data-label="On order"] { grid-column: span 3; order: 4; }
+  table.items.order td[data-label="Sold last week"] { grid-column: span 3; order: 4; }
+  table.items.order td[data-label="MOQ"] { grid-column: span 3; order: 5; }
+  table.items.order td[data-label="Cost"] { grid-column: span 3; order: 6; }
+  table.items.order td[data-label="Order qty"] { grid-column: span 6; order: 7; }
+  table.items.order td.det { grid-column: span 6; order: 8; align-self: end; text-align: left; }
   table.items.order td.det::before { display: none; }
   table.items.order td.det .btn { width: 100%; min-height: var(--hit); }
+
+  /* Orders: when and status, store and vendor, who, the three figures, the NAV number, then Open. Every row adds up to six columns. */
+  table.book.orders td[data-label="Started"] { grid-column: span 3; order: 1; font-weight: 600; }
+  table.book.orders td[data-label="Status"] { grid-column: span 3; order: 2; }
+  table.book.orders td[data-label="Store"] { grid-column: span 3; order: 3; }
+  table.book.orders td[data-label="Vendor"] { grid-column: span 3; order: 3; }
+  table.book.orders:not(:has(td[data-label="Store"])) td[data-label="Vendor"] { grid-column: span 6; }
+  table.book.orders td[data-label="By"] { grid-column: 1 / -1; order: 4; }
+  table.book.orders td[data-label="Lines"], table.book.orders td[data-label="Units"], table.book.orders td[data-label="Cost"] { grid-column: span 2; order: 5; }
+  table.book.orders td[data-label="NAV order"] { grid-column: 1 / -1; order: 6; }
+  table.book.orders td.rowactions { grid-column: 1 / -1; order: 7; }
+  table.book.orders td[data-label="Started"]::before, table.book.orders td[data-label="Status"]::before { display: none; }
+
+  /* An order's lines: item and quantity, description, cost */
+  table.book.detail { min-width: 0; }
+  table.book.detail td[data-label="Item"] { grid-column: span 4; order: 1; }
+  table.book.detail td[data-label="Qty"] { grid-column: span 2; order: 2; }
+  table.book.detail td[data-label="Description"] { grid-column: 1 / -1; order: 3; }
+  table.book.detail td[data-label="Cost"] { grid-column: 1 / -1; order: 4; }
+
+  /* Reports: the name, then four figures */
+  table.book.reports td:first-child { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
+  table.book.reports td:first-child::before { display: none; }
+  table.book.reports td.r { grid-column: span 3; order: 2; }
+
+  /* Stores: name and Open, code and people, then the sync result and the managers each on their own row */
+  table.book.stores td[data-label="Code"] { grid-column: span 3; order: 3; }
+  table.book.stores td[data-label="People"] { grid-column: span 3; order: 4; }
+  table.book.stores td[data-label="Last sync"] { grid-column: 1 / -1; order: 5; }
+  table.book.stores td[data-label="Managers"] { grid-column: 1 / -1; order: 6; }
 }
