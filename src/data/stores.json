@@ -1,0 +1,186 @@
+[
+  {
+    "name": "Artarmon",
+    "address": "Home HQ North Shore, LG01, 1 Frederick St",
+    "suburb": "Artarmon NSW 2064",
+    "phone": "02 9437 1955",
+    "code": "12064",
+    "email": "artarmon@hsw.com.au"
+  },
+  {
+    "name": "Aspley",
+    "address": "Shop 9, 825 Zillmere Rd",
+    "suburb": "Aspley QLD 4034",
+    "phone": "07 3862 7633",
+    "code": "14034",
+    "email": "aspley@hsw.com.au"
+  },
+  {
+    "name": "Brookvale",
+    "address": "Westfield Warringah Mall, Level 1, Shops 112–117",
+    "suburb": "Brookvale NSW 2100",
+    "phone": "02 9170 3754",
+    "code": "12100",
+    "email": "brookvale@hsw.com.au"
+  },
+  {
+    "name": "Bundall",
+    "address": "Showroom D, 29–45 Ashmore Rd",
+    "suburb": "Bundall QLD 4217",
+    "phone": "07 5527 6049",
+    "code": "4217F",
+    "email": "bundall@hsw.com.au"
+  },
+  {
+    "name": "Cambridge",
+    "address": "Unit 5, Building A, 66 Kennedy Dr",
+    "suburb": "Cambridge TAS 7170",
+    "phone": "03 6216 0411",
+    "code": "17170",
+    "email": "cambridge@hsw.com.au"
+  },
+  {
+    "name": "Cheltenham",
+    "address": "Westfield Southland, Shop 2061, Level 2, 1239 Nepean Hwy",
+    "suburb": "Cheltenham VIC 3192",
+    "phone": "03 9583 9155",
+    "code": "13192",
+    "email": "cheltenham@hsw.com.au"
+  },
+  {
+    "name": "Fortitude Valley",
+    "address": "Shop 7, Homemaker The Valley North, Cnr Wickham St & Montpelier Rd",
+    "suburb": "Fortitude Valley QLD 4006",
+    "phone": "07 3216 0222",
+    "code": "14006",
+    "email": "fortitudevalley@hsw.com.au"
+  },
+  {
+    "name": "Fyshwick",
+    "address": "Shop 23, Canberra Outlet Centre, 337 Canberra Ave",
+    "suburb": "Fyshwick ACT 2609",
+    "phone": "02 6280 5552",
+    "code": "2609F",
+    "email": "fyshwick@hsw.com.au"
+  },
+  {
+    "name": "Kotara",
+    "address": "Shop 2, 150 Park Ave",
+    "suburb": "Kotara NSW 2289",
+    "phone": "02 4952 9333",
+    "code": "12289",
+    "email": "kotara@hsw.com.au"
+  },
+  {
+    "name": "Maroochydore",
+    "address": "Shop 4, 70–98 Dalton Dr",
+    "suburb": "Maroochydore QLD 4558",
+    "phone": "07 5479 3833",
+    "code": "14558",
+    "email": "maroochydore@hsw.com.au"
+  },
+  {
+    "name": "Mile End",
+    "address": "Shop 22, 122–138 Railway Terrace",
+    "suburb": "Mile End South SA 5031",
+    "phone": "08 8152 0400",
+    "code": "15031",
+    "email": "mileend@hsw.com.au"
+  },
+  {
+    "name": "Moore Park",
+    "address": "Supa Centa Moore Park, Shop 07, 2 Todman Ave",
+    "suburb": "Kensington NSW 2033",
+    "phone": "02 9697 2777",
+    "code": "12033",
+    "email": "moorepark@hsw.com.au"
+  },
+  {
+    "name": "Mornington",
+    "address": "HomeCo Peninsula, Shop D8, 1128–1132 Nepean Hwy",
+    "suburb": "Mornington VIC 3931",
+    "phone": "03 5973 5399",
+    "code": "13931",
+    "email": "mornington@hsw.com.au"
+  },
+  {
+    "name": "Mt. Gravatt",
+    "address": "Westfield Mt Gravatt, Shop MM8, Kessels Rd",
+    "suburb": "Mount Gravatt QLD 4122",
+    "phone": "07 3422 2003",
+    "code": "14122",
+    "email": "mtgravatt@hsw.com.au"
+  },
+  {
+    "name": "Northbridge",
+    "address": "Northbridge Plaza, 79–113 Sailors Bay Rd",
+    "suburb": "Northbridge NSW 2063",
+    "phone": "02 9958 7064",
+    "code": "12063",
+    "email": "northbridge@hsw.com.au"
+  },
+  {
+    "name": "Nunawading",
+    "address": "Home HQ Nunawading, Shop 5, 372–394 Whitehorse Rd",
+    "suburb": "Nunawading VIC 3131",
+    "phone": "03 9894 8411",
+    "code": "13131",
+    "email": "nunawading@hsw.com.au"
+  },
+  {
+    "name": "Port Macquarie",
+    "address": "Port Home Zone, Shop A9, 160 Hastings River Dr",
+    "suburb": "Port Macquarie NSW 2444",
+    "phone": "02 6584 3500",
+    "code": "12444",
+    "email": "portmacquarie@hsw.com.au"
+  },
+  {
+    "name": "Rhodes",
+    "address": "Rhodes Waterside Shopping Centre, Shop 58, 1 Rider Blvd",
+    "suburb": "Rhodes NSW 2138",
+    "phone": "02 9736 3111",
+    "code": "2138F",
+    "email": "rhodes@hsw.com.au"
+  },
+  {
+    "name": "Richmond",
+    "address": "Victoria Gardens Shopping Centre, Shop SP043, Cnr Victoria St & Burnley St",
+    "suburb": "Richmond VIC 3121",
+    "phone": "03 9428 4060",
+    "code": "13121",
+    "email": "richmond@hsw.com.au"
+  },
+  {
+    "name": "Robina",
+    "address": "Robina Town Centre, Shop 4237, Robina Town Centre Dr",
+    "suburb": "Robina QLD 4230",
+    "phone": "07 5578 7875",
+    "code": "14232",
+    "email": "robina@hsw.com.au"
+  },
+  {
+    "name": "Subiaco",
+    "address": "427 Hay St",
+    "suburb": "Subiaco WA 6008",
+    "phone": "08 9381 4599",
+    "code": "16008",
+    "email": "subiaco@hsw.com.au"
+  },
+  {
+    "name": "South Wharf",
+    "address": "DFO South Wharf Homemaker Hub, Level 1, 20 Convention Centre Pl",
+    "suburb": "South Wharf VIC 3006",
+    "phone": "03 9682 0911",
+    "code": "13006",
+    "email": "southwharf@hsw.com.au"
+  },
+  {
+    "name": "Macquarie Park",
+    "address": "Macquarie Centre, Level 4, Shop 420, Cnr Herring Rd & Waterloo Rd",
+    "suburb": "Macquarie Park NSW 2113",
+    "phone": "02 9888 6655",
+    "code": "12113",
+    "email": "macquariepark@hsw.com.au"
+  }
+]

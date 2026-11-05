@@ -1,0 +1,39 @@
+:root {
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem; --text-3xl: 2.074rem;
+  --text-display-s: 1.44rem; --text-display: 1.728rem; --text-section: 1.2rem; --text-title: 1rem; --text-lead: 1rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 1200px; --gutter: 24px; --gap-columns: 32px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* Paper and ink: Furrow's warm manila, near-black rules */
+  --color-paper: oklch(96% 0.011 85); --color-paper-2: oklch(99.5% 0.005 85); --color-paper-3: oklch(92% 0.016 85);
+  --color-ink: oklch(18% 0.006 60); --color-ink-2: oklch(28% 0.008 60); --color-muted: oklch(44% 0.012 60);
+  --color-rule: oklch(88% 0.013 85); --color-field: oklch(58% 0.014 70);
+
+  /* Brand: HSW teal (#0092A9). Always a fill with ink on it; --color-link is the same hue deepened for text on paper. */
+  --color-accent: oklch(60.7% 0.107 214); --color-accent-ink: oklch(18% 0.006 60);
+  --color-accent-soft: oklch(92% 0.04 214); --color-accent-edge: oklch(48% 0.1 214);
+  --color-accent-hover: oklch(64% 0.107 214); --color-accent-lit: oklch(99% 0.01 214 / 0.32); --color-shade: oklch(18% 0.006 60 / 0.1);
+  --color-link: oklch(45% 0.09 214); --color-focus: oklch(48% 0.11 214);
+
+  /* State */
+  --color-error: oklch(52% 0.19 27); --color-error-soft: oklch(94% 0.03 27);
+  --color-success: oklch(46% 0.12 150); --color-success-soft: oklch(92% 0.04 150);
+  --color-warn: oklch(46% 0.1 70); --color-warn-soft: oklch(93% 0.06 85);
+  --color-scrim: oklch(18% 0.006 60 / 0.5); --color-camera: oklch(14% 0.01 220);
+
+  /* Myriad Pro is the HSW brand face. It loads from the Adobe Fonts kit named in VITE_ADOBE_FONTS_KIT; until then the free Source Sans 3 stands in. */
+  --font-display: "myriad-pro", "Myriad Pro", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "myriad-pro", "Myriad Pro", "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: var(--font-body);
+
+  --radius-card: 10px; --radius-entry: 14px; --radius-pill: 6px; --rule-hair: 1px;
+  --shadow-card: 0 1px 2px oklch(18% 0.006 60 / 0.08), 0 14px 28px -16px oklch(18% 0.006 60 / 0.28);
+  --shadow-lift: 0 1px 1px oklch(18% 0.006 60 / 0.1), 0 2px 4px -1px oklch(18% 0.006 60 / 0.1), 0 24px 44px -20px oklch(18% 0.006 60 / 0.42);
+  --tracking-display: -0.02em; --display-weight: 300; /* Myriad Pro Light for the page title */
+
+  /* App controls: 40px visual, 44px hit target */
+  --control: 40px; --hit: 44px;
+}
