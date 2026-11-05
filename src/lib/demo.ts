@@ -36,7 +36,7 @@ export const demoItems = (): ItemRow[] => [
   I('ANA0001', 'TOWEL TO GO BALI ANTHRACITE', 'ANAS001', 'TTG-01', '9325039000011', 'ON_THE_GO', 'OTG-TRAVEL_OUTDOOR', 54.5, { status: 'NEW' }),
 ]
 const S = (store_id: string, item_code: string, inventory: number, qty_on_po: number, moq: number, store_cost: number, sales_qty: number, vendor_no = 'ANAS001', po_blocked = false): StockRow =>
-  ({ store_id, item_code, inventory, qty_on_po, moq, store_cost, sales_qty, vendor_no, po_blocked, synced_at: new Date(new Date().setHours(6, 0, 0, 0)).toISOString() })
+  ({ store_id, item_code, inventory, qty_on_po, transfer_in: item_code === 'ANA01095' ? 4 : 0, unavailable: item_code === 'ANA01092' ? 1 : 0, moq, store_cost, sales_qty, vendor_no, po_blocked, synced_at: new Date(new Date().setHours(6, 0, 0, 0)).toISOString() })
 export const demoStock = (storeId: string): StockRow[] => [
   S(storeId, 'ANA01091', 6, 0, 6, 9.78, 0), S(storeId, 'ANA01092', 0, 0, 6, 5.12, 3), S(storeId, 'ANA01093', 6, 0, 6, 5.12, 0),
   S(storeId, 'ANA01095', 1, 0, 6, 20.43, 4), S(storeId, 'ANA01096', 5, 6, 6, 29.04, 3),

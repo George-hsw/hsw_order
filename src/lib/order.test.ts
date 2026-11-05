@@ -112,7 +112,7 @@ describe('warnings', () => {
     const blocked = items.find((i) => i.blocked)!
     expect(itemWarnings(blocked, undefined, 6).map((w) => w.text)).toContain('Blocked in NAV. Check before you order it')
     expect(itemWarnings(blocked, undefined, 6).every((w) => w.level === 'warn')).toBe(true)
-    const stock = { store_id: 's', item_code: soapDish.code, inventory: 0, qty_on_po: 0, moq: 6, store_cost: 5.12, sales_qty: 3, vendor_no: 'ANAS001', po_blocked: false, synced_at: '' }
+    const stock = { store_id: 's', item_code: soapDish.code, inventory: 0, qty_on_po: 0, transfer_in: 0, unavailable: 0, moq: 6, store_cost: 5.12, sales_qty: 3, vendor_no: 'ANAS001', po_blocked: false, synced_at: '' }
     expect(itemWarnings(soapDish, stock, 12)).toEqual([])
     expect(itemWarnings(soapDish, stock, 4)[0]).toMatchObject({ level: 'warn' })
     expect(itemWarnings(soapDish, undefined, 6).map((w) => w.text)).toContain('No stock record for this store')

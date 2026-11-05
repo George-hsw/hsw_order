@@ -21,7 +21,7 @@ async function readAll<T>(build: (from: number, to: number) => PromiseLike<{ dat
 }
 
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen'
-const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
+const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
 // The item list is the same for every store and changes once a day, so a session keeps one copy.
 let itemCache: { at: number; items: ItemRow[] } | null = null

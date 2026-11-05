@@ -25,6 +25,7 @@ export const ITEM_FIELDS = {
 }
 export const STOCK_FIELDS = {
   item_code: 'Item_No', location: 'Location_Code', variant: 'Variant_Code', inventory: 'Inventory', qty_on_po: 'Quantity_on_Purchase_Order',
+  transfer_in: 'Quantity_in_Transfer_In', unavailable: 'Unavailable_Qty',
   vendor_no: 'Vendor_No',
   po_blocked: null, // the Uber_Automation_Replen_Item_Quantities service has no PO Blocked field
   moq: null, store_cost: null, // taken from the item list unless the stock service has its own
@@ -68,6 +69,8 @@ export function toStock(row, F, itemsByCode) {
     item_code,
     inventory: num(row[F.inventory]),
     qty_on_po: num(row[F.qty_on_po]),
+    transfer_in: F.transfer_in ? num(row[F.transfer_in]) : 0,
+    unavailable: F.unavailable ? num(row[F.unavailable]) : 0,
     moq: moq ?? item?._moq ?? 1,
     store_cost: cost ?? item?._store_cost ?? 0,
     sales_qty: F.sales_qty ? num(row[F.sales_qty]) : 0,
@@ -76,7 +79,7 @@ export function toStock(row, F, itemsByCode) {
   }
 }
 
-export const stockFingerprint = (s) => hash([s.item_code, s.inventory, s.qty_on_po, s.moq, s.store_cost, s.sales_qty, s.vendor_no, s.po_blocked])
+export const stockFingerprint = (s) => hash([s.item_code, s.inventory, s.qty_on_po, s.transfer_in, s.unavailable, s.moq, s.store_cost, s.sales_qty, s.vendor_no, s.po_blocked])
 
 /**
  * Group raw stock rows by store. Rows are kept out (and counted) when:

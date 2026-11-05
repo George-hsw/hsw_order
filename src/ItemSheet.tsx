@@ -8,6 +8,7 @@ interface Props {
   existing: OrderLine | undefined // the line already on the order, if any
   conflict: OrderLine | null | undefined // someone else changed the line while this was open (null = they removed it)
   busy: boolean
+  focusQty: boolean // after a scan the cursor goes straight to the quantity; from the list it does not, so the keyboard does not cover the facts
   onDone: (qty: number) => void
   onRemove: () => void
   onClose: () => void
@@ -15,14 +16,17 @@ interface Props {
 
 const num = (n: number | undefined) => (n === undefined ? '–' : String(n))
 
-/** What the phone shows after a scan: the item, the store's figures, a quantity and Done. */
-export default function ItemSheet({ product, existing, conflict, busy, onDone, onRemove, onClose }: Props) {
+/**
+ * Item details: what the store holds, what is coming, what the item is, and then the quantity to add to the order.
+ * Opened from a row's Details button or by scanning. Typing a quantity in the row itself never needs this.
+ */
+export default function ItemSheet({ product, existing, conflict, busy, focusQty, onDone, onRemove, onClose }: Props) {
   const { item, stock } = product
   const vendor = vendorOf(item, stock)
   const [text, setText] = useState(existing ? String(existing.qty) : '')
   const input = useRef<HTMLInputElement>(null)
   useEscape(onClose)
-  useEffect(() => { input.current?.focus(); input.current?.select() }, [])
+  useEffect(() => { if (focusQty) { input.current?.focus(); input.current?.select() } }, [focusQty])
   useEffect(() => { if (conflict) setText(String(conflict.qty)) }, [conflict])
 
   const qty = text.trim() === '' ? 0 : parseQty(text)
@@ -33,6 +37,11 @@ export default function ItemSheet({ product, existing, conflict, busy, onDone, o
 
   const submit = (e: React.FormEvent) => { e.preventDefault(); if (canDone && !busy) onDone(qty!) }
 
+  const about: [string, string | null | undefined][] = [
+    ['Barcode', item.barcode], ['Vendor item no.', item.vendor_item_no], ['Division', item.division], ['Category', item.category],
+    ['Status', item.status], ['Unit of measure', item.sales_uom ?? item.base_uom],
+  ]
+
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div className="modalbox">
@@ -42,13 +51,15 @@ export default function ItemSheet({ product, existing, conflict, busy, onDone, o
         <h2 id="sheet-title">{item.description}</h2>
         <p className="muted">
           <span className="num">{item.code}</span>
-          {vendor && <> · {vendor}{item.vendor_item_no ? ` · ${item.vendor_item_no}` : ''}</>}
+          {vendor && <> · {vendor}</>}
           {item.status && item.status !== 'ACTIVE' && <> · <span className="chip quote">{item.status}</span></>}
         </p>
 
         <dl className="facts">
           <div><dt>In stock</dt><dd className="num">{num(stock?.inventory)}</dd></div>
           <div><dt>On order</dt><dd className="num">{num(stock?.qty_on_po)}</dd></div>
+          <div><dt>Arriving by transfer</dt><dd className="num">{num(stock?.transfer_in)}</dd></div>
+          {(stock?.unavailable ?? 0) > 0 && <div><dt>Unavailable</dt><dd className="num">{stock!.unavailable}</dd></div>}
           {SHOW_SALES && <div><dt>Sold last week</dt><dd className="num">{num(stock?.sales_qty)}</dd></div>}
           <div><dt>Minimum (MOQ)</dt><dd className="num">{num(stock?.moq)}</dd></div>
           <div><dt>Your cost</dt><dd className="num">{stock ? money(stock.store_cost) : '–'}</dd></div>
@@ -56,9 +67,16 @@ export default function ItemSheet({ product, existing, conflict, busy, onDone, o
         </dl>
         <p className="muted facts-note">{syncedLabel(stock?.synced_at)}</p>
 
+        <details className="storedetails itemabout">
+          <summary>More about this item</summary>
+          <dl className="aboutlist">
+            {about.filter(([, v]) => v).map(([k, v]) => <div key={k}><dt>{k}</dt><dd className={k === 'Barcode' ? 'num' : undefined}>{v}</dd></div>)}
+          </dl>
+        </details>
+
         {conflict !== undefined && (
           <p className="note bad">
-            {conflict ? `${conflict.updated_by ?? 'Someone'} changed this line to ${conflict.qty} just now.` : 'Someone removed this line just now.'} Check the quantity and press Done again.
+            {conflict ? `${conflict.updated_by ?? 'Someone'} changed this line to ${conflict.qty} just now.` : 'Someone removed this line just now.'} Check the quantity and press {existing ? 'Update order' : 'Add to order'} again.
           </p>
         )}
         {existing && conflict === undefined && <p className="note">Already on this order: <b className="num">{existing.qty}</b>{existing.updated_by ? `, saved by ${existing.updated_by}` : ''}.</p>}
@@ -79,7 +97,7 @@ export default function ItemSheet({ product, existing, conflict, busy, onDone, o
           <div className="actions">
             {existing && <button type="button" className="btn danger" onClick={onRemove} disabled={busy}>Remove from order</button>}
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn primary" disabled={!canDone || busy}>{busy ? 'Saving…' : 'Done'}</button>
+            <button type="submit" className="btn primary" disabled={!canDone || busy}>{busy ? 'Saving…' : existing ? 'Update order' : 'Add to order'}</button>
           </div>
         </form>
       </div>

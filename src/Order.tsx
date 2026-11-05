@@ -15,7 +15,7 @@ const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
 type CatLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; cat: Catalogue }
 type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; order: OrderRow }
-interface Sheet { product: Product; base: number; conflict?: OrderLine | null }
+interface Sheet { product: Product; base: number; focusQty: boolean; conflict?: OrderLine | null }
 type Show = 'all' | 'ordered' | 'not'
 
 /**
@@ -101,7 +101,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
   }, [range, find, show, lineOf])
   const orderedCount = useMemo(() => range.filter((p) => lineOf.has(p.item.code)).length, [range, lineOf])
 
-  const open = (p: Product) => { setSheet({ product: p, base: lineOf.get(p.item.code)?.revision ?? 0 }); setFind('') }
+  const open = (p: Product, focusQty = false) => { setSheet({ product: p, base: lineOf.get(p.item.code)?.revision ?? 0, focusQty }); setFind('') }
 
   /** Save one line. Returns true when it saved. */
   const save = async (p: Product, qty: number, base: number): Promise<boolean> => {
@@ -143,7 +143,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
     if (v !== vendor) { beep('miss'); setScanMsg(`${it.description} is from ${v ?? 'no vendor'}, not ${vendor}`); return }
     beep('ok')
     setScanMsg(it.description)
-    open(p)
+    open(p, true) // after a scan the cursor goes straight to the quantity
   }
 
   const onFinderEnter = () => {
@@ -293,7 +293,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                   <div className="tablewrap">
                     <table className="items order">
                       <thead>
-                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th>Order qty</th><th className="r">Cost</th></tr>
+                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th>Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
                       </thead>
                       <tbody>
                         {rows.slice(0, limit).map((p) => {
@@ -312,6 +312,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>
                               <td data-label="Order qty"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} onCommit={(text) => setQty(p, text)} /></td>
                               <td data-label="Cost" className="r">{l ? money(lineCost(l.qty, l.unit_cost)) : ''}</td>
+                              <td className="det"><button type="button" className="btn" aria-label={`Details for ${p.item.description}`} onClick={() => open(p)}>Details</button></td>
                             </tr>
                           )
                         })}
@@ -359,7 +360,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
           </div>
 
           {sheet && (
-            <ItemSheet key={sheet.product.item.code} product={sheet.product} existing={lineOf.get(sheet.product.item.code)} conflict={sheet.conflict}
+            <ItemSheet key={sheet.product.item.code} product={sheet.product} focusQty={sheet.focusQty} existing={lineOf.get(sheet.product.item.code)} conflict={sheet.conflict}
               busy={pending > 0} onDone={sheetDone} onClose={() => setSheet(null)}
               onRemove={async () => { if (await save(sheet.product, 0, sheet.base)) { setScanMsg(`Removed ${sheet.product.item.description}`); setSheet(null) } }} />
           )}

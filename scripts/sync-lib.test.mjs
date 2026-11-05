@@ -28,8 +28,8 @@ describe('items', () => {
 describe('stock', () => {
   const items = new Map([['A1', { _moq: 6, _store_cost: 5.12 }]])
   it('takes MOQ and cost from the item list when the stock service has none', () => {
-    const s = toStock({ Item_No: 'A1', Location_Code: '14122', Inventory: 6, Quantity_on_Purchase_Order: '2', Vendor_No: 'MYHO001' }, STOCK_FIELDS, items)
-    expect(s).toMatchObject({ location: '14122', inventory: 6, qty_on_po: 2, moq: 6, store_cost: 5.12, vendor_no: 'MYHO001', po_blocked: false, sales_qty: 0 })
+    const s = toStock({ Item_No: 'A1', Location_Code: '14122', Inventory: 6, Quantity_on_Purchase_Order: '2', Quantity_in_Transfer_In: 4, Unavailable_Qty: 1, Vendor_No: 'MYHO001' }, STOCK_FIELDS, items)
+    expect(s).toMatchObject({ location: '14122', inventory: 6, qty_on_po: 2, transfer_in: 4, unavailable: 1, moq: 6, store_cost: 5.12, vendor_no: 'MYHO001', po_blocked: false, sales_qty: 0 })
   })
   it('falls back to MOQ 1 and cost 0 when neither has them', () => {
     expect(toStock({ Item_No: 'ZZ', Location_Code: '1' }, STOCK_FIELDS, new Map())).toMatchObject({ moq: 1, store_cost: 0 })
@@ -71,7 +71,7 @@ describe('keeping yesterday when today looks wrong', () => {
 })
 
 describe('planChanges', () => {
-  const row = (item_code, inventory) => ({ item_code, inventory, qty_on_po: 0, moq: 1, store_cost: 0, sales_qty: 0, vendor_no: null, po_blocked: false })
+  const row = (item_code, inventory) => ({ item_code, inventory, qty_on_po: 0, transfer_in: 0, unavailable: 0, moq: 1, store_cost: 0, sales_qty: 0, vendor_no: null, po_blocked: false })
   it('writes only new and changed rows, and lists what has gone', () => {
     const a = row('A', 1), b = row('B', 2)
     const existing = new Map([['A', { fingerprint: stockFingerprint(a) }], ['B', { fingerprint: 'old' }], ['C', { fingerprint: 'x' }], ['D', { fingerprint: 'y', removed: true }]])

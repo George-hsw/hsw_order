@@ -69,6 +69,8 @@ export interface StockRow {
   item_code: string
   inventory: number
   qty_on_po: number
+  transfer_in: number // Quantity in Transfer In: already on its way to the store
+  unavailable: number // Unavailable Qty
   moq: number
   store_cost: number
   sales_qty: number // units sold last week (information only)
