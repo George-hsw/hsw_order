@@ -3,7 +3,7 @@ import { periodStart, summarise, type OrderWithLines } from './reports'
 import type { OrderLine, OrderRow } from './supabase'
 
 const order = (id: string, status: OrderRow['status'], by: string, at: string): OrderRow =>
-  ({ id, store_id: 's', status, nav_ref: null, created_by: by, created_at: at, copied_at: null, ordered_at: status === 'ordered' ? at : null })
+  ({ id, store_id: 's', vendor_no: 'V1', status, nav_ref: null, created_by: by, created_at: at, copied_at: null, ordered_at: status === 'ordered' ? at : null })
 const line = (o: string, code: string, vendor: string | null, division: string | null, qty: number, cost: number): OrderLine =>
   ({ id: o + code, order_id: o, item_code: code, qty, unit_cost: cost, vendor_no: vendor, division, description: code, revision: 1, updated_by: null, updated_at: '' })
 

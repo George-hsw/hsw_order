@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyLine, findByScan, groupByVendor, isStale, itemWarnings, lineCost, moqNote, navText, parseQty, searchItems, totals, vendorOf, vendorOptions } from './order'
+import { applyLine, findByScan, groupByVendor, isStale, itemWarnings, lineCost, moqNote, navText, parseQty, searchItems, totals, rangeFor, vendorOf, vendorOptions } from './order'
 import { demoItems, demoLines, demoStock } from './demo'
 import type { OrderLine } from './supabase'
 
@@ -118,5 +118,15 @@ describe('warnings', () => {
     expect(itemWarnings(soapDish, undefined, 6).map((w) => w.text)).toContain('No stock record for this store')
     expect(itemWarnings({ ...soapDish, vendor_no: null }, { ...stock, vendor_no: null }, 6).map((w) => w.text)).toContain('No vendor on this item')
     expect(itemWarnings(soapDish, { ...stock, po_blocked: true }, 6).map((w) => w.text)).toContain('PO blocked at this store in NAV. Check before you order it')
+  })
+})
+
+describe('a vendor’s range', () => {
+  it('lists every item the store orders from that vendor, ordered or not, by item no.', () => {
+    const range = rangeFor(items, demoStock('s'), 'ANAS001')
+    expect(range.map((p) => p.item.code)).toEqual(['ANA01091', 'ANA01092', 'ANA01093', 'ANA01095', 'ANA01096'])
+    expect(range[0].stock?.inventory).toBe(6)
+    expect(rangeFor(items, demoStock('s'), 'MYHO001').map((p) => p.item.code)).toEqual(['ANA0001', 'ANA01394'])
+    expect(rangeFor(items, demoStock('s'), 'NOBODY')).toEqual([])
   })
 })

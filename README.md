@@ -4,9 +4,10 @@ Ordering app for Howards Storage World stores. It replaces the weekly Excel orde
 
 ## How it works
 1. Each night NAV's items and each store's stock are copied into Supabase.
-2. On a phone, staff scan an item, see stock, qty on order, last week's sales and the MOQ, enter a quantity and press Done.
-3. The same order shows on the desktop, grouped by vendor with the cost.
-4. **Copy for NAV** puts one vendor's lines on the clipboard (Type, No. and Quantity of a NAV purchase line; `NAV_COLUMNS` in `src/lib/order.ts`). Staff paste them into NAV, then record the NAV order number. Status goes Open, Copied, Ordered in NAV.
+2. A store **chooses a vendor** (a NAV purchase order is made for one vendor). The screen lists the vendor's whole range for that store: in stock, on order, sold last week, MOQ. Staff type a quantity beside each item, or scan to jump to one. It saves as they go.
+3. **Save and start another order** leaves that vendor's order on hold; it shows under *Orders in progress* and can be resumed. Each store has at most one unfinished order per vendor.
+4. The same order shows on the desktop and the phone, live.
+5. **Copy for NAV** puts the order on the clipboard as purchase lines (Type, No. and Quantity of a NAV purchase line; `NAV_COLUMNS` in `src/lib/order.ts`). Staff paste them into NAV, then record the NAV order number. Status goes Open, Copied, Ordered in NAV.
 
 Sales history, forecasting and Power BI are not part of this app. Last week's sales is the `Sales (Qty.)` column already in the ordering feed, shown for information only.
 
@@ -22,7 +23,7 @@ npm run build
 Built: sign-in, tour, Order (scan, search, Vendor filter, item popup, quantity, Copy for NAV), Orders, Reports, Stores. Runs on demo data with `npm run demo`.
 
 Written but **not yet run against a real Supabase project or real NAV** (so expect a first-run fix or two):
-- `supabase/migrations`: 001 stores and people, 002 items and store stock, 003 orders (with the `open_order`, `save_line`, `set_order_status` functions), 004 grants, 005 the stores. They pass a Postgres syntax check; the functions have not been executed.
+- `supabase/migrations`: 001 stores and people, 002 items and store stock, 003 orders (with the `open_order`, `save_line`, `set_order_status` functions), 004 grants, 005 the stores, 006 one order per vendor. They pass a Postgres syntax check; the functions have not been executed.
 - `supabase/functions/manage-user`: adds people, sets passwords (admin only). Copied from the Quote app.
 - `src/lib/supabaseApi.ts`: the screens' data layer for Supabase, including Realtime.
 - `scripts/sync-dynamics.mjs` and `.github/workflows/sync-dynamics.yml`: the nightly NAV sync.

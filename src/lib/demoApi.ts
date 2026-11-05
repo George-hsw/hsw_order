@@ -8,8 +8,8 @@ import type { OrderLine, OrderRow, OrderSummary, SyncRun } from './supabase'
 const hoursAgo = (n: number) => new Date(Date.now() - n * 36e5).toISOString()
 const orders: OrderRow[] = [
   demoOrder(),
-  { id: 'o2', store_id: 'demo-0', status: 'ordered', nav_ref: 'PO-004512', created_by: 'priya@hsw.com.au', created_at: hoursAgo(170), copied_at: hoursAgo(168), ordered_at: hoursAgo(167), stores: { name: 'Artarmon' } },
-  { id: 'o3', store_id: 'demo-1', status: 'copied', nav_ref: null, created_by: 'lee@hsw.com.au', created_at: hoursAgo(30), copied_at: hoursAgo(29), ordered_at: null, stores: { name: 'Aspley' } },
+  { id: 'o2', store_id: 'demo-0', vendor_no: 'ANAS001', status: 'ordered', nav_ref: 'PO-004512', created_by: 'priya@hsw.com.au', created_at: hoursAgo(170), copied_at: hoursAgo(168), ordered_at: hoursAgo(167), stores: { name: 'Artarmon' } },
+  { id: 'o3', store_id: 'demo-1', vendor_no: 'ANAS001', status: 'copied', nav_ref: null, created_by: 'lee@hsw.com.au', created_at: hoursAgo(30), copied_at: hoursAgo(29), ordered_at: null, stores: { name: 'Aspley' } },
 ]
 const lines = new Map<string, OrderLine[]>([
   ['o1', demoLines()],
@@ -23,10 +23,10 @@ const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 export const demoApi: OrdersApi = {
   catalogue: (storeId) => wait<Catalogue>({ items: demoItems(), stock: demoStock(storeId), syncedAt: demoStock(storeId)[0]?.synced_at }),
 
-  async openOrder(storeId, email): Promise<OrderData> {
-    let order = orders.find((o) => o.store_id === storeId && o.status !== 'ordered')
+  async openOrder(storeId, vendor, email): Promise<OrderData> {
+    let order = orders.find((o) => o.store_id === storeId && o.vendor_no === vendor && o.status !== 'ordered')
     if (!order) {
-      order = { id: 'o' + (orders.length + 1) + '-' + Date.now(), store_id: storeId, status: 'open', nav_ref: null, created_by: email,
+      order = { id: 'o' + (orders.length + 1) + '-' + Date.now(), store_id: storeId, vendor_no: vendor, status: 'open', nav_ref: null, created_by: email,
         created_at: new Date().toISOString(), copied_at: null, ordered_at: null, stores: { name: storeName(storeId) } }
       orders.push(order)
       lines.set(order.id, [])
@@ -34,11 +34,16 @@ export const demoApi: OrdersApi = {
     return wait({ order, lines: [...(lines.get(order.id) ?? [])] })
   },
 
+  async drafts(storeId) {
+    return wait(orders.filter((o) => o.store_id === storeId && o.status !== 'ordered').map((o) => ({ ...o, ...totals(lines.get(o.id) ?? []) })))
+  },
+
   async saveLine(orderId, email, input, baseRevision) {
     const cur = lines.get(orderId) ?? []
     const existing = cur.find((l) => l.item_code === input.item.code)
     if ((existing?.revision ?? 0) !== baseRevision) throw new ConflictError(existing)
-    const next = applyLine(cur, orderId, email, input)
+    const vendor = orders.find((o) => o.id === orderId)?.vendor_no ?? null
+    const next = applyLine(cur, orderId, email, { ...input, vendorNo: vendor }) // a line's vendor is its order's vendor
     lines.set(orderId, next)
     subs.get(orderId)?.forEach((cb) => cb(next))
     return wait(next)

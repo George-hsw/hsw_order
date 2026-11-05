@@ -5,7 +5,6 @@ import type { OrderLine } from './lib/supabase'
 
 interface Props {
   product: Product
-  outsideVendor: string // the vendor filter in use, when this item is from a different vendor
   existing: OrderLine | undefined // the line already on the order, if any
   conflict: OrderLine | null | undefined // someone else changed the line while this was open (null = they removed it)
   busy: boolean
@@ -17,7 +16,7 @@ interface Props {
 const num = (n: number | undefined) => (n === undefined ? '–' : String(n))
 
 /** What the phone shows after a scan: the item, the store's figures, a quantity and Done. */
-export default function ItemSheet({ product, outsideVendor, existing, conflict, busy, onDone, onRemove, onClose }: Props) {
+export default function ItemSheet({ product, existing, conflict, busy, onDone, onRemove, onClose }: Props) {
   const { item, stock } = product
   const vendor = vendorOf(item, stock)
   const [text, setText] = useState(existing ? String(existing.qty) : '')
@@ -57,7 +56,6 @@ export default function ItemSheet({ product, outsideVendor, existing, conflict, 
         </dl>
         <p className="muted facts-note">{syncedLabel(stock?.synced_at)}</p>
 
-        {outsideVendor && <p className="note bad">This item is from {vendor ?? 'no vendor'}, not {outsideVendor}. It will go on {vendor ?? 'the no-vendor'} order.</p>}
         {conflict !== undefined && (
           <p className="note bad">
             {conflict ? `${conflict.updated_by ?? 'Someone'} changed this line to ${conflict.qty} just now.` : 'Someone removed this line just now.'} Check the quantity and press Done again.

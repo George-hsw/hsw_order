@@ -13,10 +13,10 @@ interface Step { title: string; body: string; scene: Scene; tab?: 'order' | 'ord
 function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Step[] {
   const steps: Step[] = [
     { scene: 'welcome', title: 'Welcome to HSW Orders', body: 'Build your store’s order by scanning shelf items. This short tour shows how. Use Next to move on, or Skip any time.' },
-    { scene: 'scan', tab: 'order', title: 'Scan or search for an item', body: 'Tap Scan and point the camera at the label, or type a code, barcode or name. You see the stock, what is on order, last week’s sales and the MOQ.' },
-    { scene: 'build', title: 'Enter a quantity and press Done', body: 'Type how many to order and press Done. Scan the same item again and it opens the line you already have, so nothing is doubled.' },
-    { scene: 'phone', title: 'Scan on your phone, check on your computer', body: 'The order is shared. Each line you save on the phone appears on the computer a moment later, grouped by vendor with the cost.' },
-    { scene: 'send', title: 'Copy into NAV', body: 'When the order looks right, choose Copy for NAV and paste each vendor’s lines into NAV. Then record the NAV order number.' },
+    { scene: 'scan', tab: 'order', title: 'Choose a vendor', body: 'A purchase order is made for one vendor. Pick the vendor and the whole range your store orders from them is listed, with stock, what is on order, last week’s sales and the MOQ.' },
+    { scene: 'build', title: 'Type a quantity, or scan', body: 'Type how many to order beside each item, or tap Scan to jump to one. It saves as you go, and a repeat scan never doubles a line.' },
+    { scene: 'phone', title: 'Hold it and start the next', body: 'Save and start another order leaves this vendor on hold. Pick it again later under Orders in progress. The phone and the computer show the same order.' },
+    { scene: 'send', title: 'Copy into NAV', body: 'When the order looks right, choose Copy for NAV and paste it into the NAV purchase order for that vendor. Then record the NAV order number.' },
     { scene: 'docs', tab: 'orders', title: 'Find past orders in Orders', body: 'Each order shows its status and NAV number. Open one to see its lines, or copy it for NAV again.' },
   ]
   if (manager) steps.push({ scene: 'pay', tab: 'reports', title: 'Reports', body: 'See what your store has ordered by vendor and division, and who placed it.' })

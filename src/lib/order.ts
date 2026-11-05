@@ -63,6 +63,15 @@ export interface LineInput { item: ItemRow; qty: number; unitCost: number; vendo
 /** The vendor a store orders an item from: the Replen. Qty. row for that store first, then the item card. */
 export const vendorOf = (item: ItemRow, stock: StockRow | undefined): string | null => stock?.vendor_no?.trim() || item.vendor_no?.trim() || null
 
+/** The items a store orders from one vendor: the whole range, whether or not anything is on order yet. Sorted by item no. */
+export function rangeFor(items: ItemRow[], stock: StockRow[], vendor: string): Product[] {
+  const byItem = new Map(stock.map((s) => [s.item_code, s]))
+  return items
+    .filter((i) => vendorOf(i, byItem.get(i.code)) === vendor)
+    .map((item) => ({ item, stock: byItem.get(item.code) }))
+    .sort((a, b) => a.item.code.localeCompare(b.item.code))
+}
+
 export interface VendorOption { vendor: string; items: number }
 
 /** Vendors with at least one item in this store, most items first then by name, for the Vendor filter. */

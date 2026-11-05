@@ -45,17 +45,23 @@ export const supabaseApi: OrdersApi = {
     return { items, stock, syncedAt: (sync.data?.[0] as { finished_at: string } | undefined)?.finished_at }
   },
 
-  async openOrder(storeId): Promise<OrderData> {
-    const { data, error } = await db().rpc('open_order', { p_store: storeId })
+  async openOrder(storeId, vendor): Promise<OrderData> {
+    const { data, error } = await db().rpc('open_order', { p_store: storeId, p_vendor: vendor })
     if (error) throw new Error(error.message)
     const order = data as OrderRow
     return { order, lines: await linesOf(order.id) }
   },
 
+  async drafts(storeId): Promise<OrderSummary[]> {
+    const { data, error } = await db().from('order_summaries').select('*').eq('store_id', storeId).neq('status', 'ordered').order('vendor_no')
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as (OrderSummary & { store_name: string })[]).map((r) => ({ ...r, stores: { name: r.store_name } }))
+  },
+
   async saveLine(orderId, _email, input, baseRevision) {
     const { data, error } = await db().rpc('save_line', {
       p_order: orderId, p_item: input.item.code, p_qty: input.qty, p_base: baseRevision, p_unit_cost: input.unitCost,
-      p_vendor: input.vendorNo !== undefined ? input.vendorNo : input.item.vendor_no, p_division: input.item.division, p_description: input.item.description,
+      p_division: input.item.division, p_description: input.item.description, // the line's vendor is its order's vendor, set in the database
     })
     if (error) throw new Error(error.message)
     const result = data as { status: 'ok' | 'conflict'; current?: OrderLine | null }

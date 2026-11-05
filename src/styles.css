@@ -421,3 +421,18 @@ table.book.detail { min-width: 0; }
   .pagehead .actions label.inline { flex: 1 1 100%; }
   .pagehead .actions label.inline select { flex: 1; width: 100%; }
 }
+
+/* Order by vendor: the product name in a row opens its details, a row with a quantity is marked, and what is on hold sits under the actions */
+.rowlink { min-height: 0; text-align: left; text-decoration: none; font-weight: 400; color: var(--color-ink); }
+@media (hover: hover) { .rowlink:hover { color: var(--color-link); text-decoration: underline; } }
+table.items.order tr.ordering td { background: var(--color-accent-soft); }
+table.items.order input.qty { min-width: 72px; }
+.onhold { display: grid; gap: var(--space-2xs); margin-top: var(--space-md); padding-top: var(--space-sm); border-top: var(--rule-hair) solid var(--color-rule); justify-items: start; }
+.onhold small { color: var(--color-muted); }
+.onhold .quiet { min-height: 36px; }
+@media (max-width: 44rem) {
+  table.items.order tr.ordering { background: var(--color-accent-soft); }
+  table.book.orders td[data-label="Vendor"] { grid-column: span 3; order: 3; }
+  table.book.orders td[data-label="Store"] { grid-column: span 3; order: 3; }
+  table.book.orders:not(:has(td[data-label="Store"])) td[data-label="Vendor"] { grid-column: span 6; }
+}

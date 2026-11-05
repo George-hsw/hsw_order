@@ -18,8 +18,10 @@ export class ConflictError extends Error {
  */
 export interface OrdersApi {
   catalogue(storeId: string): Promise<Catalogue>
-  /** The store's current order (open or copied but not yet ordered in NAV), started if there is none. */
-  openOrder(storeId: string, email: string): Promise<OrderData>
+  /** The store's current order for one vendor (open or copied, not yet ordered in NAV), started if there is none. */
+  openOrder(storeId: string, vendor: string, email: string): Promise<OrderData>
+  /** Every unfinished order for the store, one per vendor: what is on hold. */
+  drafts(storeId: string): Promise<OrderSummary[]>
   /** Set an item's line to an absolute quantity (0 removes it). `baseRevision` is the revision this screen last saw (0 = no line yet). */
   saveLine(orderId: string, email: string, input: LineInput, baseRevision: number): Promise<OrderLine[]>
   /** Called with the full set of lines whenever any device changes them. Returns an unsubscribe. */
@@ -35,7 +37,7 @@ export interface OrdersApi {
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: OrdersApi = {
-  catalogue: async () => notConnected(), openOrder: async () => notConnected(), saveLine: async () => notConnected(),
+  catalogue: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), listOrders: async () => notConnected(),
   orderLines: async () => notConnected(), reportLines: async () => notConnected(), syncRuns: async () => notConnected(),
 }

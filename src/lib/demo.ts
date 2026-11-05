@@ -44,7 +44,7 @@ export const demoStock = (storeId: string): StockRow[] => [
 ]
 
 export const demoOrder = (): OrderRow => ({
-  id: 'o1', store_id: 'demo-0', status: 'open', nav_ref: null, created_by: 'sam@hsw.com.au',
+  id: 'o1', store_id: 'demo-0', vendor_no: 'ANAS001', status: 'open', nav_ref: null, created_by: 'sam@hsw.com.au',
   created_at: dayAgo(0).toISOString(), copied_at: null, ordered_at: null, stores: { name: 'Artarmon' },
 })
 export const demoLines = (): OrderLine[] => [

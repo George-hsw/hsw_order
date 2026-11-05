@@ -83,6 +83,7 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = { open: 'Open', c
 export interface OrderRow {
   id: string
   store_id: string
+  vendor_no: string // an order is for one vendor, like the NAV purchase order it becomes
   status: OrderStatus
   nav_ref: string | null // the NAV order number(s), once entered
   created_by: string | null
