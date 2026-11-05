@@ -1,4 +1,5 @@
-import { ConflictError, type Catalogue, type OrderData, type OrdersApi } from './api'
+import { ConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
+import type { Product } from './order'
 import { supabase, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun } from './supabase'
 
 const db = () => {
@@ -33,50 +34,38 @@ const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen'
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
-// The items and a store's stock only change when the nightly sync finishes. So they are kept on this device, labelled with that
-// store's last sync time: while the time is the same, opening the Order tab needs no download at all.
-const CACHE_KEY = 'hsw-orders-catalogue-v1'
-const memory = new Map<string, Catalogue>()
-const cacheKey = (storeId: string, syncedAt: string) => storeId + '|' + syncedAt
-
-function cached(key: string): Catalogue | null {
-  const hit = memory.get(key)
-  if (hit) return hit
-  try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return null
-    const saved = JSON.parse(raw) as { key: string; cat: Catalogue }
-    if (saved.key !== key) return null
-    memory.set(key, saved.cat)
-    return saved.cat
-  } catch { return null }
-}
-function remember(key: string, cat: Catalogue) {
-  memory.set(key, cat)
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ key, cat })) } catch { /* storage full or blocked: the memory copy still works */ }
-}
+// A vendor's range changes only when the nightly sync runs, so switching back to a vendor within a few minutes reuses what was loaded.
+const rangeCache = new Map<string, { at: number; products: Product[] }>()
+const RANGE_TTL = 10 * 60 * 1000
 
 const linesOf = async (orderId: string): Promise<OrderLine[]> =>
   readAll<OrderLine>((from, to, count) =>
     db().from('order_lines').select('*', countOpt(count)).eq('order_id', orderId).order('updated_at', { ascending: false }).order('id').range(from, to))
 
 export const supabaseApi: OrdersApi = {
-  async catalogue(storeId): Promise<Catalogue> {
-    // The last sync time is one tiny request. It says whether the copy on this device is still current.
-    const { data: sync } = await db().from('sync_runs').select('finished_at').eq('store_id', storeId).eq('ok', true).not('finished_at', 'is', null)
-      .order('finished_at', { ascending: false }).limit(1)
-    const syncedAt = (sync?.[0] as { finished_at: string } | undefined)?.finished_at
-    const key = syncedAt ? cacheKey(storeId, syncedAt) : ''
-    const hit = key ? cached(key) : null
-    if (hit) return hit
-
-    const [items, stock] = await Promise.all([
-      readAll<ItemRow>((from, to, count) => db().from('items').select(ITEM_COLUMNS, countOpt(count)).order('code').range(from, to)),
-      readAll<StockRow>((from, to, count) => db().from('store_stock').select(STOCK_COLUMNS, countOpt(count)).eq('store_id', storeId).order('item_code').range(from, to)),
+  async vendors(storeId): Promise<VendorList> {
+    // Two tiny requests at once: the vendors with their item counts, and when this store last synced.
+    const [vendorRes, syncRes] = await Promise.all([
+      db().rpc('store_vendors', { p_store: storeId }),
+      db().from('sync_runs').select('finished_at').eq('store_id', storeId).eq('ok', true).not('finished_at', 'is', null)
+        .order('finished_at', { ascending: false }).limit(1),
     ])
-    const cat: Catalogue = { items, stock, syncedAt }
-    if (key) remember(key, cat)
-    return cat
+    if (vendorRes.error) throw new Error(vendorRes.error.message)
+    const options = ((vendorRes.data ?? []) as { vendor_no: string; items: number | string }[]).map((r) => ({ vendor: r.vendor_no, items: Number(r.items) }))
+    return { options, syncedAt: (syncRes.data?.[0] as { finished_at: string } | undefined)?.finished_at }
+  },
+
+  async range(storeId, vendor): Promise<Product[]> {
+    const key = storeId + '|' + vendor
+    const hit = rangeCache.get(key)
+    if (hit && Date.now() - hit.at < RANGE_TTL) return hit.products
+    type Row = StockRow & { items: ItemRow }
+    const rows = await readAll<Row>((from, to, count) =>
+      db().from('store_stock').select(STOCK_COLUMNS + ',items!inner(' + ITEM_COLUMNS + ')', countOpt(count))
+        .eq('store_id', storeId).eq('vendor_no', vendor).order('item_code').range(from, to))
+    const products = rows.map(({ items, ...stock }) => ({ item: items, stock }))
+    rangeCache.set(key, { at: Date.now(), products })
+    return products
   },
 
   async openOrder(storeId, vendor): Promise<OrderData> {

@@ -106,12 +106,12 @@ function Shell({ session }: { session: Session }) {
         </div>
       </header>
       <main className="container page">
-        {!allStores || !people ? <p className="muted">Loading…</p>
+        {!allStores || (!people && tab !== 'order') ? <p className="muted">Loading…</p>
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
           : tab === 'order' ? <Order email={email} multi={multi} stores={active} names={names} onSaved={() => setRefresh((r) => r + 1)} />
           : tab === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : tab === 'reports' ? <Reports multi={multi} stores={active} names={names} refreshKey={refresh} />
-          : tab === 'stores' && isAdmin ? <Stores stores={allStores} people={people} members={members} onChanged={() => { loadStores(); loadPeople() }} />
+          : tab === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
       </main>
       {tour && allStores && people && <Tour isAdmin={isAdmin} manager={active.length > 0 || isAdmin} onClose={closeTour} />}

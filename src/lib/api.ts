@@ -1,10 +1,10 @@
-import { applyLine, type LineInput } from './order'
-import { DEMO, supabase, type ItemRow, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type StockRow, type SyncRun } from './supabase'
+import { applyLine, type LineInput, type Product, type VendorOption } from './order'
+import { DEMO, supabase, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type SyncRun } from './supabase'
 import { demoApi } from './demoApi'
 import { supabaseApi } from './supabaseApi'
 
-/** syncedAt: when this store's stock was last read from NAV (the last successful sync), not when a row last changed. */
-export interface Catalogue { items: ItemRow[]; stock: StockRow[]; syncedAt?: string }
+/** The vendors a store orders from. syncedAt: when its stock was last read from NAV (the last successful sync), not when a row last changed. */
+export interface VendorList { options: VendorOption[]; syncedAt?: string }
 export interface OrderData { order: OrderRow; lines: OrderLine[] }
 
 /** Thrown when someone else changed the same line since this screen loaded it. */
@@ -17,7 +17,10 @@ export class ConflictError extends Error {
  * Supabase (Row Level Security, the order functions, Realtime). The screens do not know which one they have.
  */
 export interface OrdersApi {
-  catalogue(storeId: string): Promise<Catalogue>
+  /** The vendors for a store with their item counts: small, so the Order tab can show it straight away. */
+  vendors(storeId: string): Promise<VendorList>
+  /** One vendor's whole range at one store, with the store's stock: loaded when the vendor is chosen. */
+  range(storeId: string, vendor: string): Promise<Product[]>
   /** The store's current order for one vendor (open or copied, not yet ordered in NAV), started if there is none. */
   openOrder(storeId: string, vendor: string, email: string): Promise<OrderData>
   /** Every unfinished order for the store, one per vendor: what is on hold. */
@@ -39,7 +42,7 @@ export interface OrdersApi {
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: OrdersApi = {
-  catalogue: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
+  vendors: async () => notConnected(), range: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
   orderLines: async () => notConnected(), reportLines: async () => notConnected(), syncRuns: async () => notConnected(),
 }

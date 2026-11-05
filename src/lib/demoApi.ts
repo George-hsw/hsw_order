@@ -1,7 +1,7 @@
-import type { Catalogue, OrderData, OrdersApi } from './api'
+import type { OrderData, OrdersApi } from './api'
 import { ConflictError } from './api'
 import { demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
-import { applyLine, totals } from './order'
+import { applyLine, rangeFor, totals, vendorOptions } from './order'
 import type { OrderLine, OrderRow, OrderSummary, SyncRun } from './supabase'
 
 // In-memory stand-in for the back end. Resets when the page reloads.
@@ -21,7 +21,8 @@ const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ??
 const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
 export const demoApi: OrdersApi = {
-  catalogue: (storeId) => wait<Catalogue>({ items: demoItems(), stock: demoStock(storeId), syncedAt: demoStock(storeId)[0]?.synced_at }),
+  vendors: (storeId) => wait({ options: vendorOptions(demoItems(), demoStock(storeId)), syncedAt: demoStock(storeId)[0]?.synced_at }),
+  range: (storeId, vendor) => wait(rangeFor(demoItems(), demoStock(storeId), vendor)),
 
   async openOrder(storeId, vendor, email): Promise<OrderData> {
     let order = orders.find((o) => o.store_id === storeId && o.vendor_no === vendor && o.status !== 'ordered')

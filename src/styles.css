@@ -458,3 +458,7 @@ table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge);
   table.book.stores td[data-label="Last sync"] { grid-column: 1 / -1; order: 5; }
   table.book.stores td[data-label="Managers"] { grid-column: 1 / -1; order: 6; }
 }
+
+/* Copy for NAV: the two steps, numbered in the body face */
+.copysteps { margin: var(--space-sm) 0 var(--space-md); padding-left: var(--space-lg); color: var(--color-ink-2); display: grid; gap: var(--space-2xs); }
+.people.vendors li .person-actions { align-items: center; }

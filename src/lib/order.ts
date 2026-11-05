@@ -163,6 +163,17 @@ export function navText(group: VendorGroup, withHeader = false, details = PASTE_
   return [...(withHeader ? [cols.map((c) => c.header).join('\t')] : []), ...rows].join('\n')
 }
 
+/**
+ * One column of the order, one value per line, for pasting into a single column of the NAV lines grid. This is how Copy for NAV
+ * works by default: the item numbers go into No. (NAV then fills in the description, unit and cost itself), then the quantities go
+ * into Quantity. NAV pastes into columns that sit side by side, and a paste that spans the columns between No. and Quantity also
+ * sends empty cells, which NAV validates (an empty Description made it ask whether to switch to an item with a blank description).
+ * Both columns list the lines in the same order.
+ */
+export function navColumn(group: VendorGroup, part: 'no' | 'qty'): string {
+  return group.lines.map((l) => (part === 'no' ? l.item_code : String(l.qty))).join('\n')
+}
+
 // ---------- Stock freshness ----------
 
 const STALE_HOURS = 36

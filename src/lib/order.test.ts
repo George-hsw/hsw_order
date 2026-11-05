@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyLine, findByScan, groupByVendor, isStale, itemWarnings, lineCost, moqNote, navText, parseQty, searchItems, totals, rangeFor, vendorOf, vendorOptions } from './order'
+import { applyLine, findByScan, groupByVendor, isStale, itemWarnings, lineCost, moqNote, navColumn, navText, parseQty, searchItems, totals, rangeFor, vendorOf, vendorOptions } from './order'
 import { demoItems, demoLines, demoStock } from './demo'
 import type { OrderLine } from './supabase'
 
@@ -82,6 +82,18 @@ describe('vendor groups and Copy for NAV', () => {
   it('matches a line typed by hand: type, no., vendor item no., blank variant, description, unit, blank inventory, quantity', () => {
     const l: OrderLine = { ...mk('EIC16047', 'MYHO001', 24), vendor_item_no: 'RB16047', uom: 'EA', description: 'TOOTHBRSH HLDR MRBL-LOOK BK' }
     expect(navText(groupByVendor([l])[0], false, true).split('\t')).toEqual(['Item', 'EIC16047', 'RB16047', '', 'TOOTHBRSH HLDR MRBL-LOOK BK', 'EA', '', '24'])
+  })
+})
+
+describe('Copy for NAV, one column at a time', () => {
+  const mk = (code: string, qty: number): OrderLine => ({
+    id: code, order_id: 'o', item_code: code, qty, unit_cost: 1, vendor_no: 'V1', division: null, vendor_item_no: null, uom: null, description: code, revision: 1, updated_by: null, updated_at: '',
+  })
+  it('lists item numbers and quantities in the same order, with no empty cells', () => {
+    const g = groupByVendor([mk('00456', 12), mk('00123', 6)])[0]
+    expect(navColumn(g, 'no')).toBe('00123\n00456')
+    expect(navColumn(g, 'qty')).toBe('6\n12')
+    expect(navColumn(g, 'no') + navColumn(g, 'qty')).not.toMatch(/\t/)
   })
 })
 

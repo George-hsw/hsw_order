@@ -4,16 +4,16 @@ import ItemSheet from './ItemSheet'
 import Scanner from './Scanner'
 import StatusChip from './StatusChip'
 import { useToast } from './Toast'
-import { api, ConflictError, type Catalogue } from './lib/api'
+import { api, ConflictError } from './lib/api'
 import { beep, primeAudio } from './lib/beep'
-import { SHOW_SALES, findByScan, isStale, itemWarnings, lineCost, money, parseQty, rangeFor, searchItems, syncedLabel, totals, vendorOf, vendorOptions, type Product } from './lib/order'
+import { SHOW_SALES, findByScan, isStale, itemWarnings, lineCost, money, parseQty, searchItems, syncedLabel, totals, type Product, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
 interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void }
 
 const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
-type CatLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; cat: Catalogue }
+type CatLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; vendors: VendorOption[]; syncedAt?: string }
 type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; order: OrderRow }
 interface Sheet { product: Product; base: number; focusQty: boolean; conflict?: OrderLine | null }
 type Show = 'all' | 'ordered' | 'not'
@@ -34,6 +34,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
   const [drafts, setDrafts] = useState<OrderSummary[]>([])
   const [orderLoad, setOrderLoad] = useState<OrderLoad>({ phase: 'loading' })
   const [lines, setLines] = useState<OrderLine[]>([])
+  const [rangeList, setRangeList] = useState<Product[]>([]) // the chosen vendor's items at this store
   const [attempt, setAttempt] = useState(0)
   const [orderAttempt, setOrderAttempt] = useState(0)
   const [find, setFind] = useState('')
@@ -48,24 +49,24 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
   const refreshDrafts = useCallback(() => { api.drafts(storeId).then(setDrafts).catch(() => { /* the list is a convenience */ }) }, [storeId])
 
-  // The store's items and stock, and what is on hold.
+  // The vendors (a few dozen rows, so the picker shows at once) and what is on hold. A vendor's items load when it is chosen.
   useEffect(() => {
     if (!storeId) return
     let live = true
     setCatLoad({ phase: 'loading' })
-    Promise.all([api.catalogue(storeId), api.drafts(storeId)])
-      .then(([cat, d]) => { if (!live) return; setDrafts(d); setCatLoad({ phase: 'ready', cat }) })
+    Promise.all([api.vendors(storeId), api.drafts(storeId)])
+      .then(([v, d]) => { if (!live) return; setDrafts(d); setCatLoad({ phase: 'ready', vendors: v.options, syncedAt: v.syncedAt }) })
       .catch(() => live && setCatLoad({ phase: 'error' }))
     return () => { live = false }
   }, [storeId, attempt])
 
-  // The chosen vendor's order, started if there is none.
+  // The chosen vendor's order, started if there is none, and its items.
   useEffect(() => {
     if (!storeId || !vendor) return
     let live = true
     setOrderLoad({ phase: 'loading' })
-    api.openOrder(storeId, vendor, email)
-      .then((od) => { if (!live) return; setLines(od.lines); setOrderLoad({ phase: 'ready', order: od.order }) })
+    Promise.all([api.openOrder(storeId, vendor, email), api.range(storeId, vendor)])
+      .then(([od, products]) => { if (!live) return; setLines(od.lines); setRangeList(products); setOrderLoad({ phase: 'ready', order: od.order }) })
       .catch(() => live && setOrderLoad({ phase: 'error' }))
     return () => { live = false }
   }, [storeId, vendor, email, orderAttempt])
@@ -81,14 +82,13 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
     try { localStorage.setItem(STORE_KEY, id) } catch { /* ignore */ }
   }
 
-  const cat = catLoad.phase === 'ready' ? catLoad.cat : null
+  const cat = catLoad.phase === 'ready' ? catLoad : null
   const order = orderLoad.phase === 'ready' && vendor ? orderLoad.order : null
-  const stockOf = useMemo(() => new Map((cat?.stock ?? []).map((s) => [s.item_code, s])), [cat])
   const synced = cat?.syncedAt
   const stale = isStale(synced)
-  const vendors = useMemo(() => (cat ? vendorOptions(cat.items, cat.stock) : []), [cat])
+  const vendors = cat?.vendors ?? []
   const draftOf = useMemo(() => new Map(drafts.map((d) => [d.vendor_no, d])), [drafts])
-  const range = useMemo(() => (cat && vendor ? rangeFor(cat.items, cat.stock, vendor) : []), [cat, vendor])
+  const range = vendor ? rangeList : []
   const lineOf = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
 
   const rows = useMemo(() => {
@@ -136,11 +136,9 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
 
   const handleScan = (value: string) => {
     if (sheet || !cat) return // one item at a time: ignore scans while the sheet is open
-    const it = findByScan(cat.items, value)
-    if (!it) { beep('miss'); setScanMsg(`${value} is not in the item list`); return }
-    const p: Product = { item: it, stock: stockOf.get(it.code) }
-    const v = vendorOf(it, p.stock)
-    if (v !== vendor) { beep('miss'); setScanMsg(`${it.description} is from ${v ?? 'no vendor'}, not ${vendor}`); return }
+    const it = findByScan(range.map((r) => r.item), value)
+    const p = it && range.find((r) => r.item.code === it.code)
+    if (!it || !p) { beep('miss'); setScanMsg(`${value} is not in the ${vendor} range`); return }
     beep('ok')
     setScanMsg(it.description)
     open(p, true) // after a scan the cursor goes straight to the quantity
@@ -148,7 +146,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
 
   const onFinderEnter = () => {
     if (!cat) return
-    const it = findByScan(cat.items, find)
+    const it = findByScan(range.map((r) => r.item), find)
     const p = it && range.find((r) => r.item.code === it.code)
     if (p) open(p)
   }
