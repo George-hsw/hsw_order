@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
 import { groupByVendor, money, navText } from './lib/order'
 import { useEscape } from './lib/useEscape'
@@ -9,6 +10,7 @@ interface Props {
   wasCopied: boolean
   onCopied: () => void // first copy: the order is marked Copied
   onOrdered: (navRef: string) => void
+  onDelete: () => Promise<void> // the order is deleted
   onClose: () => void
 }
 
@@ -33,8 +35,9 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /** Copy for NAV: one block per vendor to paste into NAV, then the NAV order number once it is entered. */
-export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onClose }: Props) {
+export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onDelete, onClose }: Props) {
   const toast = useToast()
+  const [ask, confirmDialog] = useConfirm()
   const groups = groupByVendor(lines)
   const [header, setHeader] = useState(false)
   const [done, setDone] = useState<string[]>([]) // vendors copied in this visit
@@ -47,6 +50,12 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onCl
       setDone((d) => (d.includes(vendor) ? d : [...d, vendor]))
       if (!wasCopied && done.length === 0) onCopied()
       toast.success(`Copied ${g.lines.length} ${g.lines.length === 1 ? 'line' : 'lines'} for ${vendor}. Paste them into NAV.`)
+      // The first time an order is copied, offer to delete it: some stores only need the app to get the lines into NAV.
+      if (!wasCopied && done.length === 0 && (await ask({
+        title: 'Copied for NAV',
+        body: <p>The lines are on your clipboard. Do you want to delete this order now, or keep it to record the NAV order number?</p>,
+        confirmLabel: 'Delete order', cancelLabel: 'Keep it', danger: true,
+      }))) await onDelete()
     } else toast.error('Could not copy. Select the lines and copy them by hand.')
   }
 
@@ -90,6 +99,7 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onCl
           </div>
         </form>
       </div>
+      {confirmDialog}
     </div>
   )
 }

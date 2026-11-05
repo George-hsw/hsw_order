@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { copyText } from './CopyDialog'
+import { useConfirm } from './Confirm'
 import StatusChip from './StatusChip'
 import { useToast } from './Toast'
 import { api } from './lib/api'
@@ -19,6 +20,8 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
   const [status, setStatus] = useState<StatusFilter>('all')
   const [q, setQ] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
+  const toast = useToast()
+  const [ask, confirmDialog] = useConfirm()
 
   const load = useCallback(async () => {
     setFailed(false)
@@ -28,6 +31,18 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
   useEffect(() => { load() }, [load, refreshKey])
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '–')
+  const remove = async (o: OrderSummary) => {
+    if (!(await ask({
+      title: `Delete the ${o.vendor_no} order?`,
+      body: <p>{o.lines} {o.lines === 1 ? 'line' : 'lines'} for {o.stores?.name ?? 'this store'} will be removed. This cannot be undone.</p>,
+      confirmLabel: 'Delete order', danger: true,
+    }))) return
+    try {
+      await api.deleteOrder(o.id)
+      toast.success(`${o.vendor_no} order deleted.`)
+      load()
+    } catch { toast.error('Could not delete the order. Try again.') }
+  }
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase()
     return (orders ?? []).filter((o) =>
@@ -79,7 +94,10 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
                   <td data-label="Units" className="r num">{o.units}</td>
                   <td data-label="Cost" className="r num">{money(o.cost)}</td>
                   <td data-label="NAV order">{o.nav_ref ? <span className="num">{o.nav_ref}</span> : <span className="muted">–</span>}</td>
-                  <td className="rowactions"><button type="button" className="btn" onClick={() => setOpenId(o.id)}>Open</button></td>
+                  <td className="rowactions">
+                    <button type="button" className="btn" onClick={() => setOpenId(o.id)}>Open</button>
+                    {o.status !== 'ordered' && <button type="button" className="btn danger" onClick={() => remove(o)}>Delete</button>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -88,6 +106,7 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
       )}
 
       {open && <OrderDetail order={open} who={who} onClose={() => setOpenId(null)} />}
+      {confirmDialog}
     </>
   )
 }

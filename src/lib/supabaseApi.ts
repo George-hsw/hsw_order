@@ -121,6 +121,11 @@ export const supabaseApi: OrdersApi = {
     return data as OrderRow
   },
 
+  async deleteOrder(orderId) {
+    const { error } = await db().rpc('delete_order', { p_order: orderId })
+    if (error) throw new Error(error.message)
+  },
+
   async listOrders(storeIds): Promise<OrderSummary[]> {
     if (!storeIds.length) return []
     const rows = await readAll<OrderSummary & { store_name: string }>((from, to, count) =>

@@ -389,16 +389,12 @@ tr.inactive { opacity: 0.6; }
 .aboutlist dt { color: var(--color-muted); font-size: var(--text-sm); }
 .aboutlist dd { margin: 0; overflow-wrap: anywhere; }
 
-/* The vendor's range: sized to fit its box (the Details button was clipped by a fixed minimum width). A row with a quantity gets a bar and a heavier box. */
-table.items.order { table-layout: auto; min-width: 0; }
-table.items.order th:nth-child(n) { width: auto; }
-table.items.order th, table.items.order td { padding-inline: var(--space-xs); }
-table.items.order td.desc small { display: block; }
-table.items.order input.qty { width: 72px; min-width: 0; }
-table.items.order td.det { text-align: right; white-space: nowrap; }
-table.items.order td.det .btn { min-height: 36px; }
-table.items.order tr.ordering td:first-child { box-shadow: inset 3px 0 0 var(--color-accent-edge); }
-table.items.order tr.ordering input.qty { border-color: var(--color-accent-edge); font-weight: 600; }
+/* The vendor's range is a .book table like the others: a ruled table on desktop, boxed cells on phones. A row with a quantity gets a bar and a heavier box. */
+table.book.range td { padding: var(--space-xs) var(--space-sm); }
+table.book.range td.desc small { display: block; }
+table.book.range input.qty { width: 72px; min-width: 0; }
+table.book.range tr.ordering td:first-child { box-shadow: inset 3px 0 0 var(--color-accent-edge); }
+table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge); font-weight: 600; }
 .onhold { display: grid; gap: var(--space-2xs); margin-top: var(--space-md); padding-top: var(--space-sm); border-top: var(--rule-hair) solid var(--color-rule); justify-items: start; }
 .onhold small { color: var(--color-muted); }
 .onhold .quiet { min-height: 36px; }
@@ -419,25 +415,18 @@ table.items.order tr.ordering input.qty { border-color: var(--color-accent-edge)
   /* Tap targets: 44px on phones, as DESIGN.md says */
   .segmented button, .rowactions .btn, .person-actions .btn, .person-actions select, .onhold .quiet { min-height: var(--hit); }
 
-  /* The vendor's range as compact cards: code and name on top, the four figures in a row, then quantity beside Details */
-  table.items.order tr { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-xs) var(--space-sm); }
-  table.items.order td { padding: 0; }
-  table.items.order td::before { margin-bottom: 0; }
-  table.items.order tr { padding-left: var(--space-sm); }
-  table.items.order tr.ordering td:first-child { box-shadow: none; }
-  table.items.order tr.ordering { box-shadow: inset 4px 0 0 var(--color-accent-edge); }
-  table.items.order td[data-label="Item"] { grid-column: 1 / -1; order: 1; color: var(--color-muted); font-size: var(--text-sm); }
-  table.items.order td[data-label="Description"] { grid-column: 1 / -1; order: 2; font-weight: 600; }
-  table.items.order td[data-label="Item"]::before, table.items.order td[data-label="Description"]::before { display: none; }
-  table.items.order td[data-label="In stock"] { grid-column: span 3; order: 3; }
-  table.items.order td[data-label="On order"] { grid-column: span 3; order: 4; }
-  table.items.order td[data-label="Sold last week"] { grid-column: span 3; order: 4; }
-  table.items.order td[data-label="MOQ"] { grid-column: span 3; order: 5; }
-  table.items.order td[data-label="Cost"] { grid-column: span 3; order: 6; }
-  table.items.order td[data-label="Order qty"] { grid-column: span 6; order: 7; }
-  table.items.order td.det { grid-column: span 6; order: 8; align-self: end; text-align: left; }
-  table.items.order td.det::before { display: none; }
-  table.items.order td.det .btn { width: 100%; min-height: var(--hit); }
+  /* The vendor's range: code and name, the three stock figures, cost and quantity, then Details. Every row adds up to six columns. */
+  table.book.range td[data-label="Item"] { grid-column: span 2; order: 1; }
+  table.book.range td[data-label="Description"] { grid-column: span 4; order: 2; font-weight: 600; }
+  table.book.range td[data-label="Description"]::before { display: none; }
+  table.book.range td[data-label="In stock"] { grid-column: span 2; order: 3; }
+  table.book.range td[data-label="On order"] { grid-column: span 2; order: 4; }
+  table.book.range td[data-label="Sold last week"] { grid-column: span 2; order: 4; }
+  table.book.range td[data-label="MOQ"] { grid-column: span 2; order: 5; }
+  table.book.range td[data-label="Cost"] { grid-column: span 2; order: 6; }
+  table.book.range td[data-label="Order qty"] { grid-column: span 4; order: 7; }
+  table.book.range td.rowactions { order: 8; }
+  table.book.range input.qty { width: 100%; text-align: left; }
 
   /* Orders: when and status, store and vendor, who, the three figures, the NAV number, then Open. Every row adds up to six columns. */
   table.book.orders td[data-label="Started"] { grid-column: span 3; order: 1; font-weight: 600; }

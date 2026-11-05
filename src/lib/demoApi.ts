@@ -66,6 +66,15 @@ export const demoApi: OrdersApi = {
     return wait({ ...o })
   },
 
+  async deleteOrder(orderId) {
+    const i = orders.findIndex((o) => o.id === orderId)
+    if (i < 0) throw new Error('No such order')
+    if (orders[i].status === 'ordered') throw new Error('An order ordered in NAV is kept as a record')
+    orders.splice(i, 1)
+    lines.delete(orderId)
+    return wait(undefined)
+  },
+
   async listOrders(storeIds) {
     const out: OrderSummary[] = orders.filter((o) => storeIds.includes(o.store_id)).map((o) => ({ ...o, ...totals(lines.get(o.id) ?? []) }))
     return wait(out.sort((a, b) => b.created_at.localeCompare(a.created_at)))

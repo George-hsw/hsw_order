@@ -27,6 +27,8 @@ export interface OrdersApi {
   /** Called with the full set of lines whenever any device changes them. Returns an unsubscribe. */
   subscribe(orderId: string, onLines: (lines: OrderLine[]) => void): () => void
   setStatus(orderId: string, status: OrderStatus, navRef?: string): Promise<OrderRow>
+  /** Deletes an order that has not been ordered in NAV (open or copied). Its lines go with it. */
+  deleteOrder(orderId: string): Promise<void>
   listOrders(storeIds: string[]): Promise<OrderSummary[]>
   orderLines(orderId: string): Promise<OrderLine[]>
   /** Every line on every order for these stores, for reports. */
@@ -38,7 +40,7 @@ export interface OrdersApi {
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: OrdersApi = {
   catalogue: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
-  subscribe: () => notConnected(), setStatus: async () => notConnected(), listOrders: async () => notConnected(),
+  subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
   orderLines: async () => notConnected(), reportLines: async () => notConnected(), syncRuns: async () => notConnected(),
 }
 

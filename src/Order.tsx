@@ -175,6 +175,17 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, vendor, onSaved, toast])
 
+  const deleteCurrent = async () => {
+    if (!order) return
+    try {
+      await api.deleteOrder(order.id)
+      setCopyOpen(false)
+      toast.success(`${vendor} order deleted.`)
+      chooseVendor('')
+      onSaved()
+    } catch { toast.error('Could not delete the order. Try again.') }
+  }
+
   const holdAndNext = () => {
     toast.info(`${vendor} order saved and on hold. Choose the next vendor.`)
     chooseVendor('')
@@ -291,9 +302,9 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                   <div className="state"><p>Nothing to show</p><p className="muted">Try another search or filter.</p></div>
                 ) : (
                   <div className="tablewrap">
-                    <table className="items order">
+                    <table className="book range">
                       <thead>
-                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th>Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
+                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th className="r">Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
                       </thead>
                       <tbody>
                         {rows.slice(0, limit).map((p) => {
@@ -310,9 +321,9 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                               <td data-label="On order" className="r">{p.stock?.qty_on_po ?? '–'}</td>
                               {SHOW_SALES && <td data-label="Sold last week" className="r">{p.stock?.sales_qty ?? '–'}</td>}
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>
-                              <td data-label="Order qty"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} onCommit={(text) => setQty(p, text)} /></td>
+                              <td data-label="Order qty" className="r"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} onCommit={(text) => setQty(p, text)} /></td>
                               <td data-label="Cost" className="r">{l ? money(lineCost(l.qty, l.unit_cost)) : ''}</td>
-                              <td className="det"><button type="button" className="btn" aria-label={`Details for ${p.item.description}`} onClick={() => open(p)}>Details</button></td>
+                              <td className="rowactions"><button type="button" className="btn" aria-label={`Details for ${p.item.description}`} onClick={() => open(p)}>Details</button></td>
                             </tr>
                           )
                         })}
@@ -364,7 +375,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
               busy={pending > 0} onDone={sheetDone} onClose={() => setSheet(null)}
               onRemove={async () => { if (await save(sheet.product, 0, sheet.base)) { setScanMsg(`Removed ${sheet.product.item.description}`); setSheet(null) } }} />
           )}
-          {copyOpen && <CopyDialog lines={lines} wasCopied={order.status === 'copied'} onCopied={() => changeStatus('copied')} onOrdered={(r) => changeStatus('ordered', r)} onClose={() => setCopyOpen(false)} />}
+          {copyOpen && <CopyDialog lines={lines} wasCopied={order.status === 'copied'} onCopied={() => changeStatus('copied')} onOrdered={(r) => changeStatus('ordered', r)} onDelete={deleteCurrent} onClose={() => setCopyOpen(false)} />}
           {scanning && <Scanner onScan={handleScan} onClose={() => setScanning(false)} feedback={scanMsg} />}
         </>
       )}
