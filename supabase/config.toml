@@ -1,0 +1,11 @@
+project_id = "hsw-orders"
+
+[auth]
+enable_signup = false          # users are created only by the admin, through the manage-user function
+
+[auth.email]
+otp_length = 6
+otp_expiry = 600
+
+[functions.manage-user]
+verify_jwt = false             # checks the caller is the admin itself (getUser)

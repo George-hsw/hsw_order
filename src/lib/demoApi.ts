@@ -21,7 +21,7 @@ const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ??
 const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
 export const demoApi: OrdersApi = {
-  catalogue: (storeId) => wait<Catalogue>({ items: demoItems(), stock: demoStock(storeId) }),
+  catalogue: (storeId) => wait<Catalogue>({ items: demoItems(), stock: demoStock(storeId), syncedAt: demoStock(storeId)[0]?.synced_at }),
 
   async openOrder(storeId, email): Promise<OrderData> {
     let order = orders.find((o) => o.store_id === storeId && o.status !== 'ordered')

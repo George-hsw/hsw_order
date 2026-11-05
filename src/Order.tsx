@@ -59,7 +59,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
   const order = load.phase === 'ready' ? load.order : null
   const itemOf = useMemo(() => new Map((cat?.items ?? []).map((i) => [i.code, i])), [cat])
   const stockOf = useMemo(() => new Map((cat?.stock ?? []).map((s) => [s.item_code, s])), [cat])
-  const synced = cat?.stock[0]?.synced_at
+  const synced = cat?.syncedAt
   const stale = isStale(synced)
   const vendors = useMemo(() => (cat ? vendorOptions(cat.items, cat.stock) : []), [cat])
   const inVendor = (item: ItemRow) => !vendor || vendorOf(item, stockOf.get(item.code)) === vendor

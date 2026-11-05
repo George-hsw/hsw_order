@@ -19,13 +19,22 @@ npm run build
 ```
 
 ## Status
-Built and working in demo mode: sign-in screen, tour, Order (scan, search, item sheet, quantity, lines, Copy for NAV), Orders, Reports, Stores (people and sync status).
+Built: sign-in, tour, Order (scan, search, Vendor filter, item popup, quantity, Copy for NAV), Orders, Reports, Stores. Runs on demo data with `npm run demo`.
 
-Not built yet (done when the project goes to git):
-- Supabase migrations (tables, Row Level Security, Realtime) and the `OrdersApi` Supabase implementation in `src/lib/api.ts` (the screens only call that interface; `src/lib/demoApi.ts` is the in-memory version).
-- Edge function `manage-user` (people and passwords on the Stores tab).
-- The nightly NAV sync script and its GitHub Actions workflow.
-- Vercel settings and `.env` values (`.env.example`).
+Written but **not yet run against a real Supabase project or real NAV** (so expect a first-run fix or two):
+- `supabase/migrations`: 001 stores and people, 002 items and store stock, 003 orders (with the `open_order`, `save_line`, `set_order_status` functions), 004 grants, 005 the stores. They pass a Postgres syntax check; the functions have not been executed.
+- `supabase/functions/manage-user`: adds people, sets passwords (admin only). Copied from the Quote app.
+- `src/lib/supabaseApi.ts`: the screens' data layer for Supabase, including Realtime.
+- `scripts/sync-dynamics.mjs` and `.github/workflows/sync-dynamics.yml`: the nightly NAV sync.
+
+## Setting it up
+1. **Supabase** (a new project for Orders): in GitHub, Settings, Secrets and variables, Actions, add `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` and `SUPABASE_PROJECT_REF`. Run the **Deploy Supabase** workflow: it applies the migrations and deploys `manage-user`.
+2. **The admin login:** in the Supabase dashboard, Authentication, Users, add `george.mridun@hsw.com.au` with a password and tick Auto Confirm. Everyone else is added from the Stores tab.
+3. **Vercel:** import the repo and set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and, for Myriad Pro, `VITE_ADOBE_FONTS_KIT`.
+4. **NAV sync:** add the secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DYN_ITEMS_URL`, `DYN_STOCK_URL` and either `DYN_USER` + `DYN_ACCESS_KEY` or the three Entra ones. Run **Sync Dynamics** with *discover* ticked to print the real field names, set `DYN_ITEMS_FIELD_MAP` / `DYN_STOCK_FIELD_MAP` (Actions variables) to match, then run it for real. If NAV is only reachable on HSW's network, use a self-hosted runner (see the workflow).
+5. **People:** sign in as the admin, open Stores, add a manager to each store.
+
+The sync keeps each store's previous data when its feed is empty, much smaller than yesterday, or has duplicate rows, and the Stores tab shows it as Failed. Variant rows are skipped for now (an order line is per item).
 
 ## To confirm with HSW
 - Paste test: copy one vendor into a real NAV purchase order and check the Type, No. and Quantity land in the right cells (`NAV_COLUMNS` in `src/lib/order.ts`).

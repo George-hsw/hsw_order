@@ -1,0 +1,50 @@
+name: Sync Dynamics → Supabase
+
+# Nightly: copies Retail Items and each store's Replen. Qty. into Supabase, writing only what changed.
+# A store whose feed looks wrong keeps its previous data and the run ends in an error, so GitHub emails the repo owner.
+# 17:00 UTC = 3am AEST / 4am AEDT. Change it to run after the overnight replication has finished.
+#
+# If NAV is on HSW's private network, GitHub's own runners cannot reach it: change `runs-on` to a self-hosted runner
+# (runs-on: [self-hosted, hsw]) installed on a machine that can.
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+    inputs:
+      discover:
+        description: 'Tick to only print the NAV field names for both services (no changes are made)'
+        default: false
+        type: boolean
+
+concurrency:
+  group: sync-dynamics
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-dynamics.mjs ${{ github.event.inputs.discover == 'true' && '--discover' || '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DYN_ITEMS_URL: ${{ secrets.DYN_ITEMS_URL }}
+          DYN_STOCK_URL: ${{ secrets.DYN_STOCK_URL }}
+          # NAV web service access key (use these two)...
+          DYN_USER: ${{ secrets.DYN_USER }}
+          DYN_ACCESS_KEY: ${{ secrets.DYN_ACCESS_KEY }}
+          # ...or Business Central online with an Entra app (use these three)
+          DYN_TENANT_ID: ${{ secrets.DYN_TENANT_ID }}
+          DYN_CLIENT_ID: ${{ secrets.DYN_CLIENT_ID }}
+          DYN_CLIENT_SECRET: ${{ secrets.DYN_CLIENT_SECRET }}
+          DYN_ITEMS_FIELD_MAP: ${{ vars.DYN_ITEMS_FIELD_MAP }}
+          DYN_STOCK_FIELD_MAP: ${{ vars.DYN_STOCK_FIELD_MAP }}
+          DYN_ITEMS_FILTER: ${{ vars.DYN_ITEMS_FILTER }}
+          DYN_STOCK_FILTER: ${{ vars.DYN_STOCK_FILTER }}

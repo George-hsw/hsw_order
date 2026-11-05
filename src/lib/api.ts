@@ -1,8 +1,10 @@
 import { applyLine, type LineInput } from './order'
-import { DEMO, type ItemRow, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type StockRow, type SyncRun } from './supabase'
+import { DEMO, supabase, type ItemRow, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type StockRow, type SyncRun } from './supabase'
 import { demoApi } from './demoApi'
+import { supabaseApi } from './supabaseApi'
 
-export interface Catalogue { items: ItemRow[]; stock: StockRow[] }
+/** syncedAt: when this store's stock was last read from NAV (the last successful sync), not when a row last changed. */
+export interface Catalogue { items: ItemRow[]; stock: StockRow[]; syncedAt?: string }
 export interface OrderData { order: OrderRow; lines: OrderLine[] }
 
 /** Thrown when someone else changed the same line since this screen loaded it. */
@@ -11,8 +13,8 @@ export class ConflictError extends Error {
 }
 
 /**
- * Everything the screens need from the back end. `demoApi` runs it in memory for `npm run demo`; the Supabase version
- * (Row Level Security, Realtime) is written when the app is pushed, and the screens do not change.
+ * Everything the screens need from the back end. `demoApi` runs it in memory for `npm run demo`; `supabaseApi` talks to
+ * Supabase (Row Level Security, the order functions, Realtime). The screens do not know which one they have.
  */
 export interface OrdersApi {
   catalogue(storeId: string): Promise<Catalogue>
@@ -38,6 +40,6 @@ const offline: OrdersApi = {
   orderLines: async () => notConnected(), reportLines: async () => notConnected(), syncRuns: async () => notConnected(),
 }
 
-export const api: OrdersApi = DEMO ? demoApi : offline
+export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline
 
 export { applyLine }
