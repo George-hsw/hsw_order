@@ -6,7 +6,7 @@ import StatusChip from './StatusChip'
 import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
 import { beep, primeAudio } from './lib/beep'
-import { SHOW_SALES, findByScan, isStale, itemWarnings, lineCost, money, parseQty, searchItems, syncedLabel, totals, type Product, type VendorOption } from './lib/order'
+import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
 interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void }
@@ -39,6 +39,8 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
   const [orderAttempt, setOrderAttempt] = useState(0)
   const [find, setFind] = useState('')
   const [show, setShow] = useState<Show>('all')
+  const [below, setBelow] = useState('') // show only items with less than this much in stock ('' = no limit)
+  const [sortBy, setSortBy] = useState<SortBy>('code')
   const [limit, setLimit] = useState(PAGE)
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
@@ -73,9 +75,9 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
 
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order.id : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
-  useEffect(() => { setLimit(PAGE) }, [vendor, show, find])
+  useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
 
-  const chooseVendor = (v: string) => { setVendor(v); setFind(''); setShow('all'); if (!v) refreshDrafts() }
+  const chooseVendor = (v: string) => { setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts() }
   const changeStore = (id: string) => {
     setStoreId(id)
     setVendor('')
@@ -93,12 +95,14 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
 
   const rows = useMemo(() => {
     const hit = find.trim() ? new Set(searchItems(range.map((p) => p.item), find, 100000).map((i) => i.code)) : null
-    return range.filter((p) => {
+    const shown = range.filter((p) => {
       if (hit && !hit.has(p.item.code)) return false
       const on = lineOf.has(p.item.code)
       return show === 'all' || (show === 'ordered' ? on : !on)
     })
-  }, [range, find, show, lineOf])
+    return sortProducts(stockBelow(shown, below.trim() === '' ? null : parseQty(below)), sortBy)
+  }, [range, find, show, below, sortBy, lineOf])
+  const filtered = find.trim() !== '' || show !== 'all' || below.trim() !== ''
   const orderedCount = useMemo(() => range.filter((p) => lineOf.has(p.item.code)).length, [range, lineOf])
 
   const open = (p: Product, focusQty = false) => { setSheet({ product: p, base: lineOf.get(p.item.code)?.revision ?? 0, focusQty }); setFind('') }
@@ -292,7 +296,21 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
                     <button type="button" aria-pressed={show === 'ordered'} onClick={() => setShow('ordered')}>On order ({orderedCount})</button>
                     <button type="button" aria-pressed={show === 'not'} onClick={() => setShow('not')}>Not ordered ({range.length - orderedCount})</button>
                   </div>
+                  <label className="inline">In stock below
+                    <input className="qty" name="below" inputMode="numeric" autoComplete="off" placeholder="any" value={below} onChange={(e) => setBelow(e.target.value)} />
+                  </label>
+                  <label className="inline">Sort by
+                    <select name="sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+                      {(Object.keys(SORT_LABEL) as SortBy[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
+                    </select>
+                  </label>
                 </div>
+                {(filtered || sortBy !== 'code') && range.length > 0 && (
+                  <p className="muted listcount">
+                    Showing {rows.length} of {range.length} items.{' '}
+                    <button type="button" className="quiet" onClick={() => { setFind(''); setShow('all'); setBelow(''); setSortBy('code') }}>Clear filters</button>
+                  </p>
+                )}
 
                 {range.length === 0 ? (
                   <div className="state"><p>No items for {vendor}</p><p className="muted">This store has no stock records with that vendor.</p></div>

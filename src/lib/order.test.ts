@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyLine, findByScan, groupByVendor, isStale, itemWarnings, lineCost, moqNote, navColumn, navText, parseQty, searchItems, totals, rangeFor, vendorOf, vendorOptions } from './order'
+import { SORT_LABEL, applyLine, findByScan, groupByVendor, isStale, itemWarnings, lineCost, moqNote, navText, parseQty, searchItems, sortProducts, stockBelow, totals, rangeFor, vendorOf, vendorOptions } from './order'
 import { demoItems, demoLines, demoStock } from './demo'
 import type { OrderLine } from './supabase'
 
@@ -76,24 +76,38 @@ describe('vendor groups and Copy for NAV', () => {
   })
   it('writes tab-separated item and quantity, keeping leading zeros as text', () => {
     const g = groupByVendor([mk('00123', 'V1', 4)])[0]
-    expect(navText(g)).toBe('Item\t00123\t\t\t\t\t\t4')
-    expect(navText(g, true)).toBe('Type\tNo.\tVendor Item No.\tVariant Code\tDescription\tUnit of Measure Code\tInventory\tQuantity\nItem\t00123\t\t\t\t\t\t4')
+    expect(navText(g)).toBe('Item\t00123\t\t\t00123\t\t\t4')
+    expect(navText(g, true)).toBe('Type\tNo.\tVendor Item No.\tVariant Code\tDescription\tUnit of Measure Code\tInventory\tQuantity\nItem\t00123\t\t\t00123\t\t\t4')
   })
   it('matches a line typed by hand: type, no., vendor item no., blank variant, description, unit, blank inventory, quantity', () => {
     const l: OrderLine = { ...mk('EIC16047', 'MYHO001', 24), vendor_item_no: 'RB16047', uom: 'EA', description: 'TOOTHBRSH HLDR MRBL-LOOK BK' }
-    expect(navText(groupByVendor([l])[0], false, true).split('\t')).toEqual(['Item', 'EIC16047', 'RB16047', '', 'TOOTHBRSH HLDR MRBL-LOOK BK', 'EA', '', '24'])
+    expect(navText(groupByVendor([l])[0]).split('\t')).toEqual(['Item', 'EIC16047', 'RB16047', '', 'TOOTHBRSH HLDR MRBL-LOOK BK', 'EA', '', '24'])
   })
 })
 
-describe('Copy for NAV, one column at a time', () => {
-  const mk = (code: string, qty: number): OrderLine => ({
-    id: code, order_id: 'o', item_code: code, qty, unit_cost: 1, vendor_no: 'V1', division: null, vendor_item_no: null, uom: null, description: code, revision: 1, updated_by: null, updated_at: '',
+describe('filtering and sorting a vendor range', () => {
+  const range = rangeFor(items, demoStock('s'), 'ANAS001') // stock: 91=6, 92=0, 93=6, 95=1, 96=5
+  const codes = (ps: { item: { code: string } }[]) => ps.map((p) => p.item.code)
+  it('keeps items with less than the limit in stock', () => {
+    expect(codes(stockBelow(range, 2))).toEqual(['ANA01092', 'ANA01095'])
+    expect(codes(stockBelow(range, 1))).toEqual(['ANA01092'])
+    expect(stockBelow(range, 0)).toEqual([])
+    expect(stockBelow(range, null)).toHaveLength(5)
   })
-  it('lists item numbers and quantities in the same order, with no empty cells', () => {
-    const g = groupByVendor([mk('00456', 12), mk('00123', 6)])[0]
-    expect(navColumn(g, 'no')).toBe('00123\n00456')
-    expect(navColumn(g, 'qty')).toBe('6\n12')
-    expect(navColumn(g, 'no') + navColumn(g, 'qty')).not.toMatch(/\t/)
+  it('counts an item with no stock record as none in stock', () => {
+    expect(stockBelow([{ item: range[0].item, stock: undefined }], 1)).toHaveLength(1)
+  })
+  it('sorts by stock either way, ties by item number', () => {
+    expect(codes(sortProducts(range, 'stockLow'))).toEqual(['ANA01092', 'ANA01095', 'ANA01096', 'ANA01091', 'ANA01093'])
+    expect(codes(sortProducts(range, 'stockHigh'))).toEqual(['ANA01091', 'ANA01093', 'ANA01096', 'ANA01095', 'ANA01092'])
+  })
+  it('sorts by description and does not change the original list', () => {
+    const before = codes(range)
+    expect(codes(sortProducts(range, 'name'))).toEqual(['ANA01096', 'ANA01092', 'ANA01091', 'ANA01095', 'ANA01093'])
+    expect(codes(range)).toEqual(before)
+  })
+  it('has a label for every sort', () => {
+    expect(Object.keys(SORT_LABEL).sort()).toEqual(['code', 'name', 'stockHigh', 'stockLow'])
   })
 })
 

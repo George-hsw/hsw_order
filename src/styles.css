@@ -459,6 +459,13 @@ table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge);
   table.book.stores td[data-label="Managers"] { grid-column: 1 / -1; order: 6; }
 }
 
-/* Copy for NAV: the two steps, numbered in the body face */
-.copysteps { margin: var(--space-sm) 0 var(--space-md); padding-left: var(--space-lg); color: var(--color-ink-2); display: grid; gap: var(--space-2xs); }
-.people.vendors li .person-actions { align-items: center; }
+/* Filters above a vendor's range: the stock limit and the sort sit beside the segmented control and wrap on narrower screens */
+.filters label.inline select { width: auto; min-width: 0; }
+.filters label.inline input.qty { width: 80px; min-width: 0; }
+.listcount { margin: 0 0 var(--space-sm); }
+.listcount .quiet { min-height: 36px; }
+@media (max-width: 44rem) {
+  .filters label.inline { flex: 1 1 100%; display: grid; grid-template-columns: 8rem minmax(0, 1fr); align-items: center; }
+  .filters label.inline select, .filters label.inline input.qty { width: 100%; grid-column: auto; }
+  .listcount .quiet { min-height: var(--hit); }
+}

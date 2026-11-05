@@ -62,8 +62,8 @@ export default function ItemSheet({ product, existing, conflict, busy, focusQty,
           {(stock?.unavailable ?? 0) > 0 && <div><dt>Unavailable</dt><dd className="num">{stock!.unavailable}</dd></div>}
           {SHOW_SALES && <div><dt>Sold last week</dt><dd className="num">{num(stock?.sales_qty)}</dd></div>}
           <div><dt>MOQ</dt><dd className="num">{num(stock?.moq)}</dd></div>
-          <div><dt>Your cost</dt><dd className="num">{stock ? money(stock.store_cost) : '–'}</dd></div>
-          <div><dt>Price</dt><dd className="num">{item.price != null ? money(item.price) : '–'}</dd></div>
+          <div><dt>Cost ex GST</dt><dd className="num">{stock ? money(stock.store_cost) : '–'}</dd></div>
+          <div><dt>Price inc GST</dt><dd className="num">{item.price != null ? money(item.price) : '–'}</dd></div>
         </dl>
         <p className="muted facts-note">{syncedLabel(stock?.synced_at)}</p>
 

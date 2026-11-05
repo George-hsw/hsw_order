@@ -62,6 +62,29 @@ export function searchItems(items: ItemRow[], query: string, limit = 20): ItemRo
   return scored.sort((a, b) => a[0] - b[0] || a[1].description.localeCompare(b[1].description)).slice(0, limit).map((s) => s[1])
 }
 
+// ---------- Filtering and sorting a vendor's range ----------
+
+export type SortBy = 'code' | 'name' | 'stockLow' | 'stockHigh'
+export const SORT_LABEL: Record<SortBy, string> = { code: 'Item number', name: 'Description', stockLow: 'Stock, lowest first', stockHigh: 'Stock, highest first' }
+
+/** Items holding fewer than max in stock (an item with no stock record counts as none). No limit when max is null. */
+export function stockBelow(products: Product[], max: number | null): Product[] {
+  return max === null ? products : products.filter((p) => (p.stock?.inventory ?? 0) < max)
+}
+
+/** A sorted copy. Ties keep item number order, so the list never shuffles. */
+export function sortProducts(products: Product[], by: SortBy): Product[] {
+  const stock = (p: Product) => p.stock?.inventory ?? 0
+  const byCode = (a: Product, b: Product) => a.item.code.localeCompare(b.item.code)
+  const cmp: Record<SortBy, (a: Product, b: Product) => number> = {
+    code: byCode,
+    name: (a, b) => a.item.description.localeCompare(b.item.description) || byCode(a, b),
+    stockLow: (a, b) => stock(a) - stock(b) || byCode(a, b),
+    stockHigh: (a, b) => stock(b) - stock(a) || byCode(a, b),
+  }
+  return [...products].sort(cmp[by])
+}
+
 // ---------- The order's lines ----------
 
 export interface LineInput { item: ItemRow; qty: number; unitCost: number; vendorNo?: string | null }
@@ -134,20 +157,20 @@ export function groupByVendor(lines: OrderLine[]): VendorGroup[] {
 // ---------- Copy for NAV ----------
 
 /**
- * The columns of a NAV purchase order line, in the order the lines grid shows them. Always filled: Type, No. and Quantity.
- * Left for NAV: Variant, Inventory (a calculated field that cannot be pasted into) and every cost column.
- * `detail` columns (Vendor Item No., Description, Unit of Measure Code) are sent only when PASTE_DETAILS is on: a test line where
- * only the item number was changed came back with a blank description and unit, but that was an edit of an existing line, not a
- * paste. Turn it on if a clean paste into a new line leaves them blank. Our unit is the item's base unit, which may not be the
- * purchase unit NAV would pick, so it stays off until that is shown to be needed.
+ * Copy for NAV: one paste of purchase lines into the NAV lines grid, in the grid's column order. Filled: Type, No., Vendor Item No.,
+ * Description, Unit of Measure Code and Quantity. Left empty: Variant and Inventory (a calculated field). Every cost column is left
+ * to NAV, which fills them from the item and vendor, so costs come out excluding VAT exactly as for a line typed by hand.
+ * The cells between No. and Quantity hold real values on purpose: an empty Description was validated by NAV, which then asked whether
+ * to switch to another item that also has a blank description.
  */
-export const PASTE_DETAILS = false
-export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string; detail?: boolean }[] = [
+export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string }[] = [
   { header: 'Type', value: () => 'Item' },
   { header: 'No.', value: (l) => l.item_code },
-  { header: 'Vendor Item No.', value: (l) => l.vendor_item_no ?? '', detail: true }, { header: 'Variant Code' },
-  { header: 'Description', value: (l) => [...l.description].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join(''), detail: true }, // no tabs or line breaks inside a cell
-  { header: 'Unit of Measure Code', value: (l) => l.uom ?? '', detail: true }, { header: 'Inventory' },
+  { header: 'Vendor Item No.', value: (l) => l.vendor_item_no ?? '' },
+  { header: 'Variant Code' },
+  { header: 'Description', value: (l) => [...l.description].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('') }, // no tabs or line breaks inside a cell
+  { header: 'Unit of Measure Code', value: (l) => l.uom ?? '' },
+  { header: 'Inventory' },
   { header: 'Quantity', value: (l) => String(l.qty) },
   { header: 'Qty. to Receive' }, { header: 'Qty. To Invoice' }, { header: 'Description 2' }, { header: 'Location Code' },
   { header: 'Direct Unit Cost Excl. VAT' }, { header: 'Line Amount Excl. VAT' }, { header: 'Vendor Invoice Cost' }, { header: 'Vendor Invoice Qty' },
@@ -156,22 +179,10 @@ export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string; de
 const NAV_WIDTH = NAV_COLUMNS.reduce((n, c, i) => (c.value ? i + 1 : n), 0)
 
 /** Tab-separated purchase lines, one per item, ready to paste into the NAV lines grid. Item numbers stay text so leading zeros survive. */
-export function navText(group: VendorGroup, withHeader = false, details = PASTE_DETAILS): string {
+export function navText(group: VendorGroup, withHeader = false): string {
   const cols = NAV_COLUMNS.slice(0, NAV_WIDTH)
-  const cell = (c: (typeof NAV_COLUMNS)[number], l: OrderLine) => (c.detail && !details ? '' : c.value?.(l) ?? '')
-  const rows = group.lines.map((l) => cols.map((c) => cell(c, l)).join('\t'))
+  const rows = group.lines.map((l) => cols.map((c) => c.value?.(l) ?? '').join('\t'))
   return [...(withHeader ? [cols.map((c) => c.header).join('\t')] : []), ...rows].join('\n')
-}
-
-/**
- * One column of the order, one value per line, for pasting into a single column of the NAV lines grid. This is how Copy for NAV
- * works by default: the item numbers go into No. (NAV then fills in the description, unit and cost itself), then the quantities go
- * into Quantity. NAV pastes into columns that sit side by side, and a paste that spans the columns between No. and Quantity also
- * sends empty cells, which NAV validates (an empty Description made it ask whether to switch to an item with a blank description).
- * Both columns list the lines in the same order.
- */
-export function navColumn(group: VendorGroup, part: 'no' | 'qty'): string {
-  return group.lines.map((l) => (part === 'no' ? l.item_code : String(l.qty))).join('\n')
 }
 
 // ---------- Stock freshness ----------
