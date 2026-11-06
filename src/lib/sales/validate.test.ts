@@ -83,6 +83,23 @@ describe('daily and cross checks', () => {
   })
   it('passes when the days equal the week, this year and last', () => {
     const w = weekly(150.25, 130)
-    expect(failures(crossCheck(w, daily(100, [10, 10, 10, 10, 20, 20, 20], [10, 10, 10, 10, 20, 15, 15])))).toEqual([])
+    expect(failures(crossCheck(w, daily(100, [10, 10, 10, 10, 20, 20, 20], [10, 10, 10, 10, 20, 15, 15]))).filter((c) => c.blocking)).toEqual([])
+  })
+})
+
+import { crossDetailed } from './validate'
+describe('a Detailed sheet is the store it is filed under', () => {
+  const w = weekly(150.25, 130) // week 2: Artarmon and Bondi, each with stock 1
+  const sheet = (name: string, stock: number) => ({ week: { fy: 2027, week: 2 }, warnings: [], format: [], sheets: [{ tab: 'X', store_name: name, a1: 'Some other store', items: [], totals: { header_stock: stock, header_net: 0, header_qty: 0, sum_net: 0, sum_qty: 0, kept_net: 0, kept_qty: 0, rows: 0, sheet_week: 2 } }] })
+  it('passes when the sheet\'s stock equals the weekly report\'s for that store, whatever A1 says', () => {
+    expect(failures(crossDetailed(w, sheet('Artarmon', 1)))).toEqual([])
+  })
+  it('blocks a sheet whose stock belongs to another store', () => {
+    const c = crossDetailed(w, sheet('Artarmon', 9999))
+    expect(blocked(c)).toBe(true)
+    expect(c[0].detail).toContain('different store')
+  })
+  it('blocks a sheet for a store the weekly report does not have', () => {
+    expect(blocked(crossDetailed(w, sheet('Nowhere', 1)))).toBe(true)
   })
 })

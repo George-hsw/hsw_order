@@ -6,7 +6,7 @@ import { salesApi } from './lib/sales/api'
 import { dailyRows, detailedRows, indexStores, weeklyRows, type Preview } from './lib/sales/import'
 import { weekLabel } from './lib/sales/model'
 import { kindOf, parseDaily, parseDetailed, parseWeekly, type DailyResult, type DetailedResult, type ReportKind, type WeeklyResult } from './lib/sales/parse'
-import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, failures, type Check } from './lib/sales/validate'
+import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, crossDetailed, failures, type Check } from './lib/sales/validate'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
 
@@ -62,11 +62,18 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
 
   // A file's own checks, plus a comparison with the other report of the same week when both are loaded.
   const checksOf = (e: Entry): Check[] => {
-    const other = entries.find((o) => o.id !== e.id && o.parsed && e.parsed && ((o.parsed.kind === 'weekly' && e.parsed.kind === 'daily') || (o.parsed.kind === 'daily' && e.parsed.kind === 'weekly')))
-    if (!other?.parsed || !e.parsed) return e.checks
-    const w = e.parsed.kind === 'weekly' ? e.parsed.data : other.parsed.kind === 'weekly' ? other.parsed.data : null
-    const d = e.parsed.kind === 'daily' ? e.parsed.data : other.parsed.kind === 'daily' ? other.parsed.data : null
-    return w && d ? [...e.checks, ...crossCheck(w, d)] : e.checks
+    const me = e.parsed
+    if (!me) return e.checks
+    const extra: Check[] = []
+    for (const o of entries) {
+      const other = o.id !== e.id ? o.parsed : undefined
+      if (!other) continue
+      if (me.kind === 'daily' && other.kind === 'weekly') extra.push(...crossCheck(other.data, me.data))
+      else if (me.kind === 'weekly' && other.kind === 'daily') extra.push(...crossCheck(me.data, other.data))
+      else if (me.kind === 'detailed' && other.kind === 'weekly') extra.push(...crossDetailed(other.data, me.data))
+      else if (me.kind === 'weekly' && other.kind === 'detailed') extra.push(...crossDetailed(me.data, other.data))
+    }
+    return [...e.checks, ...extra]
   }
   const weekOf = (p: Parsed) => (p.kind === 'weekly' ? p.data.current : p.data.week)
 

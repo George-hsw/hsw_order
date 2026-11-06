@@ -5,7 +5,7 @@ import { dailyRows, detailedRows, findStore, indexStores, weeklyRows } from './i
 const st = (id: string, name: string, code: string) => ({ id, name, code, address: '', suburb: '', phone: '', email: null, active: true, password_set_at: null }) as StoreRow
 const ix = indexStores([st('1', 'Artarmon', '12064'), st('2', 'Mt. Gravatt', '14122'), st('3', 'South Wharf', '13006C')])
 
-const totals = { header_net: 0, header_qty: 0, sum_net: 0, sum_qty: 0, kept_net: 0, kept_qty: 0, rows: 0, sheet_week: 10 }
+const totals = { header_stock: 0, header_net: 0, header_qty: 0, sum_net: 0, sum_qty: 0, kept_net: 0, kept_qty: 0, rows: 0, sheet_week: 10 }
 describe('matching stores', () => {
   it('finds a store by name however it is written, then by code', () => {
     expect(findStore(ix, 'Mt Gravatt')?.id).toBe('2')

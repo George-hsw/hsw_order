@@ -56,7 +56,7 @@ const addDays = (iso: string, d: number) => new Date(Date.parse(iso + 'T00:00:00
 
 export type ParsedItem = Omit<ItemSale, 'inventory'>
 /** Totals the sheet states in its own header row, beside what the rows underneath add up to. They must agree. */
-export interface SheetTotals { header_net: number; header_qty: number; sum_net: number; sum_qty: number; kept_net: number; kept_qty: number; rows: number; sheet_week: number }
+export interface SheetTotals { header_stock: number; header_net: number; header_qty: number; sum_net: number; sum_qty: number; kept_net: number; kept_qty: number; rows: number; sheet_week: number }
 export interface DetailedSheet { tab: string; store_name: string | null; a1: string; items: ParsedItem[]; totals: SheetTotals }
 export interface DetailedResult { week: WeekRef; sheets: DetailedSheet[]; warnings: string[]; format: Check[] }
 
@@ -116,7 +116,7 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
       })
     }
     const totals: SheetTotals = {
-      header_net: num(rows[0]?.[c.net]), header_qty: num(rows[0]?.[c.qty]), sum_net: sumNet, sum_qty: sumQty, rows: nRows, sheet_week: w,
+      header_stock: num(rows[0]?.[colOf(h, 'Inventory Cost')]), header_net: num(rows[0]?.[c.net]), header_qty: num(rows[0]?.[c.qty]), sum_net: sumNet, sum_qty: sumQty, rows: nRows, sheet_week: w,
       kept_net: items.reduce((a, i) => a + i.net_sales, 0), kept_qty: items.reduce((a, i) => a + i.qty, 0),
     }
     sheets.push({ tab: s.name, store_name: name, a1, items, totals })

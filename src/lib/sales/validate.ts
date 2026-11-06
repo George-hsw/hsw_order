@@ -60,11 +60,33 @@ export function checkDaily(r: DailyResult): Check[] {
   return out
 }
 
+/**
+ * Proves each Detailed Sales sheet belongs to the store it is filed under. A sheet's header holds the store's total stock at cost, and the
+ * weekly report holds the same figure for each store, so the two must agree to the cent. (This is how a sheet whose A1 names the wrong store,
+ * like CAMB saying Bundall, is shown to be the right store after all.)
+ */
+export function crossDetailed(weekly: WeeklyResult, detailed: DetailedResult): Check[] {
+  if (weekly.current.fy !== detailed.week.fy) return []
+  const wk = new Map(weekly.rows.filter((x) => x.week === detailed.week.week).map((x) => [storeKey(x.store_name), x]))
+  if (!wk.size) return []
+  const out: Check[] = []
+  for (const s of detailed.sheets) {
+    const w = s.store_name ? wk.get(storeKey(s.store_name)) : undefined
+    if (!w) { out.push({ label: `${s.store_name ?? s.tab}: found in the weekly report`, ok: false, blocking: true, detail: 'No store with this name in the weekly report for the same week.' }); continue }
+    out.push({ label: `${s.store_name}: stock matches the weekly report`, ok: near(s.totals.header_stock, w.stock, 1), blocking: true,
+      detail: `The sheet's stock at cost is ${n2(s.totals.header_stock)} but the weekly report has ${n2(w.stock)} for ${w.store_name}. The sheet may belong to a different store.` })
+  }
+  return out
+}
+
 /** The daily and weekly reports are different exports of the same sales, so a store's seven days must equal its week. */
 export function crossCheck(weekly: WeeklyResult, daily: DailyResult): Check[] {
   if (weekly.current.fy !== daily.week.fy || weekly.current.week !== daily.week.week) return []
   const wk = new Map(weekly.rows.filter((x) => x.week === daily.week.week).map((x) => [storeKey(x.store_name), x]))
   const out: Check[] = []
+  const inDaily = new Set(daily.totals.map((t) => storeKey(t.store_name)))
+  const absent = [...wk.values()].filter((w) => w.co_fran !== 'Closed' && w.co_fran !== 'eShop' && !inDaily.has(storeKey(w.store_name))).map((w) => w.store_name)
+  if (absent.length) out.push({ label: 'Every trading store is in the daily report', ok: false, blocking: false, detail: `In the weekly report but not the daily one, so they will have no day-by-day figures: ${absent.join(', ')}.` })
   for (const t of daily.totals) {
     const w = wk.get(storeKey(t.store_name))
     if (!w) { out.push({ label: `${t.store_name}: in the weekly report`, ok: false, blocking: false, detail: 'This store is in the daily report but not the weekly one.' }); continue }
