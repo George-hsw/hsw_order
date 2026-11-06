@@ -600,7 +600,7 @@ table.salesmini th, table.salesmini td { padding: var(--space-2xs) var(--space-x
 .findings li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) auto; gap: var(--space-sm); align-items: start; padding: var(--space-sm); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); }
 .findings li p { color: var(--color-ink-2); overflow-wrap: anywhere; }
 .findings li .chip { justify-self: start; }
-small.block { display: block; }
+small.sub { display: block; }
 table.people td { vertical-align: top; }
 @media (max-width: 44rem) {
   .findings li { grid-template-columns: minmax(0, 1fr); }
@@ -614,3 +614,25 @@ table.people td { vertical-align: top; }
 
 button, a, select, summary, label { touch-action: manipulation; }
 .scanbtn:active:not(:disabled) { transform: none; }
+
+/* ---------- Phones: the Sales and Analytics tables become cards of separate cells, the same way as the order lists above ----------
+   Each cell has its label above its value, everything left-aligned, and spans a set number of the six columns so rows line up card to card. */
+@media (max-width: 44rem) {
+  .viz-card .tablewrap { overflow: visible; }
+  table.cells { display: block; min-width: 0; table-layout: auto; }
+  table.cells thead { display: none; }
+  table.cells tbody { display: block; }
+  table.cells tr { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; margin: 0 0 var(--space-sm); padding: 0; background: var(--color-rule); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); overflow: hidden; }
+  table.cells td { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: var(--space-3xs); grid-column: span 3; min-height: 48px; padding: var(--space-xs) var(--space-sm); border: 0; background: var(--color-paper-2); text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  table.cells td::before { content: attr(data-label); display: block; font-size: var(--text-sm); font-weight: 400; color: var(--color-muted); }
+  table.cells td[data-label=""]::before { display: none; }
+  table.cells td.full { grid-column: 1 / -1; }
+  table.cells td.s2 { grid-column: span 2; }
+  table.cells td.s3 { grid-column: span 3; }
+  table.cells td.s4 { grid-column: span 4; }
+  table.cells td.o1 { order: 1; } table.cells td.o2 { order: 2; } table.cells td.o3 { order: 3; } table.cells td.o4 { order: 4; }
+  table.cells td small { display: block; }
+  table.cells td .linkish { min-height: 0; }
+  table.cells tr.on td { background: var(--color-paper-3); }
+  table.cells tbody tr:last-child td { border-bottom: 0; }
+}

@@ -141,9 +141,9 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
         <div className="viz-head"><div><h2>Recent loads</h2></div></div>
         {log.loading ? <p className="muted">Loading…</p> : !log.data?.length ? <p className="muted viz-empty">Nothing loaded yet.</p> : (
           <div className="tablewrap">
-            <table className="viz-table">
+            <table className="viz-table cells">
               <thead><tr><th>Report</th><th>Week</th><th className="r">Rows</th><th>Loaded</th></tr></thead>
-              <tbody>{log.data.map((u) => <tr key={u.id}><td>{KIND_LABEL[u.kind]}</td><td>{weekLabel(u)}</td><td className="r">{u.row_count.toLocaleString('en-AU')}</td><td>{when(u.uploaded_at)}</td></tr>)}</tbody>
+              <tbody>{log.data.map((u) => <tr key={u.id}><td className="full" data-label="Report">{KIND_LABEL[u.kind]}</td><td className="s2" data-label="Week">{weekLabel(u)}</td><td className="r s2" data-label="Rows">{u.row_count.toLocaleString('en-AU')}</td><td className="s2" data-label="Loaded">{when(u.uploaded_at)}</td></tr>)}</tbody>
             </table>
           </div>
         )}

@@ -69,9 +69,9 @@ export default function SalesLeague({ week, stores }: { week: WeekRef; stores: S
       <section className="sheet viz-card">
         <div className="viz-head"><div><h2>Every store</h2><p className="muted">Including closed stores and the eShop, which stores never see.</p></div></div>
         <div className="tablewrap">
-          <table className="viz-table">
+          <table className="viz-table cells">
             <thead><tr><th>Store</th><th>Type</th><th className="r">Sales</th><th className="r">Last year</th><th className="r">Change</th><th className="r">Sales made</th></tr></thead>
-            <tbody>{rows.map((r) => <tr key={r.store_name + r.co_fran}><td>{r.store_name}</td><td>{r.co_fran}</td><td className="r">{money2(r.ty_sales)}</td><td className="r">{money2(r.ly_sales)}</td><td className="r">{pctText(change(r.ty_sales, r.ly_sales))}</td><td className="r">{r.ty_trans.toLocaleString('en-AU')}</td></tr>)}</tbody>
+            <tbody>{rows.map((r) => <tr key={r.store_name + r.co_fran}><td className="s4" data-label="Store">{r.store_name}</td><td className="s2" data-label="Type">{r.co_fran}</td><td className="r s2" data-label="Sales">{money2(r.ty_sales)}</td><td className="r s2" data-label="Last year">{money2(r.ly_sales)}</td><td className="r s2" data-label="Change">{pctText(change(r.ty_sales, r.ly_sales))}</td><td className="r full" data-label="Sales made">{r.ty_trans.toLocaleString('en-AU')}</td></tr>)}</tbody>
           </table>
         </div>
       </section>

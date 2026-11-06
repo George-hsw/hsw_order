@@ -102,12 +102,12 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
             <div className="viz-head"><div><h2>People</h2><p className="muted">Newest first</p></div></div>
             {!users.length ? <p className="viz-empty">Nobody used the app in this period.</p> : (
               <div className="tablewrap">
-                <table className="viz-table people">
+                <table className="viz-table cells">
                   <thead><tr><th>Person</th><th className="r">Sign-ins</th><th className="r">Orders</th><th className="r">Errors</th><th>Last seen</th><th>Device</th></tr></thead>
                   <tbody>{users.map((u) => (
                     <tr key={u.email}>
-                      <td><b>{u.name}</b>{u.name !== u.email && <small className="block">{u.email}</small>}</td>
-                      <td className="r">{u.sessions}</td><td className="r">{u.orders}</td><td className="r">{u.errors || '–'}</td><td>{when(u.last_seen)}</td><td>{u.device || '–'}</td>
+                      <td className="full" data-label="Person"><b>{u.name}</b>{u.name !== u.email && <small className="sub">{u.email}</small>}</td>
+                      <td className="r s2" data-label="Sign-ins">{u.sessions}</td><td className="r s2" data-label="Orders">{u.orders}</td><td className="r s2" data-label="Errors">{u.errors || '–'}</td><td className="s3" data-label="Last seen">{when(u.last_seen)}</td><td className="s3" data-label="Device">{u.device || '–'}</td>
                     </tr>))}</tbody>
                 </table>
               </div>
@@ -119,9 +119,9 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
             <div className="viz-head"><div><h2>Errors</h2><p className="muted">What went wrong, most common first</p></div></div>
             {!errors.length ? <p className="viz-empty">No errors in this period.</p> : (
               <div className="tablewrap">
-                <table className="viz-table">
+                <table className="viz-table cells">
                   <thead><tr><th>What happened</th><th>Where</th><th className="r">Times</th><th className="r">People</th><th>Last</th></tr></thead>
-                  <tbody>{errors.map((e) => <tr key={e.message}><td>{e.message}</td><td>{e.where || '–'}</td><td className="r">{e.count}</td><td className="r">{e.people}</td><td>{when(e.last)}</td></tr>)}</tbody>
+                  <tbody>{errors.map((e) => <tr key={e.message}><td className="full" data-label="What happened">{e.message}</td><td className="s3" data-label="Where">{e.where || '–'}</td><td className="r s3" data-label="Times">{e.count}</td><td className="r s3" data-label="People">{e.people}</td><td className="s3" data-label="Last">{when(e.last)}</td></tr>)}</tbody>
                 </table>
               </div>
             )}
@@ -130,11 +130,11 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
           <section className="sheet viz-card">
             <div className="viz-head"><div><h2>Recent activity</h2><p className="muted">The latest 40 actions</p></div></div>
             <div className="tablewrap">
-              <table className="viz-table">
+              <table className="viz-table cells">
                 <thead><tr><th>When</th><th>Person</th><th>Did</th><th>Store</th></tr></thead>
                 <tbody>{events.slice(0, 40).map((e) => (
-                  <tr key={e.id}><td>{when(e.at)}</td><td>{people.find((p) => p.email.toLowerCase() === e.email)?.full_name ?? e.email}</td>
-                    <td>{KIND_LABEL[e.kind] ?? e.kind}{typeof e.detail.tab === 'string' ? `: ${e.detail.tab}` : typeof e.detail.view === 'string' ? `: ${e.detail.view}` : ''}</td><td>{e.store_id ? names.get(e.store_id) ?? '' : ''}</td></tr>))}</tbody>
+                  <tr key={e.id}><td className="s3 o3" data-label="When">{when(e.at)}</td><td className="full o2" data-label="Person">{people.find((p) => p.email.toLowerCase() === e.email)?.full_name ?? e.email}</td>
+                    <td className="full o1" data-label="Did">{KIND_LABEL[e.kind] ?? e.kind}{typeof e.detail.tab === 'string' ? `: ${e.detail.tab}` : typeof e.detail.view === 'string' ? `: ${e.detail.view}` : ''}</td><td className="s3 o4" data-label="Store">{e.store_id ? names.get(e.store_id) ?? '–' : '–'}</td></tr>))}</tbody>
               </table>
             </div>
           </section>

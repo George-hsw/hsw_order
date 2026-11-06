@@ -90,15 +90,15 @@ export default function SalesItems({ storeId, week, onOrder }: { storeId: string
           </select>
         </div>
         <div className="tablewrap">
-          <table className="salesitems">
+          <table className="salesitems cells">
             <thead><tr><th>Item</th><th className="r">Sold</th><th className="r">Stock</th><th>Flag</th></tr></thead>
             <tbody>
               {sorted.slice(0, limit).map((i) => (
                 <tr key={i.item_code} className={open === i.item_code ? 'on' : ''}>
-                  <td><button type="button" className="linkish" onClick={() => setOpen(open === i.item_code ? null : i.item_code)} aria-expanded={open === i.item_code}><b>{i.description || i.item_code}</b><small>{i.item_code}{i.store_rank ? `, ${ordinal(i.store_rank)} in store` : ''}</small></button></td>
-                  <td className="r">{i.qty}</td>
-                  <td className="r">{i.inventory}</td>
-                  <td>{itemFlag(i) !== 'ok' && <span className={`chip ${CHIP[itemFlag(i)]}`}>{SHORT[itemFlag(i)]}</span>}</td>
+                  <td className="full" data-label="Item"><button type="button" className="linkish" onClick={() => setOpen(open === i.item_code ? null : i.item_code)} aria-expanded={open === i.item_code}><b>{i.description || i.item_code}</b><small>{i.item_code}{i.store_rank ? `, ${ordinal(i.store_rank)} in store` : ''}</small></button></td>
+                  <td className="r s3" data-label="Sold">{i.qty}</td>
+                  <td className="r s3" data-label="Stock">{i.inventory}</td>
+                  <td className="full" data-label="Flag">{itemFlag(i) !== 'ok' ? <span className={`chip ${CHIP[itemFlag(i)]}`}>{SHORT[itemFlag(i)]}</span> : <span className="muted">None</span>}</td>
                 </tr>
               ))}
             </tbody>

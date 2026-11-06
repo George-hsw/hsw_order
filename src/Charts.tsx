@@ -78,9 +78,9 @@ export function ChartCard({ title, sub, legend, table, children, actions }: { ti
       {legend}
       {view === 'chart' ? children : (
         <div className="tablewrap">
-          <table className="viz-table">
+          <table className="viz-table cells">
             <thead><tr>{table.head.map((h, i) => <th key={h} className={i ? 'r' : ''}>{h}</th>)}</tr></thead>
-            <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className={j ? 'r' : ''}>{c}</td>)}</tr>)}</tbody>
+            <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className={j ? 'r s3' : 'full'} data-label={j ? table.head[j] : ''}>{c}</td>)}</tr>)}</tbody>
           </table>
         </div>
       )}
