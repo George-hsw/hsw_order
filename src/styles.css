@@ -646,3 +646,5 @@ button, a, select, summary, label { touch-action: manipulation; }
   .page { padding-bottom: calc(var(--tabbar) + var(--space-xl)); }
   .stickybar { bottom: var(--tabbar); padding-bottom: var(--space-sm); }
 }
+
+.scanner[hidden] { display: none; }

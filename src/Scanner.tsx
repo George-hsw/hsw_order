@@ -22,8 +22,22 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
   const toast = useToast()
   const [error, setError] = useState('')
   const [live, setLive] = useState(false) // the camera is showing
+  const [closing, setClosing] = useState(false)
   const onScanRef = useRef(onScan)
   onScanRef.current = onScan
+
+  // Done and the cross act on the touch itself and stop the camera work at once, so the screen behind is there straight away. The click that
+  // follows the touch is swallowed so it cannot land on whatever was under the finger.
+  const stoppedRef = useRef(false)
+  const finish = () => {
+    if (stoppedRef.current) return
+    stoppedRef.current = true
+    setClosing(true)
+    const eat = (ev: Event) => { ev.stopPropagation(); ev.preventDefault() }
+    document.addEventListener('click', eat, { capture: true, once: true })
+    setTimeout(() => document.removeEventListener('click', eat, true), 600)
+    onClose()
+  }
 
   useEffect(() => {
     let stopped = false
@@ -34,6 +48,7 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
 
     const emit = (v: string) => {
       const now = Date.now()
+      if (stoppedRef.current) return
       if (v === last && now - lastAt < 2500) return // debounce the same code held in view
       last = v
       lastAt = now
@@ -52,7 +67,7 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
           await video.play()
           const det = new window.BarcodeDetector({ formats: FORMATS })
           const tick = async () => {
-            if (stopped) return
+            if (stopped || stoppedRef.current) return
             try {
               const found = await det.detect(video)
               if (found[0]?.rawValue) emit(found[0].rawValue)
@@ -84,14 +99,14 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
   }, [])
 
   return (
-    <div className="scanner" role="dialog" aria-label="Barcode scanner">
+    <div className="scanner" role="dialog" aria-label="Barcode scanner" hidden={closing}>
       <video ref={videoRef} playsInline muted onPlaying={() => setLive(true)} />
-      <button type="button" className="scan-x" aria-label="Close the scanner" onClick={onClose}>
+      <button type="button" className="scan-x" aria-label="Close the scanner" onPointerDown={finish} onClick={finish}>
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
       </button>
       <div className="reticle" />
       <div className="scan-msg">{error ? <span className="bad">{error}</span> : feedback || (live ? 'Point the camera at a barcode' : 'Starting the camera…')}</div>
-      <button type="button" className="btn primary scan-close" onClick={onClose}>Done</button>
+      <button type="button" className="btn primary scan-close" onPointerDown={finish} onClick={finish}>Done</button>
     </div>
   )
 }
