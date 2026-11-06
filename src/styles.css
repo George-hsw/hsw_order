@@ -611,3 +611,6 @@ table.people td { vertical-align: top; }
 .flagbtn:disabled .go { color: var(--color-muted); font-weight: 400; }
 .flagbtn.on .go { color: var(--color-ink); }
 .viz-plot .axis { font-variant-numeric: tabular-nums; }
+
+button, a, select, summary, label { touch-action: manipulation; }
+.scanbtn:active:not(:disabled) { transform: none; }

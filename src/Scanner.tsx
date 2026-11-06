@@ -21,6 +21,7 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const toast = useToast()
   const [error, setError] = useState('')
+  const [live, setLive] = useState(false) // the camera is showing
   const onScanRef = useRef(onScan)
   onScanRef.current = onScan
 
@@ -84,12 +85,12 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
 
   return (
     <div className="scanner" role="dialog" aria-label="Barcode scanner">
-      <video ref={videoRef} playsInline muted />
+      <video ref={videoRef} playsInline muted onPlaying={() => setLive(true)} />
       <button type="button" className="scan-x" aria-label="Close the scanner" onClick={onClose}>
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
       </button>
       <div className="reticle" />
-      <div className="scan-msg">{error ? <span className="bad">{error}</span> : feedback || 'Point the camera at a barcode'}</div>
+      <div className="scan-msg">{error ? <span className="bad">{error}</span> : feedback || (live ? 'Point the camera at a barcode' : 'Starting the camera…')}</div>
       <button type="button" className="btn primary scan-close" onClick={onClose}>Done</button>
     </div>
   )

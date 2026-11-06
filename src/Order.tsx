@@ -79,6 +79,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
   useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
 
+  const openScanner = () => { primeAudio(); setScanMsg(''); (document.activeElement as HTMLElement | null)?.blur?.(); setScanning(true) }
+  useEffect(() => { if (!window.BarcodeDetector) void import('@zxing/browser') }, []) // warm the scanner code on iPhones so the camera starts at once
   const chooseVendor = (v: string) => { setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts(); else track('order_started', { vendor: v }, storeId) }
   const changeStore = (id: string) => {
     setStoreId(id)
@@ -286,7 +288,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                   <div className="findrow">
                     <input type="search" name="find" aria-label={`Find an item from ${vendor}`} placeholder="Search this vendor, or scan…" value={find} enterKeyHint="search"
                       autoComplete="off" onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onFinderEnter()} />
-                    <button type="button" className="btn" onClick={() => { primeAudio(); setScanMsg(''); setScanning(true) }}>
+                    {/* Opens on the touch itself, not on the click that follows: when the keyboard is up, the first tap only closes it and the button moves, so the click never lands. */}
+                    <button type="button" className="btn scanbtn" onPointerDown={openScanner} onClick={openScanner}>
                       <svg className="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M12 8v8M16 8v8" /></svg>
                       Scan
                     </button>
