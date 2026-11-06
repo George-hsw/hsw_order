@@ -3,7 +3,7 @@ import { SHOW_SALES, itemWarnings, lineCost, money, parseQty, syncedLabel, vendo
 import { useEscape } from './lib/useEscape'
 import { useLoad } from './lib/useLoad'
 import { salesApi } from './lib/sales/api'
-import { money0, ordinal, weekLabel } from './lib/sales/model'
+import { money2, ordinal, weekLabel } from './lib/sales/model'
 import type { OrderLine } from './lib/supabase'
 
 interface Props {
@@ -78,12 +78,12 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
             <p className="muted">No sales recorded for this item in the weeks loaded. The weekly report lists an item only when it sold, was ranked or lost sales.</p>
           ) : (
             <>
-              <p>{weekLabel(sales.data[0])}: sold <b className="num">{sales.data[0].qty}</b> ({money0(sales.data[0].net_sales)}){sales.data[0].store_rank ? `, ${ordinal(sales.data[0].store_rank)} in this store` : ''}.
+              <p>{weekLabel(sales.data[0])}: sold <b className="num">{sales.data[0].qty}</b> ({money2(sales.data[0].net_sales)}){sales.data[0].store_rank ? `, ${ordinal(sales.data[0].store_rank)} in this store` : ''}.
                 {sales.data[0].stores_stocking > 0 && <> The average store that stocks it sold {(sales.data[0].group_qty / sales.data[0].stores_stocking).toFixed(1)}.</>}
-                {sales.data[0].potential_loss > 0 && <> Estimated sales lost while out of stock: {money0(sales.data[0].potential_loss)}.</>}</p>
+                {sales.data[0].potential_loss > 0 && <> Estimated sales lost while out of stock: {money2(sales.data[0].potential_loss)}.</>}</p>
               <table className="salesmini">
                 <thead><tr><th>Week</th><th className="r">Sold</th><th className="r">Sales</th><th className="r">Lost</th></tr></thead>
-                <tbody>{sales.data.slice(0, 6).map((w) => <tr key={w.fy * 100 + w.week}><td>{weekLabel(w)}</td><td className="r">{w.qty}</td><td className="r">{money0(w.net_sales)}</td><td className="r">{w.potential_loss > 0 ? money0(w.potential_loss) : '–'}</td></tr>)}</tbody>
+                <tbody>{sales.data.slice(0, 6).map((w) => <tr key={w.fy * 100 + w.week}><td>{weekLabel(w)}</td><td className="r">{w.qty}</td><td className="r">{money2(w.net_sales)}</td><td className="r">{w.potential_loss > 0 ? money2(w.potential_loss) : '–'}</td></tr>)}</tbody>
               </table>
               <p className="muted">Item sales are before GST. A week that is missing had no sale, rank or lost sales recorded.</p>
             </>

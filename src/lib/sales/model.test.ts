@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chainAvg, change, compact, flagCounts, itemFlag, money0, ordinal, pctText, rangeText, rankText, topBy, weekLabel, weeksOf, type ItemSale } from './model'
+import { chainAvg, change, compact, flagCounts, itemFlag, money2, ordinal, pctText, rangeText, rankText, topBy, weekLabel, weeksOf, type ItemSale } from './model'
 
 const item = (over: Partial<ItemSale>): ItemSale => ({
   item_code: 'A', description: 'a', vendor_no: 'V', division: null, qty: 0, net_sales: 0, store_rank: 0, group_qty: 0, group_net: 0, stores_stocking: 0,
@@ -17,8 +17,10 @@ describe('numbers and wording', () => {
     expect(pctText(-0.0606)).toBe('−6.1%')
     expect(pctText(0)).toBe('0.0%')
     expect(pctText(null)).toBe('no comparison')
-    expect(money0(31562.64)).toBe('$31,563')
-    expect(money0(-5.4)).toBe('−$5')
+    expect(money2(31562.64)).toBe('$31,562.64')
+    expect(money2(243.68)).toBe('$243.68')
+    expect(money2(12)).toBe('$12.00')
+    expect(money2(-5.4)).toBe('−$5.40')
     expect(compact(950)).toBe('950')
     expect(compact(12900)).toBe('13K')
     expect(compact(1250)).toBe('1.3K')

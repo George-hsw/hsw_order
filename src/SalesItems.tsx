@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { BarList, ChartCard, Legend, useEscapeKey } from './Charts'
 import { salesApi } from './lib/sales/api'
 import {
-  FLAGS, FLAG_HELP, FLAG_LABEL, chainAvg, flagCounts, itemFlag, money0, ordinal, topBy, type ItemFlag, type ItemSale, type WeekRef, weekKey,
+  FLAGS, FLAG_HELP, FLAG_LABEL, chainAvg, flagCounts, itemFlag, money2, ordinal, topBy, type ItemFlag, type ItemSale, type WeekRef, weekKey,
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 
@@ -35,6 +35,13 @@ export default function SalesItems({ storeId, week, onOrder }: { storeId: string
       return b[sort] - a[sort] || a.item_code.localeCompare(b.item_code)
     })
   }, [all, flag, find, sort])
+  const listTop = useRef<HTMLElement>(null)
+  // Show the list for one flag and bring it into view, since it sits further down the page.
+  const show = (f: ItemFlag) => {
+    const on = flag === f ? null : f
+    setFlag(on); setLimit(PAGE)
+    if (on) requestAnimationFrame(() => listTop.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }))
+  }
   const picked = all.find((i) => i.item_code === open) ?? null
 
   if (items.loading) return <p className="muted">Loading…</p>
@@ -47,11 +54,12 @@ export default function SalesItems({ storeId, week, onOrder }: { storeId: string
   return (
     <div className="viz-stack">
       <section className="sheet viz-card">
-        <div className="viz-head"><div><h2>Where to act</h2><p className="muted">Plain rules over this week’s numbers. They point at items to look at; the numbers sit beside them. Press one to filter the list.</p></div></div>
+        <div className="viz-head"><div><h2>Where to act</h2><p className="muted">Plain rules over this week’s numbers. They point at items to look at; the numbers sit beside them. Press View items to see the list.</p></div></div>
         <div className="flags">
           {FLAGS.map((f) => (
-            <button key={f} type="button" className={`flagbtn${flag === f ? ' on' : ''}`} aria-pressed={flag === f} onClick={() => { setFlag(flag === f ? null : f); setLimit(PAGE) }}>
-              <b>{counts[f]}</b><span>{SHORT[f]}</span>
+            <button key={f} type="button" className={`flagbtn${flag === f ? ' on' : ''}`} aria-pressed={flag === f} disabled={counts[f] === 0} onClick={() => show(f)}>
+              <b>{counts[f].toLocaleString('en-AU')}</b><span>{SHORT[f]}</span>
+              <span className="go">{flag === f ? 'Showing below' : counts[f] ? 'View items' : 'None'}<span aria-hidden="true"> ›</span></span>
             </button>
           ))}
         </div>
@@ -62,17 +70,19 @@ export default function SalesItems({ storeId, week, onOrder }: { storeId: string
 
       <div className="viz-two">
         <ChartCard title="Top sellers" sub="By sales this week" legend={<Legend items={[{ tone: 'ty', label: 'Sales' }]} />}
-          table={{ head: ['Item', 'Units', 'Sales'], rows: top.map((i) => [i.description, i.qty, money0(i.net_sales)]) }}>
-          <BarList rows={top.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i.net_sales, text: money0(i.net_sales) }))} selected={open} onSelect={setOpen} empty="Nothing sold this week." />
+          table={{ head: ['Item', 'Units', 'Sales'], rows: top.map((i) => [i.description, i.qty, money2(i.net_sales)]) }}>
+          <BarList rows={top.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i.net_sales, text: money2(i.net_sales) }))} selected={open} onSelect={setOpen} empty="Nothing sold this week." />
         </ChartCard>
         <ChartCard title="Sales lost to no stock" sub="The report’s estimate, biggest first"
-          table={{ head: ['Item', 'Stock', 'Lost sales'], rows: lost.map((i) => [i.description, i.inventory, money0(i.potential_loss)]) }}>
-          <BarList rows={lost.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i.potential_loss, text: money0(i.potential_loss) }))} selected={open} onSelect={setOpen} empty="No lost sales reported this week." />
+          table={{ head: ['Item', 'Stock', 'Lost sales'], rows: lost.map((i) => [i.description, i.inventory, money2(i.potential_loss)]) }}>
+          <BarList rows={lost.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i.potential_loss, text: money2(i.potential_loss) }))} selected={open} onSelect={setOpen} empty="No lost sales reported this week." />
         </ChartCard>
       </div>
 
-      <section className="sheet viz-card">
-        <div className="viz-head"><div><h2>All items</h2><p className="muted">{sorted.length.toLocaleString('en-AU')} of {all.length.toLocaleString('en-AU')} items that sold, ranked or lost sales</p></div></div>
+      <section className="sheet viz-card" ref={listTop}>
+        <div className="viz-head"><div><h2>{flag ? SHORT[flag] : 'All items'}</h2><p className="muted">{sorted.length.toLocaleString('en-AU')} of {all.length.toLocaleString('en-AU')} items that sold, ranked or lost sales</p></div>
+          {flag && <button type="button" className="btn" onClick={() => setFlag(null)}>Show all items</button>}
+        </div>
         <div className="filters">
           <input type="search" name="salesFind" aria-label="Find an item" placeholder="Find an item, code or vendor" value={find} onChange={(e) => { setFind(e.target.value); setLimit(PAGE) }} style={{ maxWidth: 320 }} />
           <select name="salesSort" aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={{ width: 'auto' }}>
@@ -116,13 +126,13 @@ function ItemPanel({ item, onClose, onOrder }: { item: ItemSale; onClose: () => 
         <p className="muted">{item.item_code}{item.vendor_no ? `, vendor ${item.vendor_no}` : ''}{item.division ? `, ${item.division.replace(/_/g, ' ').toLowerCase()}` : ''}</p>
         {f !== 'ok' && <p className={`note${f === 'out' ? ' bad' : ''}`}><b>{FLAG_LABEL[f]}.</b> {FLAG_HELP[f]}</p>}
         <dl className="facts">
-          <div><dt>Sold this week</dt><dd className="num">{item.qty} units, {money0(item.net_sales)}</dd></div>
+          <div><dt>Sold this week</dt><dd className="num">{item.qty} units, {money2(item.net_sales)}</dd></div>
           <div><dt>Stock now</dt><dd className="num">{item.inventory}</dd></div>
           <div><dt>Rank in your store</dt><dd className="num">{item.store_rank ? ordinal(item.store_rank) : 'not ranked'}</dd></div>
           <div><dt>Rank in the business</dt><dd className="num">{item.business_rank ? ordinal(item.business_rank) : 'not ranked'}</dd></div>
           <div><dt>Average store that stocks it</dt><dd className="num">{item.stores_stocking ? `${avg.toFixed(1)} units (${item.stores_stocking} stores)` : 'no other store'}</dd></div>
-          <div><dt>Could sell at the average</dt><dd className="num">{money0(item.potential_sales)}</dd></div>
-          <div><dt>Sales lost to no stock</dt><dd className="num">{money0(item.potential_loss)}</dd></div>
+          <div><dt>Could sell at the average</dt><dd className="num">{money2(item.potential_sales)}</dd></div>
+          <div><dt>Sales lost to no stock</dt><dd className="num">{money2(item.potential_loss)}</dd></div>
           <div><dt>Order in multiples of</dt><dd className="num">{item.moq}</dd></div>
         </dl>
         <div className="actions">

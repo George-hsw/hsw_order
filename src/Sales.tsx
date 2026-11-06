@@ -6,7 +6,7 @@ import SalesUpload from './SalesUpload'
 import { track } from './lib/analytics/track'
 import { salesApi } from './lib/sales/api'
 import {
-  RANK_LABEL, WEEKDAYS, avgSale, avgSaleLy, change, memberShare, money0, pctText, rangeText, rankText, sameWeek, weekKey, weekLabel,
+  RANK_LABEL, WEEKDAYS, avgSale, avgSaleLy, change, memberShare, money2, pctText, rangeText, rankText, sameWeek, weekKey, weekLabel,
   type RankMetric, type StoreWeek, type WeekDates, type WeekRef,
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
@@ -114,9 +114,9 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
       </p>
 
       <div className="kpis">
-        <StatTile label="Sales" value={money0(cur.ty_sales)} delta={growth} ly={`Last year ${money0(cur.ly_sales)}`} />
+        <StatTile label="Sales" value={money2(cur.ty_sales)} delta={growth} ly={`Last year ${money2(cur.ly_sales)}`} />
         <StatTile label="Sales made" value={cur.ty_trans.toLocaleString('en-AU')} delta={change(cur.ty_trans, cur.ly_trans)} ly={`Last year ${cur.ly_trans.toLocaleString('en-AU')}`} />
-        <StatTile label="Average sale" value={money0(avgSale(cur))} delta={change(avgSale(cur), avgSaleLy(cur))} ly={`Last year ${money0(avgSaleLy(cur))}`} />
+        <StatTile label="Average sale" value={money2(avgSale(cur))} delta={change(avgSale(cur), avgSaleLy(cur))} ly={`Last year ${money2(avgSaleLy(cur))}`} />
         <StatTile label="Items per sale" value={cur.basket ? cur.basket.toFixed(2) : 'n/a'} ly={chain.data ? `Chain average ${chain.data.avg_basket.toFixed(2)}` : undefined} />
         <StatTile label="Members" value={`${Math.round(ms * 100)}%`} ly="of sales" />
         <StatTile label="Margin" value={cur.gp_ty ? `${(cur.gp_ty * 100).toFixed(1)}%` : 'n/a'} ly={cur.gp_ly ? `${gpPts >= 0 ? '+' : '−'}${Math.abs(gpPts).toFixed(1)} points on last year` : undefined} />
@@ -125,8 +125,8 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
       <ChartCard
         title="Week by week" sub="This year beside the same week last year. Press a week to open it."
         legend={<Legend items={[{ tone: 'ty', label: 'This year' }, { tone: 'ly', label: 'Same week last year' }]} />}
-        table={{ head: ['Week', 'Sales', 'Last year', 'Change', 'Sales made', 'Average sale'], rows: upTo.slice().reverse().map((h) => [weekLabel(h), money0(h.ty_sales), money0(h.ly_sales), pctText(change(h.ty_sales, h.ly_sales)), h.ty_trans.toLocaleString('en-AU'), money0(avgSale(h))]) }}>
-        <ColumnChart label="Weekly sales, this year and last year" cats={upTo.map((h) => `W${h.week}`)} fmt={money0}
+        table={{ head: ['Week', 'Sales', 'Last year', 'Change', 'Sales made', 'Average sale'], rows: upTo.slice().reverse().map((h) => [weekLabel(h), money2(h.ty_sales), money2(h.ly_sales), pctText(change(h.ty_sales, h.ly_sales)), h.ty_trans.toLocaleString('en-AU'), money2(avgSale(h))]) }}>
+        <ColumnChart label="Weekly sales, this year and last year" cats={upTo.map((h) => `W${h.week}`)} fmt={money2}
           series={[{ name: 'This year', tone: 'ty', values: upTo.map((h) => h.ty_sales) }, { name: 'Last year', tone: 'ly', values: upTo.map((h) => h.ly_sales) }]}
           selected={upTo.findIndex((h) => sameWeek(h, week))} onSelect={(i) => onWeek({ fy: upTo[i].fy, week: upTo[i].week })} />
       </ChartCard>
@@ -135,10 +135,10 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
         <ChartCard
           title="Day by day" sub={dates?.week_start ? rangeText(dates.week_start, dates.week_end) : weekLabel(week)}
           legend={<Legend items={[{ tone: 'ty', label: 'This year' }, { tone: 'ly', label: 'Same day last year' }]} />}
-          table={{ head: ['Day', 'Sales', 'Last year', 'Change'], rows: dayRows.map((d) => [WEEKDAYS[d.weekday - 1], money0(d.ty), money0(d.ly), pctText(change(d.ty, d.ly))]) }}>
+          table={{ head: ['Day', 'Sales', 'Last year', 'Change'], rows: dayRows.map((d) => [WEEKDAYS[d.weekday - 1], money2(d.ty), money2(d.ly), pctText(change(d.ty, d.ly))]) }}>
           {days.loading ? <p className="muted viz-empty">Loading…</p> : !dayRows.length ? <p className="muted viz-empty">No daily figures for this week yet.</p> : (
             <>
-              <ColumnChart label="Daily sales, this year and last year" cats={WEEKDAYS} fmt={money0} height={208} selected={dayIdx} onSelect={(i) => setDayIdx(dayIdx === i ? null : i)}
+              <ColumnChart label="Daily sales, this year and last year" cats={WEEKDAYS} fmt={money2} height={208} selected={dayIdx} onSelect={(i) => setDayIdx(dayIdx === i ? null : i)}
                 series={[{ name: 'This year', tone: 'ty', values: WEEKDAYS.map((_, i) => dayRows.find((d) => d.weekday === i + 1)?.ty ?? 0) }, { name: 'Last year', tone: 'ly', values: WEEKDAYS.map((_, i) => dayRows.find((d) => d.weekday === i + 1)?.ly ?? 0) }]} />
               {dayIdx !== null && dayRows.find((d) => d.weekday === dayIdx + 1) && (
                 <p className="viz-pick">{WEEKDAYS[dayIdx]}: <Delta f={change(dayRows.find((d) => d.weekday === dayIdx + 1)!.ty, dayRows.find((d) => d.weekday === dayIdx + 1)!.ly)} label="on the same day last year" /></p>
@@ -148,9 +148,9 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
         </ChartCard>
 
         <ChartCard title="Member sales" sub="Share of the week’s sales"
-          table={{ head: ['', 'Sales', 'Share'], rows: [['Members', money0(cur.member_sales), `${Math.round(ms * 100)}%`], ['Everyone else', money0(Math.max(0, cur.ty_sales - cur.member_sales)), `${Math.round((1 - ms) * 100)}%`]] }}>
+          table={{ head: ['', 'Sales', 'Share'], rows: [['Members', money2(cur.member_sales), `${Math.round(ms * 100)}%`], ['Everyone else', money2(Math.max(0, cur.ty_sales - cur.member_sales)), `${Math.round((1 - ms) * 100)}%`]] }}>
           <Donut parts={[{ key: 'm', label: 'Members', value: cur.member_sales, tone: 'ty' }, { key: 'n', label: 'Everyone else', value: Math.max(0, cur.ty_sales - cur.member_sales), tone: 'ly' }]}
-            centre={`${Math.round(ms * 100)}%`} sub="members" fmt={money0} />
+            centre={`${Math.round(ms * 100)}%`} sub="members" fmt={money2} />
         </ChartCard>
       </div>
 
@@ -170,9 +170,9 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
 
       {chain.data && (
         <ChartCard title="You and the average store" sub={`Across ${chain.data.stores} stores this week`}
-          table={{ head: ['', 'You', 'Average store'], rows: [['Sales', money0(cur.ty_sales), money0(chain.data.avg_store_sales)], ['Margin', `${(cur.gp_ty * 100).toFixed(1)}%`, `${(chain.data.avg_gp * 100).toFixed(1)}%`], ['Items per sale', cur.basket.toFixed(2), chain.data.avg_basket.toFixed(2)]] }}>
+          table={{ head: ['', 'You', 'Average store'], rows: [['Sales', money2(cur.ty_sales), money2(chain.data.avg_store_sales)], ['Margin', `${(cur.gp_ty * 100).toFixed(1)}%`, `${(chain.data.avg_gp * 100).toFixed(1)}%`], ['Items per sale', cur.basket.toFixed(2), chain.data.avg_basket.toFixed(2)]] }}>
           <div className="vs">
-            <div><p className="stat-label">Sales</p><BarList rows={[{ key: 'you', label: 'You', value: cur.ty_sales, text: money0(cur.ty_sales) }, { key: 'avg', tone: 'ly', label: 'Average store', value: chain.data.avg_store_sales, text: money0(chain.data.avg_store_sales) }]} tone="ty" /></div>
+            <div><p className="stat-label">Sales</p><BarList rows={[{ key: 'you', label: 'You', value: cur.ty_sales, text: money2(cur.ty_sales) }, { key: 'avg', tone: 'ly', label: 'Average store', value: chain.data.avg_store_sales, text: money2(chain.data.avg_store_sales) }]} tone="ty" /></div>
             <div><p className="stat-label">Margin</p><BarList rows={[{ key: 'you', label: 'You', value: cur.gp_ty, text: `${(cur.gp_ty * 100).toFixed(1)}%` }, { key: 'avg', tone: 'ly', label: 'Average store', value: chain.data.avg_gp, text: `${(chain.data.avg_gp * 100).toFixed(1)}%` }]} tone="ty" /></div>
             <div><p className="stat-label">Items per sale</p><BarList rows={[{ key: 'you', label: 'You', value: cur.basket, text: cur.basket.toFixed(2) }, { key: 'avg', tone: 'ly', label: 'Average store', value: chain.data.avg_basket, text: chain.data.avg_basket.toFixed(2) }]} tone="ty" /></div>
           </div>

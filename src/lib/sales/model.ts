@@ -77,7 +77,8 @@ export function pctText(f: number | null, digits = 1): string {
   return `${f > 0 ? '+' : f < 0 ? '−' : ''}${s}%`
 }
 
-export const money0 = (n: number) => (n < 0 ? '−' : '') + '$' + Math.round(Math.abs(n)).toLocaleString('en-AU')
+/** Dollars and cents, never rounded to the dollar: 243.68 stays $243.68. */
+export const money2 = (n: number) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** 12,900 as 12.9K and 1,250,000 as 1.25M, for chart axes. */
 export function compact(n: number): string {

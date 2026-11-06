@@ -605,3 +605,9 @@ table.people td { vertical-align: top; }
 @media (max-width: 44rem) {
   .findings li { grid-template-columns: minmax(0, 1fr); }
 }
+
+.flagbtn .go { margin-top: var(--space-2xs); color: var(--color-link); font-weight: 600; }
+.flagbtn:disabled { opacity: 0.55; cursor: not-allowed; }
+.flagbtn:disabled .go { color: var(--color-muted); font-weight: 400; }
+.flagbtn.on .go { color: var(--color-ink); }
+.viz-plot .axis { font-variant-numeric: tabular-nums; }
