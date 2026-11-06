@@ -170,7 +170,7 @@ language sql stable security invoker set search_path = public as $$
     left join public.items i on i.code = s.item_code
    where s.store_id = p_store and s.fy = p_fy and s.week = p_week
    order by s.item_code
-$;
+$$;
 
 -- Keeps the last 26 weeks of item rows (they are the big table). Admin only.
 create or replace function public.sales_prune(p_keep_weeks int default 26)
