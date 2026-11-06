@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { SHOW_SALES, itemWarnings, lineCost, money, parseQty, syncedLabel, vendorOf, type Product } from './lib/order'
 import { useEscape } from './lib/useEscape'
+import { useLoad } from './lib/useLoad'
+import { salesApi } from './lib/sales/api'
+import { money0, ordinal, weekLabel } from './lib/sales/model'
 import type { OrderLine } from './lib/supabase'
 
 interface Props {
+  storeId: string
   product: Product
   existing: OrderLine | undefined // the line already on the order, if any
   conflict: OrderLine | null | undefined // someone else changed the line while this was open (null = they removed it)
@@ -20,9 +24,10 @@ const num = (n: number | undefined) => (n === undefined ? '–' : String(n))
  * Item details: what the store holds, what is coming, what the item is, and then the quantity to add to the order.
  * Opened from a row's Details button or by scanning. Typing a quantity in the row itself never needs this.
  */
-export default function ItemSheet({ product, existing, conflict, busy, focusQty, onDone, onRemove, onClose }: Props) {
+export default function ItemSheet({ storeId, product, existing, conflict, busy, focusQty, onDone, onRemove, onClose }: Props) {
   const { item, stock } = product
   const vendor = vendorOf(item, stock)
+  const sales = useLoad(() => salesApi.itemHistory(storeId, product.item.code), [storeId, product.item.code])
   const [text, setText] = useState(existing ? String(existing.qty) : '')
   const input = useRef<HTMLInputElement>(null)
   useEscape(onClose)
@@ -66,6 +71,24 @@ export default function ItemSheet({ product, existing, conflict, busy, focusQty,
           <div><dt>Price inc GST</dt><dd className="num">{item.price != null ? money(item.price) : '–'}</dd></div>
         </dl>
         <p className="muted facts-note">{syncedLabel(stock?.synced_at)}</p>
+
+        <div className="itemsales">
+          <h3>Sales at this store</h3>
+          {sales.loading ? <p className="muted">Loading…</p> : sales.failed ? <p className="muted">Sales are not available right now.</p> : !sales.data?.length ? (
+            <p className="muted">No sales recorded for this item in the weeks loaded. The weekly report lists an item only when it sold, was ranked or lost sales.</p>
+          ) : (
+            <>
+              <p>{weekLabel(sales.data[0])}: sold <b className="num">{sales.data[0].qty}</b> ({money0(sales.data[0].net_sales)}){sales.data[0].store_rank ? `, ${ordinal(sales.data[0].store_rank)} in this store` : ''}.
+                {sales.data[0].stores_stocking > 0 && <> The average store that stocks it sold {(sales.data[0].group_qty / sales.data[0].stores_stocking).toFixed(1)}.</>}
+                {sales.data[0].potential_loss > 0 && <> Estimated sales lost while out of stock: {money0(sales.data[0].potential_loss)}.</>}</p>
+              <table className="salesmini">
+                <thead><tr><th>Week</th><th className="r">Sold</th><th className="r">Sales</th><th className="r">Lost</th></tr></thead>
+                <tbody>{sales.data.slice(0, 6).map((w) => <tr key={w.fy * 100 + w.week}><td>{weekLabel(w)}</td><td className="r">{w.qty}</td><td className="r">{money0(w.net_sales)}</td><td className="r">{w.potential_loss > 0 ? money0(w.potential_loss) : '–'}</td></tr>)}</tbody>
+              </table>
+              <p className="muted">A week that is missing had no sale, rank or lost sales recorded.</p>
+            </>
+          )}
+        </div>
 
         <details className="storedetails itemabout">
           <summary>More about this item</summary>

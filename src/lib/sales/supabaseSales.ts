@@ -1,7 +1,7 @@
 import { supabase, type StoreRow } from '../supabase'
 import type { SalesApi, UploadRecord } from './api'
 import { dailyRows, detailedRows, indexStores, weeklyRows } from './import'
-import type { ChainWeek, ItemSale, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'
+import type { ChainWeek, ItemSale, ItemWeek, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'
 
 const db = () => {
   if (!supabase) throw new Error('No Supabase connection')
@@ -68,6 +68,11 @@ export const supabaseSalesApi: SalesApi = {
   async items(storeId, w) {
     const rows = await pages<ItemSale>((from, to) => db().rpc('store_item_sales', { p_store: storeId, p_fy: w.fy, p_week: w.week }).range(from, to))
     return rows.map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), group_net: Number(r.group_net), potential_sales: Number(r.potential_sales), potential_loss: Number(r.potential_loss), inventory: Number(r.inventory), moq: Number(r.moq) }))
+  },
+  async itemHistory(storeId, itemCode) {
+    const { data, error } = await db().from('sales_item_week').select('fy,week,qty,net_sales,store_rank,group_qty,stores_stocking,potential_loss').eq('store_id', storeId).eq('item_code', itemCode).order('fy', { ascending: false }).order('week', { ascending: false }).limit(26)
+    fail(error)
+    return ((data ?? []) as ItemWeek[]).map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), potential_loss: Number(r.potential_loss) }))
   },
   async league(w) {
     const { data, error } = await db().from('store_week').select(WEEK_COLUMNS).eq('fy', w.fy).eq('week', w.week).order('store_name')

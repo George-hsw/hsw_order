@@ -388,7 +388,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
           </div>
 
           {sheet && (
-            <ItemSheet key={sheet.product.item.code} product={sheet.product} focusQty={sheet.focusQty} existing={lineOf.get(sheet.product.item.code)} conflict={sheet.conflict}
+            <ItemSheet key={sheet.product.item.code} storeId={storeId} product={sheet.product} focusQty={sheet.focusQty} existing={lineOf.get(sheet.product.item.code)} conflict={sheet.conflict}
               busy={pending > 0} onDone={sheetDone} onClose={() => setSheet(null)}
               onRemove={async () => { if (await save(sheet.product, 0, sheet.base)) { setScanMsg(`Removed ${sheet.product.item.description}`); setSheet(null) } }} />
           )}

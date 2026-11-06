@@ -151,6 +151,9 @@ export function topBy(items: ItemSale[], key: 'qty' | 'net_sales' | 'potential_l
 
 // ---------- weeks ----------
 
+/** One item at one store in one week: what the report recorded. A week with no row means nothing sold, was ranked or lost. */
+export interface ItemWeek extends WeekRef { qty: number; net_sales: number; store_rank: number; group_qty: number; stores_stocking: number; potential_loss: number }
+
 /** Distinct weeks in the rows, newest first. */
 export function weeksOf(rows: WeekRef[]): WeekRef[] {
   const seen = new Map<number, WeekRef>()

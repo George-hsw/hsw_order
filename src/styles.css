@@ -592,3 +592,9 @@ table.salesitems tr.on td { background: var(--color-paper-3); }
 @media (prefers-reduced-motion: reduce) {
   .bl-fill, .mt-fill, .progress span, .donut-seg { transition: none; }
 }
+
+.itemsales { margin: var(--space-md) 0; }
+.itemsales h3 { margin-bottom: var(--space-xs); font-size: var(--text-md); }
+.itemsales p { margin-bottom: var(--space-xs); }
+table.salesmini { margin-bottom: var(--space-xs); }
+table.salesmini th, table.salesmini td { padding: var(--space-2xs) var(--space-xs); }

@@ -1,5 +1,5 @@
 import { DEMO, supabase, type StoreRow } from '../supabase'
-import type { ChainWeek, ItemSale, RankRow, StoreDay, StoreWeek, WeekDates, WeekRef } from './model'
+import type { ChainWeek, ItemSale, ItemWeek, RankRow, StoreDay, StoreWeek, WeekDates, WeekRef } from './model'
 import type { DailyResult, DetailedResult, ReportKind, WeeklyResult } from './parse'
 import { demoSalesApi } from './demoSales'
 import { supabaseSalesApi } from './supabaseSales'
@@ -19,6 +19,8 @@ export interface SalesApi {
   /** Chain totals and averages, or null when fewer than three stores are in the week. */
   chain(w: WeekRef): Promise<ChainWeek | null>
   items(storeId: string, w: WeekRef): Promise<ItemSale[]>
+  /** One item at one store, week by week, for the item popup in the Order tab. */
+  itemHistory(storeId: string, itemCode: string): Promise<ItemWeek[]>
   /** Admin only: every store's week. */
   league(w: WeekRef): Promise<StoreWeek[]>
   uploads(): Promise<UploadRecord[]>
@@ -30,7 +32,7 @@ export interface SalesApi {
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: SalesApi = {
   weeks: async () => notConnected(), history: async () => notConnected(), days: async () => notConnected(), ranks: async () => notConnected(), chain: async () => notConnected(),
-  items: async () => notConnected(), league: async () => notConnected(), uploads: async () => notConnected(), importWeekly: async () => notConnected(),
+  items: async () => notConnected(), itemHistory: async () => notConnected(), league: async () => notConnected(), uploads: async () => notConnected(), importWeekly: async () => notConnected(),
   importDetailed: async () => notConnected(), importDaily: async () => notConnected(),
 }
 
