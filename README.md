@@ -20,7 +20,7 @@ npm run build
 ```
 
 ## Status
-Built: sign-in, tour, Order (scan, search, Vendor filter, item popup, quantity, Copy for NAV), Orders, Reports, Stores. Runs on demo data with `npm run demo`.
+Built: sign-in, tour, Order (scan, search, Vendor filter, item popup, quantity, Copy for NAV), Orders, Sales, Reports, Stores. Runs on demo data with `npm run demo`.
 
 Written but **not yet run against a real Supabase project or real NAV** (so expect a first-run fix or two):
 - `supabase/migrations`: 001 stores and people, 002 items and store stock, 003 orders (with the `open_order`, `save_line`, `set_order_status` functions), 004 grants, 005 the stores, 006 one order per vendor. They pass a Postgres syntax check; the functions have not been executed.
@@ -53,3 +53,7 @@ The sync keeps each store's previous data when its feed is empty, much smaller t
 - PO Blocked (41) and Blocked (40) give a warning. Unavailable Qty (59) is not used yet.
 
 **Retail Items** supplies description, barcode, vendor item no., division, category, status, price and units. The ordering feed also has MOQ, Store Cost and Sales (Qty.), which are not in the Replen. Qty. field list: confirm which table they come from before the sync is built.
+
+## Sales tab
+
+Finance publishes three Power BI exports each week: Detailed Sales Report, Australian Weekly Sales and Daily Sales. The admin opens Sales, Upload, and drops the three .xlsx files in. They are read in the browser, previewed (stores matched, warnings shown) and only the figures are saved, never the files. Migration `012_sales.sql` holds the tables. A store reads only its own rows (Row Level Security); it learns its rank ("6th of 24") and chain averages through security-definer functions, never another store's figures. Item rows keep the last 26 weeks. Detailed Sales sheets are matched to stores by tab name (see `TAB_STORE` in `src/lib/sales/parse.ts`).

@@ -9,7 +9,7 @@ import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
-interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void }
+interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; jump?: { storeId: string; vendor: string; item: string } | null }
 
 const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
@@ -23,13 +23,14 @@ type Show = 'all' | 'ordered' | 'not'
  * orders from them is listed: type a quantity beside each item, or scan to jump to one. Each vendor's order saves as you go,
  * so you can leave it on hold and start the next vendor's.
  */
-export default function Order({ email, multi, stores, names, onSaved }: Props) {
+export default function Order({ email, multi, stores, names, onSaved, jump }: Props) {
   const toast = useToast()
   const [storeId, setStoreId] = useState(() => {
+    if (jump && stores.some((x) => x.id === jump.storeId)) return jump.storeId // arriving from the Sales tab
     try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ }
     return stores[0]?.id ?? ''
   })
-  const [vendor, setVendor] = useState('') // '' = none chosen yet
+  const [vendor, setVendor] = useState(jump && stores.some((x) => x.id === jump.storeId) ? jump.vendor : '') // '' = none chosen yet
   const [catLoad, setCatLoad] = useState<CatLoad>({ phase: 'loading' })
   const [drafts, setDrafts] = useState<OrderSummary[]>([])
   const [orderLoad, setOrderLoad] = useState<OrderLoad>({ phase: 'loading' })
@@ -37,7 +38,7 @@ export default function Order({ email, multi, stores, names, onSaved }: Props) {
   const [rangeList, setRangeList] = useState<Product[]>([]) // the chosen vendor's items at this store
   const [attempt, setAttempt] = useState(0)
   const [orderAttempt, setOrderAttempt] = useState(0)
-  const [find, setFind] = useState('')
+  const [find, setFind] = useState(jump && stores.some((x) => x.id === jump.storeId) ? jump.item : '')
   const [show, setShow] = useState<Show>('all')
   const [below, setBelow] = useState('') // show only items with less than this much in stock ('' = no limit)
   const [sortBy, setSortBy] = useState<SortBy>('code')

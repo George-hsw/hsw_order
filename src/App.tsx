@@ -4,13 +4,14 @@ import Login from './Login'
 import Order from './Order'
 import Orders from './Orders'
 import Reports from './Reports'
+import Sales, { type OrderJump } from './Sales'
 import Stores from './Stores'
 import Tour from './Tour'
 import { useToast } from './Toast'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
 import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type Member, type StoreRow } from './lib/supabase'
 
-type Tab = 'order' | 'orders' | 'reports' | 'stores'
+type Tab = 'order' | 'orders' | 'sales' | 'reports' | 'stores'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined) // undefined = still checking
@@ -44,6 +45,7 @@ function Shell({ session }: { session: Session }) {
   const [allStores, setAllStores] = useState<StoreRow[] | null>(null)
   const [people, setPeople] = useState<AppUser[] | null>(null) // admin: everyone. everyone else: people in their stores
   const [members, setMembers] = useState<Member[]>([]) // who is in which store, and as what
+  const [jump, setJump] = useState<OrderJump | null>(null) // set when the Sales tab sends someone to order an item
   const [refresh, setRefresh] = useState(0) // bumped when an order is saved so Orders and Reports reload
 
   // The tour is shown once per account. The account remembers it (user_metadata), so a new phone or browser does not
@@ -84,7 +86,7 @@ function Shell({ session }: { session: Session }) {
   const noAccess = allStores && !isAdmin && active.length === 0
 
   const tabBtn = (t: Tab, label: string) => (
-    <button type="button" className="tab" data-tour={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{label}</button>
+    <button type="button" className="tab" data-tour={t} aria-current={tab === t ? 'page' : undefined} onClick={() => { if (t !== 'order') setJump(null); setTab(t) }}>{label}</button>
   )
 
   return (
@@ -95,6 +97,7 @@ function Shell({ session }: { session: Session }) {
           <nav aria-label="Main">
             {tabBtn('order', 'Order')}
             {tabBtn('orders', 'Orders')}
+            {tabBtn('sales', 'Sales')}
             {tabBtn('reports', 'Reports')}
             {isAdmin && tabBtn('stores', 'Stores')}
           </nav>
@@ -108,8 +111,9 @@ function Shell({ session }: { session: Session }) {
       <main className="container page">
         {!allStores || (!people && tab !== 'order') ? <p className="muted">Loading…</p>
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
-          : tab === 'order' ? <Order email={email} multi={multi} stores={active} names={names} onSaved={() => setRefresh((r) => r + 1)} />
+          : tab === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : tab === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
+          : tab === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setTab('order') }} />
           : tab === 'reports' ? <Reports multi={multi} stores={active} names={names} refreshKey={refresh} />
           : tab === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
