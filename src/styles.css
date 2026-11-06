@@ -267,11 +267,6 @@ tr.inactive { opacity: 0.6; }
   table.book.docs td.rowactions { grid-column: 1 / -1; order: 10; }
   table.book.docs td[data-label="Number"]::before, table.book.docs td[data-label="Customer"]::before, table.book.docs td[data-label="Status"]::before { display: none; }
 
-  /* Reports: the person, quotes and invoices, then the three amounts */
-  table.book.reports td[data-label="Person"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
-  table.book.reports td[data-label="Quotes"], table.book.reports td[data-label="Invoices"] { grid-column: span 3; order: 2; }
-  table.book.reports td[data-label="Invoiced"], table.book.reports td[data-label="Quote deposits"], table.book.reports td[data-label="Received"], table.book.reports td[data-label="Still due"] { grid-column: span 3; order: 3; }
-  table.book.reports td[data-label="Person"]::before { display: none; }
 
   /* Stores: name and Open, then code, people and ABN, then the managers */
   table.book.stores td[data-label="Store"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
@@ -447,10 +442,6 @@ table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge);
   table.book.detail td[data-label="Description"] { grid-column: 1 / -1; order: 3; }
   table.book.detail td[data-label="Cost"] { grid-column: 1 / -1; order: 4; }
 
-  /* Reports: the name, then four figures */
-  table.book.reports td:first-child { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
-  table.book.reports td:first-child::before { display: none; }
-  table.book.reports td.r { grid-column: span 3; order: 2; }
 
   /* Stores: name and Open, code and people, then the sync result and the managers each on their own row */
   table.book.stores td[data-label="Code"] { grid-column: span 3; order: 3; }
@@ -604,3 +595,13 @@ table.salesmini th, table.salesmini td { padding: var(--space-2xs) var(--space-x
 .checklist li.ok { color: var(--color-success); }
 .checklist li.no { color: var(--color-error); font-weight: 600; }
 .checklist li span { display: inline-block; width: 1.2em; }
+
+.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); }
+.findings li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) auto; gap: var(--space-sm); align-items: start; padding: var(--space-sm); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); }
+.findings li p { color: var(--color-ink-2); overflow-wrap: anywhere; }
+.findings li .chip { justify-self: start; }
+small.block { display: block; }
+table.people td { vertical-align: top; }
+@media (max-width: 44rem) {
+  .findings li { grid-template-columns: minmax(0, 1fr); }
+}

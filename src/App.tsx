@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import Analytics from './Analytics'
 import Login from './Login'
 import Order from './Order'
 import Orders from './Orders'
@@ -7,10 +8,11 @@ import Sales, { type OrderJump } from './Sales'
 import Stores from './Stores'
 import Tour from './Tour'
 import { useToast } from './Toast'
+import { installErrorTracking, startSession, track } from './lib/analytics/track'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
 import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type Member, type StoreRow } from './lib/supabase'
 
-type Tab = 'order' | 'orders' | 'sales' | 'stores'
+type Tab = 'order' | 'orders' | 'sales' | 'analytics' | 'stores'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined) // undefined = still checking
@@ -60,6 +62,10 @@ function Shell({ session }: { session: Session }) {
   const closeTour = () => { setTour(false); if (!seenOnAccount) markSeen() }
   useEffect(() => { if (seenOnDevice && !seenOnAccount) markSeen() }, [seenOnDevice, seenOnAccount, markSeen])
 
+  // Usage log for the admin's Analytics tab: one sign-in per browser session, each tab opened, and any error that reaches the screen.
+  useEffect(() => { startSession(); return installErrorTracking() }, [])
+  useEffect(() => { track('tab_view', { tab }) }, [tab])
+
   const loadStores = useCallback(async () => {
     if (DEMO) return setAllStores(demoStores())
     const { data } = await supabase!.from('stores').select('*').order('name')
@@ -97,6 +103,7 @@ function Shell({ session }: { session: Session }) {
             {tabBtn('order', 'Order')}
             {tabBtn('orders', 'Orders')}
             {tabBtn('sales', 'Sales')}
+            {isAdmin && tabBtn('analytics', 'Analytics')}
             {isAdmin && tabBtn('stores', 'Stores')}
           </nav>
           <div className="who">
@@ -112,6 +119,7 @@ function Shell({ session }: { session: Session }) {
           : tab === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : tab === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : tab === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setTab('order') }} />
+          : tab === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
           : tab === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
       </main>

@@ -1,3 +1,4 @@
+import { track, trackError } from './lib/analytics/track'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { copyText } from './CopyDialog'
 import { useConfirm } from './Confirm'
@@ -40,8 +41,9 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
     try {
       await api.deleteOrder(o.id)
       toast.success(`${o.vendor_no} order deleted.`)
+      track('order_deleted', { vendor: o.vendor_no }, o.store_id)
       load()
-    } catch { toast.error('Could not delete the order. Try again.') }
+    } catch (e) { trackError('orders', e); toast.error('Could not delete the order. Try again.') }
   }
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase()

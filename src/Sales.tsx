@@ -3,6 +3,7 @@ import { BarList, ChartCard, ColumnChart, Delta, Donut, Legend, Meter, StatTile 
 import SalesItems from './SalesItems'
 import SalesLeague from './SalesLeague'
 import SalesUpload from './SalesUpload'
+import { track } from './lib/analytics/track'
 import { salesApi } from './lib/sales/api'
 import {
   RANK_LABEL, WEEKDAYS, avgSale, avgSaleLy, change, memberShare, money0, pctText, rangeText, rankText, sameWeek, weekKey, weekLabel,
@@ -29,6 +30,7 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder }: Pr
   const weeks = useLoad(() => salesApi.weeks(), [])
   const history = useLoad(() => salesApi.history(storeId), [storeId], !!storeId)
   const store = stores.find((s) => s.id === storeId)
+  useEffect(() => { if (storeId) track('sales_view', { view: sub }, storeId) }, [sub, storeId])
 
   // Open on the newest week that has results for this store.
   useEffect(() => {

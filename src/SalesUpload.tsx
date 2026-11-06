@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
+import { track } from './lib/analytics/track'
 import { salesApi } from './lib/sales/api'
 import { dailyRows, detailedRows, indexStores, weeklyRows, type Preview } from './lib/sales/import'
 import { weekLabel } from './lib/sales/model'
@@ -78,6 +79,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
         : p.kind === 'daily' ? await salesApi.importDaily(p.data, stores, email)
         : await salesApi.importDetailed(p.data, stores, email, (done, total) => patch(e.id, { progress: [done, total] }))
       patch(e.id, { phase: 'done', imported: res.rows })
+      track('upload', { report: p.kind, week: weekOf(p).week })
       return true
     } catch (err) {
       patch(e.id, { phase: 'error', error: err instanceof Error ? err.message : 'Could not save.' })

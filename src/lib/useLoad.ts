@@ -1,3 +1,4 @@
+import { trackError } from './analytics/track'
 import { useCallback, useEffect, useState, type DependencyList } from 'react'
 
 export interface Loaded<T> { data: T | null; failed: boolean; loading: boolean; retry: () => void }
@@ -10,7 +11,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: DependencyList, enabled
     if (!enabled) { setState({ data: null, failed: false, loading: false }); return }
     let live = true
     setState({ data: null, failed: false, loading: true })
-    load().then((data) => live && setState({ data, failed: false, loading: false })).catch(() => live && setState({ data: null, failed: true, loading: false }))
+    load().then((data) => live && setState({ data, failed: false, loading: false })).catch((e) => { trackError('load', e); if (live) setState({ data: null, failed: true, loading: false }) })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, attempt, enabled])

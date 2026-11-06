@@ -5,6 +5,7 @@ import Scanner from './Scanner'
 import StatusChip from './StatusChip'
 import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
+import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
@@ -78,7 +79,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
   useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
 
-  const chooseVendor = (v: string) => { setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts() }
+  const chooseVendor = (v: string) => { setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts(); else track('order_started', { vendor: v }, storeId) }
   const changeStore = (id: string) => {
     setStoreId(id)
     setVendor('')
@@ -173,8 +174,9 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
         toast.success(`${vendor} order ${o.nav_ref ?? ''} marked as ordered.`)
         chooseVendor('')
       } else setOrderLoad({ phase: 'ready', order: o })
+      track(status === 'copied' ? 'order_copied' : 'order_ordered', { vendor }, storeId)
       onSaved()
-    } catch { toast.error('Could not update the order. Try again.') }
+    } catch (e) { trackError('order', e); toast.error('Could not update the order. Try again.') }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, vendor, onSaved, toast])
 
@@ -184,9 +186,10 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
       await api.deleteOrder(order.id)
       setCopyOpen(false)
       toast.success(`${vendor} order deleted.`)
+      track('order_deleted', { vendor }, storeId)
       chooseVendor('')
       onSaved()
-    } catch { toast.error('Could not delete the order. Try again.') }
+    } catch (e) { trackError('order', e); toast.error('Could not delete the order. Try again.') }
   }
 
   const holdAndNext = () => {
