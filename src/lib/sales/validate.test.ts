@@ -6,20 +6,22 @@ import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, failures }
 const HEAD = ['No.', 'x', 'x', 'Item Description', 'MOQ', 'Item Vendor No.', 'Business Rank', 'Item Division Code', 'x', 'x', 'x', 'x', 'x', 'Inventory', '13W', 'x', 'COGS', 'Net Sales', 'QTY Sold', 'Ranking',
   'COGS', 'Net Sales', 'QTY Sold', 'Store Rank YTD', 'Net Sales', 'QTY Sold', 'No Stores Stocking', 'Potential Sales', 'Potential Sales Growth', 'Potential Ranking', 'Potential Loss']
 const item = (code: string, net: number, qty: number) => { const r: (string | number)[] = new Array(31).fill(0); r[0] = code; r[3] = code; r[17] = net; r[18] = qty; r[19] = qty ? 5 : 0; return r }
+const labels = () => { const r: string[] = []; r[16] = 'STORE WEEKLY'; r[20] = 'STORE YTD'; r[24] = 'GROUP WEEKLY'; return r }
+const good = (c: ReturnType<typeof checkDetailed>) => failures(c).filter((x) => !x.label.startsWith('All store sheets')) // a one-sheet fixture is never all 23
 const top = (net: number, qty: number) => { const r: (string | number)[] = ['Artarmon', 'Week10']; r[17] = net; r[18] = qty; return r }
 const detailed = (headNet: number, headQty: number, rows = [item('A1', 50, 3), item('A2', 25.5, 2), item('A3', 0, 0)]) =>
-  parseDetailed(makeXlsx([{ name: 'ARTA', rows: [top(headNet, headQty), [], [], HEAD, ...rows] }]), 'Detailed Sales Report_FY2027_Week10.xlsx')
+  parseDetailed(makeXlsx([{ name: 'ARTA', rows: [top(headNet, headQty), [], labels(), HEAD, ...rows] }]), 'Detailed Sales Report_FY2027_Week10.xlsx')
 
 describe('detailed sales checks', () => {
   it('passes when the rows add up to the sheet\'s own totals', () => {
     const c = checkDetailed(detailed(75.5, 5))
-    expect(failures(c)).toEqual([])
-    expect(blocked(c)).toBe(false)
+    expect(good(c)).toEqual([])
+    expect(blocked(good(c))).toBe(false)
   })
   it('keeps a refund row that has no units, so the totals still add up', () => {
     const d = detailed(70.5, 5, [item('A1', 50, 3), item('A2', 25.5, 2), item('R1', -5, 0)])
     expect(d.sheets[0].items.map((i) => i.item_code)).toContain('R1')
-    expect(failures(checkDetailed(d))).toEqual([])
+    expect(good(checkDetailed(d))).toEqual([])
   })
   it('blocks when net sales or units disagree with the header', () => {
     expect(blocked(checkDetailed(detailed(80, 5)))).toBe(true)
@@ -38,6 +40,22 @@ const weekly = (groupTy: number, groupLy: number) => parseWeekly(makeXlsx([
   { name: 'Database', rows: [[], [], WH, wrow('Artarmon', 1, 90, 80), wrow('Artarmon', 2, 100, 90), wrow('Bondi', 2, 50.25, 40)] },
 ]), 'Australian Weekly Sales_FY2027-Week 2.xlsx')
 
+describe('format checks', () => {
+  const sheet = (head: string[], lab = labels()) => parseDetailed(makeXlsx([{ name: 'ARTA', rows: [top(75.5, 5), [], lab, head, item('A1', 50, 3), item('A2', 25.5, 2)] }]), 'Detailed Sales Report_FY2027_Week10.xlsx')
+  it('blocks a Detailed file whose columns were renamed', () => {
+    const c = checkDetailed(sheet(HEAD.map((h) => (h === 'Potential Loss' ? 'Lost Sales' : h))))
+    expect(failures(c).some((x) => x.label.includes('expected columns') && x.detail.includes('Potential Loss'))).toBe(true)
+    expect(blocked(c)).toBe(true)
+  })
+  it('blocks a Detailed file whose blocks have moved', () => {
+    const moved: string[] = []; moved[16] = 'STORE WEEKLY'; moved[18] = 'GROUP WEEKLY'
+    expect(failures(checkDetailed(sheet(HEAD, moved))).some((x) => x.label.includes('blocks in place'))).toBe(true)
+  })
+  it('names the store sheets that are missing', () => {
+    expect(failures(checkDetailed(detailed(75.5, 5))).find((x) => x.label.startsWith('All store sheets'))?.detail).toContain('ASPL')
+  })
+})
+
 describe('weekly checks', () => {
   it('passes when the week\'s stores add up to the report\'s Group Turnover', () => {
     expect(failures(checkWeekly(weekly(150.25, 130)))).toEqual([])
@@ -48,10 +66,11 @@ describe('weekly checks', () => {
   })
 })
 
+const FULL = [undefined, undefined, 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Full Week', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Full Week']
 const daily = (total: number, ty = [1, 2, 3, 4, 5, 6, 7], ly = [1, 1, 1, 1, 1, 1, 1]) => parseDaily(makeXlsx([
-  { name: 'Daily Sales Report_Value', rows: [[], [undefined, undefined, '2025-26'], [undefined, undefined, '01/09/25', 45902, 45903, 45904, 45905, 45906, 45907, '2025-26 Week 2', '31/08/2026', 46266, 46267, 46268, 46269, 46270, 46271, '2026-27 Week 2']] },
-  { name: 'FY27', rows: [[], [undefined, 'Location', 'Store Name', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Total'], [undefined, 12064, 'Artarmon', ...ty, total]] },
-  { name: 'FY26', rows: [[], [], [undefined, 'Location', 'Store Name', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Total'], [undefined, 12064, 'Artarmon', ...ly, ly.reduce((a, b) => a + b, 0)]] },
+  { name: 'Daily Sales Report_Value', rows: [[], [undefined, undefined, '2025-26'], [undefined, undefined, '01/09/25', 45902, 45903, 45904, 45905, 45906, 45907, '2025-26 Week 2', '31/08/2026', 46266, 46267, 46268, 46269, 46270, 46271, '2026-27 Week 2'], FULL] },
+  { name: 'FY27', rows: [[], [undefined, 'Location', 'Store Name', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Total'], [undefined, 12064, 'Artarmon', ...ty, total]] },
+  { name: 'FY26', rows: [[], [], [undefined, 'Location', 'Store Name', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Total'], [undefined, 12064, 'Artarmon', ...ly, ly.reduce((a, b) => a + b, 0)]] },
 ]), 'Daily Sales_FY2027-Week2.xlsx')
 
 describe('daily and cross checks', () => {

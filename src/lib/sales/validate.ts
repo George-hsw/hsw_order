@@ -12,7 +12,7 @@ export const blocked = (checks: Check[]) => checks.some((c) => c.blocking && !c.
 export const failures = (checks: Check[]) => checks.filter((c) => !c.ok)
 
 export function checkDetailed(r: DetailedResult): Check[] {
-  const out: Check[] = []
+  const out: Check[] = [...r.format]
   for (const s of r.sheets) {
     const t = s.totals
     const who = s.store_name ?? s.tab
@@ -28,7 +28,7 @@ export function checkDetailed(r: DetailedResult): Check[] {
 }
 
 export function checkWeekly(r: WeeklyResult): Check[] {
-  const out: Check[] = []
+  const out: Check[] = [...r.format]
   const cur = r.rows.filter((x) => x.week === r.current.week)
   const ty = cur.reduce((a, x) => a + x.ty_sales, 0)
   const ly = cur.reduce((a, x) => a + x.ly_sales, 0)
@@ -49,7 +49,7 @@ export function checkWeekly(r: WeeklyResult): Check[] {
 }
 
 export function checkDaily(r: DailyResult): Check[] {
-  const out: Check[] = []
+  const out: Check[] = [...r.format]
   for (const t of r.totals) {
     const d = r.days.filter((x) => x.location === t.location)
     const ty = d.reduce((a, x) => a + x.ty, 0)

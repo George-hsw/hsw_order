@@ -3,6 +3,12 @@
 import { colOf, excelDate, findRow, num, readWorkbook, text, type Row } from '../xlsx'
 import type { ItemSale, StoreDay, StoreWeek, WeekDates, WeekRef } from './model'
 
+import type { Check } from './validate'
+
+/** A format check: the file must look the way finance's export always looks. A failure blocks the import. */
+const fmt = (label: string, ok: boolean, detail: string): Check => ({ label, ok, detail, blocking: true })
+const absent = (header: Row, names: string[]) => names.filter((n) => colOf(header, n) < 0)
+
 export type ReportKind = 'detailed' | 'weekly' | 'daily'
 
 /** Detailed Sales sheet tab to the store's name. A tab that is not here (GLEN, APL ITEMS) is reported, never guessed. */
@@ -52,7 +58,9 @@ export type ParsedItem = Omit<ItemSale, 'inventory'>
 /** Totals the sheet states in its own header row, beside what the rows underneath add up to. They must agree. */
 export interface SheetTotals { header_net: number; header_qty: number; sum_net: number; sum_qty: number; kept_net: number; kept_qty: number; rows: number; sheet_week: number }
 export interface DetailedSheet { tab: string; store_name: string | null; a1: string; items: ParsedItem[]; totals: SheetTotals }
-export interface DetailedResult { week: WeekRef; sheets: DetailedSheet[]; warnings: string[] }
+export interface DetailedResult { week: WeekRef; sheets: DetailedSheet[]; warnings: string[]; format: Check[] }
+
+const DETAILED_HEADERS = ['No.', 'Item Description', 'MOQ', 'Item Vendor No.', 'Business Rank', 'Item Division Code', 'Inventory', 'Net Sales', 'QTY Sold', 'Ranking', 'No Stores Stocking', 'Potential Sales', 'Potential Sales Growth', 'Potential Ranking', 'Potential Loss']
 
 const sameStore = (a: string, b: string) => storeKey(a) === storeKey(b) || storeKey(a).startsWith(storeKey(b)) || storeKey(b).startsWith(storeKey(a))
 
@@ -63,6 +71,7 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
   if (!fy) throw new Error('The file name has no financial year (like FY2027), so I cannot tell which year this is.')
   let week = weekOfName(fileName) ?? 0
   const sheets: DetailedSheet[] = []
+  const format: Check[] = []
   for (const s of wb.sheets) {
     if (s.hidden) continue
     if (!(s.name in TAB_STORE)) { warnings.push(`Sheet ${s.name} is not one of the stores, so it was skipped.`); continue }
@@ -71,8 +80,15 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
     const w = Number(text(rows[0]?.[1]).replace(/\D/g, '')) || 0
     if (w) { if (week && week !== w) warnings.push(`Sheet ${s.name} says week ${w} but the first sheet said week ${week}.`); week = week || w }
     const hr = findRow(rows, 0, 'No.', 12)
-    if (hr < 0) { warnings.push(`Sheet ${s.name} has no item table, so it was skipped.`); continue }
+    if (hr < 0) { format.push(fmt(`${s.name}: item table found`, false, 'No header row starting with "No." in the first rows.')); continue }
     const h = rows[hr]
+    const lost = absent(h, DETAILED_HEADERS)
+    const labels = (rows[hr - 1] ?? []).map(text)
+    const sw = labels.indexOf('STORE WEEKLY'), gw = labels.indexOf('GROUP WEEKLY')
+    const nets = h.map(text).filter((x) => x === 'Net Sales').length, qtys = h.map(text).filter((x) => x === 'QTY Sold').length
+    format.push(fmt(`${s.name}: expected columns`, lost.length === 0 && nets >= 3 && qtys >= 3, lost.length ? `Missing: ${lost.join(', ')}.` : `Net Sales appears ${nets} times and QTY Sold ${qtys} (3 each expected: store week, store year to date, group week).`))
+    const cn = colOf(h, 'Net Sales', 0), cy = colOf(h, 'Net Sales', 1), cg = colOf(h, 'Net Sales', 2), yt = labels.indexOf('STORE YTD')
+    format.push(fmt(`${s.name}: store and group blocks in place`, sw >= 0 && yt >= 0 && gw >= 0 && sw <= cn && cn < yt && yt <= cy && cy < gw && gw <= cg, 'The STORE WEEKLY and GROUP WEEKLY labels are not above the columns they should be. The columns may have moved.'))
     const c = {
       desc: colOf(h, 'Item Description'), moq: colOf(h, 'MOQ'), vendor: colOf(h, 'Item Vendor No.'), brank: colOf(h, 'Business Rank'),
       div: colOf(h, 'Item Division Code'), net: colOf(h, 'Net Sales', 0), qty: colOf(h, 'QTY Sold', 0), rank: colOf(h, 'Ranking'),
@@ -80,7 +96,7 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
       ploss: colOf(h, 'Potential Loss'),
     }
     const missing = Object.entries(c).filter(([, v]) => v < 0).map(([k]) => k)
-    if (missing.length) { warnings.push(`Sheet ${s.name} is missing columns (${missing.join(', ')}), so it was skipped.`); continue }
+    if (missing.length) continue // reported by the column check above
     const name = TAB_STORE[s.name]
     if (a1 && !sameStore(a1, name)) warnings.push(`Sheet ${s.name} says "${a1}" in A1 but is filed under ${name}. I used the tab name.`)
     const items: ParsedItem[] = []
@@ -105,14 +121,18 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
     }
     sheets.push({ tab: s.name, store_name: name, a1, items, totals })
   }
-  if (!sheets.length) throw new Error('No store sheets were found in that file.')
+  const have = new Set(sheets.map((s) => s.tab))
+  const gone = Object.keys(TAB_STORE).filter((t) => !have.has(t))
+  format.push(fmt('All store sheets present', gone.length === 0, `Missing or unreadable: ${gone.join(', ')}.`))
   if (!week) throw new Error('I cannot tell which week this is. Put it in the file name, like "Week10".')
-  return { week: { fy, week }, sheets, warnings }
+  return { week: { fy, week }, sheets, warnings, format }
 }
 
 // ---------- Australian Weekly Sales: the Database sheet has every week, every store ----------
 
-export interface WeeklyResult { weeks: WeekDates[]; rows: StoreWeek[]; current: WeekRef; warnings: string[]; summary: { ty: number; ly: number; week: number } | null }
+export interface WeeklyResult { weeks: WeekDates[]; rows: StoreWeek[]; current: WeekRef; warnings: string[]; format: Check[]; summary: { ty: number; ly: number; week: number } | null }
+
+const WEEKLY_HEADERS = ['Store', 'RM', 'Co/Fran', 'State', 'Retail SQM', 'Centre Type', 'Week No', 'L4L Adjust', 'TY Sales', 'LY Sales', 'No. of transactions', 'No. of transactions LY', 'Member Sales', 'Member Trans', 'Stock', 'SYS', 'GP Wk', 'GP Wk LY', 'Qty Sold', 'Basket Size']
 
 export function parseWeekly(data: Uint8Array, fileName: string): WeeklyResult {
   const warnings: string[] = []
@@ -128,6 +148,11 @@ export function parseWeekly(data: Uint8Array, fileName: string): WeeklyResult {
   const need = ['Store', 'Co/Fran', 'State', 'Week No', 'TY Sales', 'LY Sales']
   const c = (n: string) => colOf(h, n)
   for (const n of need) if (c(n) < 0) throw new Error(`The Database sheet has no "${n}" column.`)
+  const wLost = absent(h, WEEKLY_HEADERS)
+  const format: Check[] = [
+    fmt('Database sheet: expected columns', wLost.length === 0, `Missing: ${wLost.join(', ')}.`),
+    fmt('Summary-Wk sheet: expected layout', text(sum?.rows[0]?.[0]) === 'Current Week Report' && text(sum?.rows[0]?.[6]) === 'Week No.' && text(sum?.rows[3]?.[0]) === 'Group Turnover', 'The Summary-Wk sheet no longer has Current Week Report, Week No. and Group Turnover where they were.'),
+  ]
 
   // The week the report was run for, and the Monday it starts on, from the Summary sheet (its "week beg" is the Sunday before).
   const cur = Number(text(sum?.rows[0]?.[7])) || weekOfName(fileName) || 0
@@ -163,14 +188,14 @@ export function parseWeekly(data: Uint8Array, fileName: string): WeeklyResult {
   // The report's own Group Turnover line for the current week: the Database rows for that week must add up to it.
   const g = sum?.rows[3]
   const summary = g && text(g[0]).toLowerCase() === 'group turnover' ? { ty: num(g[3]), ly: num(g[2]), week: cur } : null
-  return { weeks, rows, current: { fy, week: cur }, warnings, summary }
+  return { weeks, rows, current: { fy, week: cur }, warnings, summary, format }
 }
 
 // ---------- Daily Sales: sales for each weekday, this year and last year ----------
 
 export interface DailyRow { location: string; store_name: string; weekday: number; ty: number; ly: number }
 export interface DailyTotal { location: string; store_name: string; ty_total: number; ly_total: number }
-export interface DailyResult { week: WeekRef; dates: WeekDates; days: DailyRow[]; warnings: string[]; totals: DailyTotal[] }
+export interface DailyResult { week: WeekRef; dates: WeekDates; days: DailyRow[]; warnings: string[]; totals: DailyTotal[]; format: Check[] }
 
 export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
   const warnings: string[] = []
@@ -190,12 +215,20 @@ export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
   if (!start && sunSerial > 40000) start = addDays(excelDate(sunSerial), -6)
   if (!start) throw new Error('I cannot find this year\'s dates in the Daily Sales Report_Value sheet.')
 
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const format: Check[] = []
+  const dayLabels = (value.rows[3] ?? []).map(text)
+  const tyDays = [11, 12, 13, 14, 15, 16].map((i) => num(head[i]))
+  format.push(fmt('Daily Sales Report_Value: Mon to Sun twice, then Full Week', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].every((d) => dayLabels.filter((x) => x === d).length === 2) && dayLabels.some((x) => x.startsWith('Full Week')), 'The weekday header row is not Mon to Sun for each year with a Full Week column.'))
+  format.push(fmt("This year's dates run Tuesday to Sunday in order", tyDays.every((d, i) => (i === 0 ? d > 40000 : d === tyDays[i - 1] + 1)), 'The date serials after the Monday date are not six days in a row.'))
   const grab = (sheet: string) => {
     const s = wb.sheet(sheet)
     const out = new Map<string, { name: string; d: number[]; total: number }>()
     if (!s?.rows.length) return out
     const hr = findRow(s.rows, 1, 'Location', 8)
-    if (hr < 0) return out
+    if (hr < 0) { format.push(fmt(`${sheet}: header row`, false, 'No row with Location in column B.')); return out }
+    const hh = (s.rows[hr] ?? []).map(text)
+    format.push(fmt(`${sheet}: columns are Location, Store Name, Monday to Sunday, Total`, hh[1] === 'Location' && hh[2] === 'Store Name' && DAYS.every((d, i) => hh[3 + i] === d) && hh[10] === 'Total', `Found: ${hh.slice(1, 11).join(', ')}.`))
     for (let r = hr + 1; r < s.rows.length; r++) {
       const row = s.rows[r]
       const loc = text(row?.[1])
@@ -214,7 +247,7 @@ export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
     t.d.forEach((v, i) => days.push({ location: loc, store_name: t.name, weekday: i + 1, ty: v, ly: l?.d[i] ?? 0 }))
   }
   const totals: DailyTotal[] = [...ty].map(([location, t]) => ({ location, store_name: t.name, ty_total: t.total, ly_total: ly.get(location)?.total ?? 0 }))
-  return { week: { fy, week }, dates: { fy, week, week_start: start, week_end: addDays(start, 6) }, days, warnings, totals }
+  return { week: { fy, week }, dates: { fy, week, week_start: start, week_end: addDays(start, 6) }, days, warnings, totals, format }
 }
 
 /** What an import of the daily report writes, once locations are matched to stores. */
