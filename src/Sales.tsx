@@ -96,7 +96,7 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
   const [dayIdx, setDayIdx] = useState<number | null>(null)
 
   const cur = history.find((h) => sameWeek(h, week))
-  const upTo = history.filter((h) => weekKey(h) <= weekKey(week)).slice(-LAST)
+  const upTo = history.slice(-LAST) // always the latest weeks, so picking an earlier week never hides the later ones
   if (!cur) return <div className="state"><p>No results for this store in {weekLabel(week)}</p><p className="muted">Pick another week, or wait for head office to load this one.</p></div>
 
   const growth = change(cur.ty_sales, cur.ly_sales)

@@ -107,6 +107,13 @@ export function ColumnChart({ cats, series, fmt, selected, onSelect, height = 23
   const y = (v: number) => T + ih - (v / top) * ih
   const step = Math.max(1, Math.ceil(46 / Math.max(band, 1)))
   const active = hover ?? null
+  // On a touch screen there is no pointer-leave, so a tap anywhere else puts the read-out away.
+  useEffect(() => {
+    if (hover === null) return
+    const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setHover(null) }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [hover, ref])
   const cx = (i: number) => L + band * (i + 0.5)
 
   // A bar with its top corners rounded, anchored to the baseline.
