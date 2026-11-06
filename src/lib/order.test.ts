@@ -14,8 +14,8 @@ describe('quantities', () => {
   })
   it('warns about MOQ without blocking', () => {
     expect(moqNote(12, 6)).toBeNull()
-    expect(moqNote(4, 6)).toMatch(/minimum of 6/)
-    expect(moqNote(8, 6)).toMatch(/multiple of 6/)
+    expect(moqNote(4, 6)).toMatch(/MOQ not met: the minimum is 6/)
+    expect(moqNote(8, 6)).toMatch(/MOQ not met: order in multiples of 6/)
     expect(moqNote(3, 1)).toBeNull()
     expect(moqNote(0, 6)).toBeNull()
   })
@@ -138,13 +138,13 @@ describe('vendors', () => {
 })
 
 describe('warnings', () => {
-  it('blocked items, MOQ and missing data are warnings, never errors', () => {
+  it('blocked items and missing data are warnings; a short quantity is a red MOQ message; none stop an order', () => {
     const blocked = items.find((i) => i.blocked)!
     expect(itemWarnings(blocked, undefined, 6).map((w) => w.text)).toContain('Blocked in NAV. Check before you order it')
     expect(itemWarnings(blocked, undefined, 6).every((w) => w.level === 'warn')).toBe(true)
     const stock = { store_id: 's', item_code: soapDish.code, inventory: 0, qty_on_po: 0, transfer_in: 0, unavailable: 0, moq: 6, store_cost: 5.12, sales_qty: 3, vendor_no: 'ANAS001', po_blocked: false, synced_at: '' }
     expect(itemWarnings(soapDish, stock, 12)).toEqual([])
-    expect(itemWarnings(soapDish, stock, 4)[0]).toMatchObject({ level: 'warn' })
+    expect(itemWarnings(soapDish, stock, 4)[0]).toMatchObject({ level: 'error', text: 'MOQ not met: the minimum is 6' })
     expect(itemWarnings(soapDish, undefined, 6).map((w) => w.text)).toContain('No stock record for this store')
     expect(itemWarnings({ ...soapDish, vendor_no: null }, { ...stock, vendor_no: null }, 6).map((w) => w.text)).toContain('No vendor on this item')
     expect(itemWarnings(soapDish, { ...stock, po_blocked: true }, 6).map((w) => w.text)).toContain('PO blocked at this store in NAV. Check before you order it')

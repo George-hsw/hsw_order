@@ -27,8 +27,8 @@ export function parseQty(text: string): number | null {
 /** MOQ is a warning, never a block: stores sometimes order loose quantities. */
 export function moqNote(qty: number, moq: number): string | null {
   if (qty <= 0 || moq <= 1) return null
-  if (qty < moq) return `Below the minimum of ${moq}`
-  if (qty % moq !== 0) return `Not a multiple of ${moq}`
+  if (qty < moq) return `MOQ not met: the minimum is ${moq}`
+  if (qty % moq !== 0) return `MOQ not met: order in multiples of ${moq}`
   return null
 }
 
@@ -207,12 +207,12 @@ export function syncedLabel(syncedAt: string | undefined, now = new Date()): str
 
 export interface Warning { text: string; level: 'warn' | 'error' }
 
-/** Why a line (or an item about to be added) needs a look. Warnings only say so; nothing stops an order. */
+/** Why a line (or an item about to be added) needs a look. They only say so; nothing stops an order. */
 export function itemWarnings(item: ItemRow, stock: StockRow | undefined, qty: number): Warning[] {
   const out: Warning[] = []
   if (item.blocked) out.push({ text: 'Blocked in NAV. Check before you order it', level: 'warn' })
   const moq = moqNote(qty, stock?.moq ?? 1)
-  if (moq) out.push({ text: moq, level: 'warn' })
+  if (moq) out.push({ text: moq, level: 'error' }) // shown in red; it still saves, so a store can order a short quantity on purpose
   if (!vendorOf(item, stock)) out.push({ text: 'No vendor on this item', level: 'warn' })
   if (stock?.po_blocked) out.push({ text: 'PO blocked at this store in NAV. Check before you order it', level: 'warn' })
   if (!stock) out.push({ text: 'No stock record for this store', level: 'warn' })

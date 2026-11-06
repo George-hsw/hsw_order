@@ -7,7 +7,7 @@ import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
 import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
-import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
+import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, moqNote, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
 interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; jump?: { storeId: string; vendor: string; item: string } | null }
@@ -212,6 +212,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   }
 
   const t = totals(lines)
+  const moqShort = range.filter((p) => { const l = lineOf.get(p.item.code); return !!l && moqNote(l.qty, p.stock?.moq ?? 1) !== null }).length // lines that do not meet their MOQ
   const editedAfterCopy = !!order?.copied_at && lines.some((l) => l.updated_at > order.copied_at!)
   const storeName = stores.find((s) => s.id === storeId)?.name ?? ''
   const holds = drafts.filter((d) => d.lines > 0 && d.vendor_no !== vendor)
@@ -380,6 +381,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                 <dl>
                   <dt className="total">Cost</dt><dd className="total">{money(t.cost)}</dd>
                 </dl>
+                {moqShort > 0 && <p className="chk error" role="alert">MOQ not met on {moqShort} {moqShort === 1 ? 'line' : 'lines'}. Check before you copy.</p>}
                 <dl className="ledger-meta">
                   <dt>Vendor</dt><dd>{vendor}</dd>
                   <dt>Status</dt><dd>{order ? <StatusChip status={order.status} /> : 'Not started'}</dd>
@@ -401,7 +403,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
           </div>
 
           <div className="stickybar">
-            <div><small>{vendor} · {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b></div>
+            <div><small>{vendor} · {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b>{moqShort > 0 && <small className="chk error">MOQ not met on {moqShort}</small>}</div>
             <button type="button" className={'btn primary' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
           </div>
 
