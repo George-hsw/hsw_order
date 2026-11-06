@@ -636,3 +636,13 @@ button, a, select, summary, label { touch-action: manipulation; }
   table.cells tr.on td { background: var(--color-paper-3); }
   table.cells tbody tr:last-child td { border-bottom: 0; }
 }
+
+/* ---------- Phones: the tabs sit in a bar fixed to the bottom, where a thumb reaches them, on every screen ---------- */
+:root { --tabbar: 0px; }
+@media (max-width: 44rem) {
+  :root { --tabbar: calc(60px + env(safe-area-inset-bottom)); }
+  .topbar nav { position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-sticky-nav); order: 0; flex-basis: auto; gap: var(--space-3xs); padding: var(--space-2xs) var(--space-xs) calc(var(--space-2xs) + env(safe-area-inset-bottom)); background: var(--color-paper-2); border-top: var(--rule-hair) solid var(--color-ink); }
+  .topbar nav .tab { min-height: 52px; font-size: var(--text-sm); }
+  .page { padding-bottom: calc(var(--tabbar) + var(--space-xl)); }
+  .stickybar { bottom: var(--tabbar); padding-bottom: var(--space-sm); }
+}
