@@ -68,6 +68,14 @@ export const supabaseApi: OrdersApi = {
     return products
   },
 
+  async findOrder(storeId, vendor): Promise<OrderData | null> {
+    const { data, error } = await db().from('orders').select('*').eq('store_id', storeId).eq('vendor_no', vendor).neq('status', 'ordered').maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) return null
+    const order = data as OrderRow
+    return { order, lines: await linesOf(order.id) }
+  },
+
   async openOrder(storeId, vendor): Promise<OrderData> {
     const { data, error } = await db().rpc('open_order', { p_store: storeId, p_vendor: vendor })
     if (error) throw new Error(error.message)
@@ -78,7 +86,8 @@ export const supabaseApi: OrdersApi = {
   async drafts(storeId): Promise<OrderSummary[]> {
     const { data, error } = await db().from('order_summaries').select('*').eq('store_id', storeId).neq('status', 'ordered').order('vendor_no')
     if (error) throw new Error(error.message)
-    return ((data ?? []) as (OrderSummary & { store_name: string })[]).map((r) => ({ ...r, stores: { name: r.store_name } }))
+    // An order with no lines is not an order yet (an earlier version created one on opening a vendor), so it is not listed.
+    return ((data ?? []) as (OrderSummary & { store_name: string })[]).filter((r) => r.lines > 0).map((r) => ({ ...r, stores: { name: r.store_name } }))
   },
 
   async saveLine(orderId, _email, input, baseRevision) {
@@ -119,7 +128,7 @@ export const supabaseApi: OrdersApi = {
     if (!storeIds.length) return []
     const rows = await readAll<OrderSummary & { store_name: string }>((from, to, count) =>
       db().from('order_summaries').select('*', countOpt(count)).in('store_id', storeIds).order('created_at', { ascending: false }).order('id').range(from, to))
-    return rows.map((r) => ({ ...r, stores: { name: r.store_name } }))
+    return rows.filter((r) => r.status !== 'open' || r.lines > 0).map((r) => ({ ...r, stores: { name: r.store_name } }))
   },
 
   orderLines: linesOf,

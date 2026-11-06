@@ -15,7 +15,7 @@ interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Reco
 const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
 type CatLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; vendors: VendorOption[]; syncedAt?: string }
-type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; order: OrderRow }
+type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; order: OrderRow | null } // null: nothing saved yet, so no order exists
 interface Sheet { product: Product; base: number; focusQty: boolean; conflict?: OrderLine | null }
 type Show = 'all' | 'ordered' | 'not'
 
@@ -64,24 +64,26 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     return () => { live = false }
   }, [storeId, attempt])
 
-  // The chosen vendor's order, started if there is none, and its items.
+  // The chosen vendor's order if one was already started, and its items. Opening a vendor creates nothing: the order starts when the first quantity is saved.
   useEffect(() => {
     if (!storeId || !vendor) return
     let live = true
     setOrderLoad({ phase: 'loading' })
-    Promise.all([api.openOrder(storeId, vendor, email), api.range(storeId, vendor)])
-      .then(([od, products]) => { if (!live) return; setLines(od.lines); setRangeList(products); setOrderLoad({ phase: 'ready', order: od.order }) })
+    Promise.all([api.findOrder(storeId, vendor), api.range(storeId, vendor)])
+      .then(([od, products]) => { if (!live) return; setLines(od?.lines ?? []); setRangeList(products); setOrderLoad({ phase: 'ready', order: od?.order ?? null }) })
       .catch(() => live && setOrderLoad({ phase: 'error' }))
     return () => { live = false }
   }, [storeId, vendor, email, orderAttempt])
 
-  const orderId = orderLoad.phase === 'ready' ? orderLoad.order.id : ''
+  const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
   useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
 
   const openScanner = () => { primeAudio(); setScanMsg(''); (document.activeElement as HTMLElement | null)?.blur?.(); setScanning(true) }
   useEffect(() => { if (!window.BarcodeDetector) void import('@zxing/browser') }, []) // warm the scanner code on iPhones so the camera starts at once
-  const chooseVendor = (v: string) => { setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts(); else track('order_started', { vendor: v }, storeId) }
+  // An order that never got a line is not kept: leaving it (or an old empty one) removes it quietly.
+  const dropIfEmpty = () => { if (order && order.status === 'open' && lines.length === 0 && pending === 0) void api.deleteOrder(order.id).then(onSaved).catch(() => undefined) }
+  const chooseVendor = (v: string) => { dropIfEmpty(); setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts() }
   const changeStore = (id: string) => {
     setStoreId(id)
     setVendor('')
@@ -89,6 +91,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   }
 
   const cat = catLoad.phase === 'ready' ? catLoad : null
+  const ready = orderLoad.phase === 'ready' && !!vendor
   const order = orderLoad.phase === 'ready' && vendor ? orderLoad.order : null
   const synced = cat?.syncedAt
   const stale = isStale(synced)
@@ -113,10 +116,19 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
 
   /** Save one line. Returns true when it saved. */
   const save = async (p: Product, qty: number, base: number): Promise<boolean> => {
-    if (!order) return false
+    if (!ready) return false
     setPending((n) => n + 1)
+    let made: OrderRow | null = null
     try {
-      const next = await api.saveLine(order.id, email, { item: p.item, qty, unitCost: p.stock?.store_cost ?? 0, vendorNo: vendor }, base)
+      // The first quantity is what starts the order.
+      let target = order
+      if (!target) {
+        const od = await api.openOrder(storeId, vendor, email)
+        target = od.order; made = od.order
+        setOrderLoad({ phase: 'ready', order: od.order })
+        track('order_started', { vendor }, storeId)
+      }
+      const next = await api.saveLine(target.id, email, { item: p.item, qty, unitCost: p.stock?.store_cost ?? 0, vendorNo: vendor }, base)
       setLines(next)
       onSaved()
       return true
@@ -124,7 +136,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
       if (e instanceof ConflictError) {
         setSheet((s) => (s && s.product.item.code === p.item.code ? { ...s, base: e.current?.revision ?? 0, conflict: e.current ?? null } : s))
         if (!sheet) toast.error(`${who(e.current?.updated_by ?? null) || 'Someone'} changed ${p.item.description}. The new quantity is shown.`)
-        api.orderLines(order.id).then(setLines).catch(() => { /* live updates will catch up */ })
+        if (order ?? made) api.orderLines((order ?? made)!.id).then(setLines).catch(() => { /* live updates will catch up */ })
       } else toast.error('That did not save. Check your connection and try again.')
       return false
     } finally {
@@ -195,7 +207,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   }
 
   const holdAndNext = () => {
-    toast.info(`${vendor} order saved and on hold. Choose the next vendor.`)
+    if (lines.length > 0) toast.info(`${vendor} order saved and on hold. Choose the next vendor.`)
     chooseVendor('')
   }
 
@@ -275,9 +287,9 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
           <div className="actions"><button type="button" className="btn" onClick={() => setOrderAttempt((a) => a + 1)}>Try again</button></div></div>
       )}
 
-      {cat && order && (
+      {cat && ready && (
         <>
-          {order.status === 'copied' && !editedAfterCopy && <p className="note">This order has been copied for NAV. Enter the NAV order number when it is done.</p>}
+          {order?.status === 'copied' && !editedAfterCopy && <p className="note">This order has been copied for NAV. Enter the NAV order number when it is done.</p>}
           {editedAfterCopy && <p className="note bad">Lines changed after this order was copied. Copy it again before you use it in NAV.</p>}
 
           <div className="workspace">
@@ -370,8 +382,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                 </dl>
                 <dl className="ledger-meta">
                   <dt>Vendor</dt><dd>{vendor}</dd>
-                  <dt>Status</dt><dd><StatusChip status={order.status} /></dd>
-                  <dt>Started by</dt><dd>{who(order.created_by) || '–'}</dd>
+                  <dt>Status</dt><dd>{order ? <StatusChip status={order.status} /> : 'Not started'}</dd>
+                  <dt>Started by</dt><dd>{order ? who(order.created_by) || '–' : 'Starts when you add a quantity'}</dd>
                   <dt>Stock</dt><dd>{syncedLabel(synced).replace('Stock ', '')}</dd>
                 </dl>
                 <div className="actions">
@@ -398,7 +410,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
               busy={pending > 0} onDone={sheetDone} onClose={() => setSheet(null)}
               onRemove={async () => { if (await save(sheet.product, 0, sheet.base)) { setScanMsg(`Removed ${sheet.product.item.description}`); setSheet(null) } }} />
           )}
-          {copyOpen && <CopyDialog lines={lines} wasCopied={order.status === 'copied'} onCopied={() => changeStatus('copied')} onOrdered={(r) => changeStatus('ordered', r)} onDelete={deleteCurrent} onClose={() => setCopyOpen(false)} />}
+          {copyOpen && order && <CopyDialog lines={lines} wasCopied={order.status === 'copied'} onCopied={() => changeStatus('copied')} onOrdered={(r) => changeStatus('ordered', r)} onDelete={deleteCurrent} onClose={() => setCopyOpen(false)} />}
           {scanning && <Scanner onScan={handleScan} onClose={() => setScanning(false)} feedback={scanMsg} />}
         </>
       )}

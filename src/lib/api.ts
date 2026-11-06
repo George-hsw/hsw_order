@@ -21,7 +21,9 @@ export interface OrdersApi {
   vendors(storeId: string): Promise<VendorList>
   /** One vendor's whole range at one store, with the store's stock: loaded when the vendor is chosen. */
   range(storeId: string, vendor: string): Promise<Product[]>
-  /** The store's current order for one vendor (open or copied, not yet ordered in NAV), started if there is none. */
+  /** The store's current order for one vendor if one has been started (open or copied, not yet ordered in NAV). Reading it never creates one. */
+  findOrder(storeId: string, vendor: string): Promise<OrderData | null>
+  /** Starts the store's order for one vendor, or returns the one already there. Called when the first line is saved, not when a vendor is opened. */
   openOrder(storeId: string, vendor: string, email: string): Promise<OrderData>
   /** Every unfinished order for the store, one per vendor: what is on hold. */
   drafts(storeId: string): Promise<OrderSummary[]>
@@ -40,7 +42,7 @@ export interface OrdersApi {
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: OrdersApi = {
-  vendors: async () => notConnected(), range: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
+  vendors: async () => notConnected(), range: async () => notConnected(), findOrder: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
   orderLines: async () => notConnected(), syncRuns: async () => notConnected(),
 }

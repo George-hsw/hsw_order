@@ -24,6 +24,11 @@ export const demoApi: OrdersApi = {
   vendors: (storeId) => wait({ options: vendorOptions(demoItems(), demoStock(storeId)), syncedAt: demoStock(storeId)[0]?.synced_at }),
   range: (storeId, vendor) => wait(rangeFor(demoItems(), demoStock(storeId), vendor)),
 
+  async findOrder(storeId, vendor) {
+    const order = orders.find((o) => o.store_id === storeId && o.vendor_no === vendor && o.status !== 'ordered')
+    return wait(order ? { order, lines: [...(lines.get(order.id) ?? [])] } : null)
+  },
+
   async openOrder(storeId, vendor, email): Promise<OrderData> {
     let order = orders.find((o) => o.store_id === storeId && o.vendor_no === vendor && o.status !== 'ordered')
     if (!order) {

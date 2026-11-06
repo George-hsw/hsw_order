@@ -14,7 +14,7 @@ export interface AppEvent {
 
 export const KINDS = { session: 'session_start', tab: 'tab_view', started: 'order_started', copied: 'order_copied', ordered: 'order_ordered', deleted: 'order_deleted', sales: 'sales_view', upload: 'upload', error: 'error' } as const
 export const KIND_LABEL: Record<string, string> = {
-  session_start: 'Signed in', tab_view: 'Opened a tab', order_started: 'Opened a vendor’s order', order_copied: 'Copied an order for NAV', order_ordered: 'Marked ordered in NAV',
+  session_start: 'Signed in', tab_view: 'Opened a tab', order_started: 'Started an order', order_copied: 'Copied an order for NAV', order_ordered: 'Marked ordered in NAV',
   order_deleted: 'Deleted an order', sales_view: 'Looked at sales', upload: 'Uploaded sales reports', error: 'Hit an error',
 }
 
