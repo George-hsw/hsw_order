@@ -85,7 +85,7 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
                 <thead><tr><th>Week</th><th className="r">Sold</th><th className="r">Sales</th><th className="r">Lost</th></tr></thead>
                 <tbody>{sales.data.slice(0, 6).map((w) => <tr key={w.fy * 100 + w.week}><td>{weekLabel(w)}</td><td className="r">{w.qty}</td><td className="r">{money0(w.net_sales)}</td><td className="r">{w.potential_loss > 0 ? money0(w.potential_loss) : '–'}</td></tr>)}</tbody>
               </table>
-              <p className="muted">A week that is missing had no sale, rank or lost sales recorded.</p>
+              <p className="muted">Item sales are before GST. A week that is missing had no sale, rank or lost sales recorded.</p>
             </>
           )}
         </div>

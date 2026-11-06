@@ -56,6 +56,7 @@ export default function SalesItems({ storeId, week, onOrder }: { storeId: string
           ))}
         </div>
         {flag && <p className="viz-pick">{FLAG_LABEL[flag]}. {FLAG_HELP[flag]}</p>}
+        <p className="muted viz-foot">Item sales are before GST and leave out Elfa (non-APL items), so they add up to less than the store’s sales on My store.</p>
         <p className="muted viz-foot">This looks at one week. Treat “not selling” with care: an item can sit for a week and still be a good line.</p>
       </section>
 
