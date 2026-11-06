@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "demo": "vite --mode demo"
+    "demo": "vite --mode demo",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

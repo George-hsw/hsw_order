@@ -31,6 +31,15 @@ async function writeBatches<T extends object>(table: string, rows: T[], conflict
   }
 }
 
+/** After a write, count what the database now holds for the week. A difference means something did not save, so the import fails loudly. */
+async function verifyCount(table: string, match: Record<string, number>, expected: number, what: string) {
+  let q = db().from(table).select('*', { count: 'exact', head: true })
+  for (const [k, v] of Object.entries(match)) q = q.eq(k, v)
+  const { count, error } = await q
+  fail(error)
+  if (count !== expected) throw new Error(`${what}: ${expected} rows were sent but the database holds ${count}. Run the import again.`)
+}
+
 const log = async (kind: UploadRecord['kind'], fy: number, week: number, row_count: number, by: string) => {
   const { error } = await db().from('report_uploads').insert({ kind, fy, week, row_count, uploaded_by: by })
   fail(error)
@@ -94,7 +103,10 @@ export const supabaseSalesApi: SalesApi = {
       const { error } = await db().from('sales_weeks').upsert(undated.map((w) => ({ fy: w.fy, week: w.week })), { onConflict: 'fy,week', ignoreDuplicates: true })
       fail(error)
     }
+    // The file holds every week of the year so far, so it replaces what is saved for them instead of adding beside it.
+    for (const wk of [...new Set(rows.map((x) => x.week))]) { const del = await db().from('store_week').delete().eq('fy', r.current.fy).eq('week', wk); fail(del.error) }
     await writeBatches('store_week', rows, 'fy,week,store_name,co_fran', 500)
+    for (const wk of [...new Set(rows.map((x) => x.week))]) await verifyCount('store_week', { fy: r.current.fy, week: wk }, rows.filter((x) => x.week === wk).length, `Weekly sales, week ${wk}`)
     await log('weekly', r.current.fy, r.current.week, rows.length, by)
     return { rows: rows.length, unmatched: preview.unmatched }
   },
@@ -109,6 +121,7 @@ export const supabaseSalesApi: SalesApi = {
       potential_sales: x.potential_sales, potential_loss: x.potential_loss, moq: x.moq })), 'fy,week,store_id,item_code', 1000, (done) => onProgress(done, rows.length))
     const keep = await db().rpc('sales_prune', { p_keep_weeks: 26 })
     fail(keep.error)
+    await verifyCount('sales_item_week', { fy: r.week.fy, week: r.week.week }, rows.length, 'Detailed sales')
     await log('detailed', r.week.fy, r.week.week, rows.length, by)
     return { rows: rows.length, unmatched: preview.unmatched }
   },
@@ -116,6 +129,7 @@ export const supabaseSalesApi: SalesApi = {
     const { rows, preview } = dailyRows(r, indexStores(stores))
     await writeBatches('sales_weeks', [{ fy: r.dates.fy, week: r.dates.week, week_start: r.dates.week_start, week_end: r.dates.week_end }], 'fy,week', 10)
     await writeBatches('store_day', rows.map((d) => ({ fy: d.fy, week: d.week, store_id: d.store_id, weekday: d.weekday, ty: d.ty, ly: d.ly })), 'fy,week,store_id,weekday', 500)
+    await verifyCount('store_day', { fy: r.week.fy, week: r.week.week }, rows.length, 'Daily sales')
     await log('daily', r.week.fy, r.week.week, rows.length, by)
     return { rows: rows.length, unmatched: preview.unmatched }
   },

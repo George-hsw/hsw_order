@@ -5,6 +5,7 @@ import { salesApi } from './lib/sales/api'
 import { dailyRows, detailedRows, indexStores, weeklyRows, type Preview } from './lib/sales/import'
 import { weekLabel } from './lib/sales/model'
 import { kindOf, parseDaily, parseDetailed, parseWeekly, type DailyResult, type DetailedResult, type ReportKind, type WeeklyResult } from './lib/sales/parse'
+import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, failures, type Check } from './lib/sales/validate'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
 
@@ -17,6 +18,7 @@ interface Entry {
   parsed?: Parsed
   preview?: Preview
   warnings: string[]
+  checks: Check[]
   error?: string
   progress?: [number, number]
   imported?: number
@@ -41,26 +43,34 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
     for (const f of files) {
       const id = next.current++
       const kind = kindOf(f.name)
-      setEntries((es) => [...es, { id, name: f.name, kind, phase: kind ? 'reading' : 'error', warnings: [], error: kind ? undefined : 'I do not recognise this file. The name should contain Detailed Sales, Australian Weekly or Daily Sales.' }])
+      setEntries((es) => [...es, { id, name: f.name, kind, phase: kind ? 'reading' : 'error', warnings: [], checks: [], error: kind ? undefined : 'I do not recognise this file. The name should contain Detailed Sales, Australian Weekly or Daily Sales.' }])
       if (!kind) continue
       try {
         await new Promise((r) => setTimeout(r, 30)) // let the screen show "Reading" before the work starts
         const bytes = new Uint8Array(await f.arrayBuffer())
-        let parsed: Parsed, preview: Preview, warnings: string[]
-        if (kind === 'weekly') { const d = parseWeekly(bytes, f.name); parsed = { kind, data: d }; preview = weeklyRows(d, ix).preview; warnings = d.warnings }
-        else if (kind === 'detailed') { const d = parseDetailed(bytes, f.name); parsed = { kind, data: d }; preview = detailedRows(d, ix).preview; warnings = d.warnings }
-        else { const d = parseDaily(bytes, f.name); parsed = { kind, data: d }; preview = dailyRows(d, ix).preview; warnings = d.warnings }
-        patch(id, { phase: 'ready', parsed, preview, warnings })
+        let parsed: Parsed, preview: Preview, warnings: string[], checks: Check[]
+        if (kind === 'weekly') { const d = parseWeekly(bytes, f.name); parsed = { kind, data: d }; preview = weeklyRows(d, ix).preview; warnings = d.warnings; checks = checkWeekly(d) }
+        else if (kind === 'detailed') { const d = parseDetailed(bytes, f.name); parsed = { kind, data: d }; preview = detailedRows(d, ix).preview; warnings = d.warnings; checks = checkDetailed(d) }
+        else { const d = parseDaily(bytes, f.name); parsed = { kind, data: d }; preview = dailyRows(d, ix).preview; warnings = d.warnings; checks = checkDaily(d) }
+        patch(id, { phase: 'ready', parsed, preview, warnings, checks })
       } catch (e) {
         patch(id, { phase: 'error', error: e instanceof Error ? e.message : 'Could not read that file.' })
       }
     }
   }
 
+  // A file's own checks, plus a comparison with the other report of the same week when both are loaded.
+  const checksOf = (e: Entry): Check[] => {
+    const other = entries.find((o) => o.id !== e.id && o.parsed && e.parsed && ((o.parsed.kind === 'weekly' && e.parsed.kind === 'daily') || (o.parsed.kind === 'daily' && e.parsed.kind === 'weekly')))
+    if (!other?.parsed || !e.parsed) return e.checks
+    const w = e.parsed.kind === 'weekly' ? e.parsed.data : other.parsed.kind === 'weekly' ? other.parsed.data : null
+    const d = e.parsed.kind === 'daily' ? e.parsed.data : other.parsed.kind === 'daily' ? other.parsed.data : null
+    return w && d ? [...e.checks, ...crossCheck(w, d)] : e.checks
+  }
   const weekOf = (p: Parsed) => (p.kind === 'weekly' ? p.data.current : p.data.week)
 
   const run = async (e: Entry): Promise<boolean> => {
-    if (!e.parsed || e.phase === 'importing') return false
+    if (!e.parsed || e.phase === 'importing' || blocked(checksOf(e))) return false
     patch(e.id, { phase: 'importing', progress: undefined })
     try {
       const p = e.parsed
@@ -81,7 +91,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
     if (await run(e)) { toast.success(`${KIND_LABEL[e.kind!]} loaded.`); onLoaded(); log.retry() }
   }
 
-  const ready = entries.filter((e) => e.phase === 'ready').sort((a, b) => ORDER[a.kind!] - ORDER[b.kind!])
+  const ready = entries.filter((e) => e.phase === 'ready' && !blocked(checksOf(e))).sort((a, b) => ORDER[a.kind!] - ORDER[b.kind!])
   const importAll = async () => {
     if (ready.some((e) => e.parsed?.kind === 'detailed') && !(await ask({ title: 'Import everything?', body: 'The item rows already saved for the Detailed Sales week are replaced by that file.', confirmLabel: 'Import all' }))) return
     let ok = 0
@@ -106,7 +116,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
         <section key={e.id} className="sheet viz-card upload">
           <div className="viz-head">
             <div><h2>{e.kind ? KIND_LABEL[e.kind] : 'Unknown file'}</h2><p className="muted">{e.name}{e.parsed ? `, ${weekLabel(weekOf(e.parsed))}` : ''}</p></div>
-            {e.phase === 'ready' && <button type="button" className="btn primary" onClick={() => importOne(e)}>Import</button>}
+            {e.phase === 'ready' && <button type="button" className="btn primary" disabled={blocked(checksOf(e))} onClick={() => importOne(e)}>Import</button>}
             {e.phase === 'done' && <span className="chip paid">Loaded {e.imported?.toLocaleString('en-AU')} rows</span>}
           </div>
           {e.phase === 'reading' && <p className="muted">Reading the file…</p>}
@@ -119,6 +129,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
             <p>{e.preview.matched} of {e.preview.total} {e.kind === 'weekly' ? 'trading stores' : 'stores'} matched{e.preview.note ? `, ${e.preview.note}` : ''}.</p>
           )}
           {e.preview && e.preview.unmatched.length > 0 && <p className="note bad">Not matched to a store here, so skipped: {e.preview.unmatched.join(', ')}.</p>}
+          {e.phase !== 'error' && e.checks.length > 0 && <Checks checks={checksOf(e)} />}
           {e.warnings.length > 0 && <ul className="warnlist">{e.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
         </section>
       ))}
@@ -136,6 +147,24 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
         )}
       </section>
       {dialog}
+    </div>
+  )
+}
+
+/** The pre-import checks: every figure against a total the report states for itself. A failed one blocks the import. */
+function Checks({ checks }: { checks: Check[] }) {
+  const bad = failures(checks)
+  const stop = bad.filter((c) => c.blocking)
+  return (
+    <div className="checks">
+      <p className={stop.length ? 'note bad' : 'note'} role={stop.length ? 'alert' : undefined}>
+        {stop.length ? `Import blocked: ${stop.length} check${stop.length === 1 ? '' : 's'} failed. Nothing has been saved.` : `${checks.length - bad.length} of ${checks.length} checks passed.`}
+        {!stop.length && bad.length > 0 && ` ${bad.length} to read below.`}
+      </p>
+      {bad.length > 0 && <ul className="warnlist">{bad.map((c) => <li key={c.label}><b>{c.label}.</b> {c.detail}</li>)}</ul>}
+      <details className="storedetails"><summary>See every check</summary>
+        <ul className="checklist">{checks.map((c) => <li key={c.label} className={c.ok ? 'ok' : 'no'}><span aria-hidden="true">{c.ok ? '✓' : '✕'}</span> {c.label}</li>)}</ul>
+      </details>
     </div>
   )
 }

@@ -49,7 +49,9 @@ const addDays = (iso: string, d: number) => new Date(Date.parse(iso + 'T00:00:00
 // ---------- Detailed Sales Report: one sheet per store, one row per item ----------
 
 export type ParsedItem = Omit<ItemSale, 'inventory'>
-export interface DetailedSheet { tab: string; store_name: string | null; a1: string; items: ParsedItem[] }
+/** Totals the sheet states in its own header row, beside what the rows underneath add up to. They must agree. */
+export interface SheetTotals { header_net: number; header_qty: number; sum_net: number; sum_qty: number; kept_net: number; kept_qty: number; rows: number; sheet_week: number }
+export interface DetailedSheet { tab: string; store_name: string | null; a1: string; items: ParsedItem[]; totals: SheetTotals }
 export interface DetailedResult { week: WeekRef; sheets: DetailedSheet[]; warnings: string[] }
 
 const sameStore = (a: string, b: string) => storeKey(a) === storeKey(b) || storeKey(a).startsWith(storeKey(b)) || storeKey(b).startsWith(storeKey(a))
@@ -82,12 +84,14 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
     const name = TAB_STORE[s.name]
     if (a1 && !sameStore(a1, name)) warnings.push(`Sheet ${s.name} says "${a1}" in A1 but is filed under ${name}. I used the tab name.`)
     const items: ParsedItem[] = []
+    let sumNet = 0, sumQty = 0, nRows = 0
     for (let r = hr + 1; r < rows.length; r++) {
       const row: Row | undefined = rows[r]
       const code = text(row?.[0])
       if (!row || !code) continue
       const qty = num(row[c.qty]); const rank = num(row[c.rank]); const loss = num(row[c.ploss])
-      if (qty === 0 && rank <= 0 && loss <= 0) continue // only items that sold, were ranked or lost sales: the rest is the whole range
+      sumNet += num(row[c.net]); sumQty += qty; nRows++
+      if (qty === 0 && rank <= 0 && loss <= 0 && num(row[c.net]) === 0) continue // only items with a sale, a refund, a rank or lost sales: the rest is the whole range
       items.push({
         item_code: code, description: text(row[c.desc]), vendor_no: text(row[c.vendor]) || null, division: text(row[c.div]) || null,
         qty, net_sales: num(row[c.net]), store_rank: Math.max(0, Math.round(rank)), group_qty: num(row[c.gqty]), group_net: num(row[c.gnet]),
@@ -95,7 +99,11 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
         potential_loss: loss, moq: Math.max(1, num(row[c.moq], 1)),
       })
     }
-    sheets.push({ tab: s.name, store_name: name, a1, items })
+    const totals: SheetTotals = {
+      header_net: num(rows[0]?.[c.net]), header_qty: num(rows[0]?.[c.qty]), sum_net: sumNet, sum_qty: sumQty, rows: nRows, sheet_week: w,
+      kept_net: items.reduce((a, i) => a + i.net_sales, 0), kept_qty: items.reduce((a, i) => a + i.qty, 0),
+    }
+    sheets.push({ tab: s.name, store_name: name, a1, items, totals })
   }
   if (!sheets.length) throw new Error('No store sheets were found in that file.')
   if (!week) throw new Error('I cannot tell which week this is. Put it in the file name, like "Week10".')
@@ -104,7 +112,7 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
 
 // ---------- Australian Weekly Sales: the Database sheet has every week, every store ----------
 
-export interface WeeklyResult { weeks: WeekDates[]; rows: StoreWeek[]; current: WeekRef; warnings: string[] }
+export interface WeeklyResult { weeks: WeekDates[]; rows: StoreWeek[]; current: WeekRef; warnings: string[]; summary: { ty: number; ly: number; week: number } | null }
 
 export function parseWeekly(data: Uint8Array, fileName: string): WeeklyResult {
   const warnings: string[] = []
@@ -152,13 +160,17 @@ export function parseWeekly(data: Uint8Array, fileName: string): WeeklyResult {
     const start = currentStart ? addDays(currentStart, (w - cur) * 7) : ''
     return { fy, week: w, week_start: start, week_end: start ? addDays(start, 6) : '' }
   })
-  return { weeks, rows, current: { fy, week: cur }, warnings }
+  // The report's own Group Turnover line for the current week: the Database rows for that week must add up to it.
+  const g = sum?.rows[3]
+  const summary = g && text(g[0]).toLowerCase() === 'group turnover' ? { ty: num(g[3]), ly: num(g[2]), week: cur } : null
+  return { weeks, rows, current: { fy, week: cur }, warnings, summary }
 }
 
 // ---------- Daily Sales: sales for each weekday, this year and last year ----------
 
 export interface DailyRow { location: string; store_name: string; weekday: number; ty: number; ly: number }
-export interface DailyResult { week: WeekRef; dates: WeekDates; days: DailyRow[]; warnings: string[] }
+export interface DailyTotal { location: string; store_name: string; ty_total: number; ly_total: number }
+export interface DailyResult { week: WeekRef; dates: WeekDates; days: DailyRow[]; warnings: string[]; totals: DailyTotal[] }
 
 export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
   const warnings: string[] = []
@@ -180,7 +192,7 @@ export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
 
   const grab = (sheet: string) => {
     const s = wb.sheet(sheet)
-    const out = new Map<string, { name: string; d: number[] }>()
+    const out = new Map<string, { name: string; d: number[]; total: number }>()
     if (!s?.rows.length) return out
     const hr = findRow(s.rows, 1, 'Location', 8)
     if (hr < 0) return out
@@ -188,7 +200,7 @@ export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
       const row = s.rows[r]
       const loc = text(row?.[1])
       if (!row || !loc) continue
-      out.set(loc.toUpperCase(), { name: text(row[2]), d: [3, 4, 5, 6, 7, 8, 9].map((i) => num(row[i])) })
+      out.set(loc.toUpperCase(), { name: text(row[2]), d: [3, 4, 5, 6, 7, 8, 9].map((i) => num(row[i])), total: num(row[10]) })
     }
     return out
   }
@@ -201,7 +213,8 @@ export function parseDaily(data: Uint8Array, fileName: string): DailyResult {
     if (!l) warnings.push(`${t.name || loc} has no last-year days.`)
     t.d.forEach((v, i) => days.push({ location: loc, store_name: t.name, weekday: i + 1, ty: v, ly: l?.d[i] ?? 0 }))
   }
-  return { week: { fy, week }, dates: { fy, week, week_start: start, week_end: addDays(start, 6) }, days, warnings }
+  const totals: DailyTotal[] = [...ty].map(([location, t]) => ({ location, store_name: t.name, ty_total: t.total, ly_total: ly.get(location)?.total ?? 0 }))
+  return { week: { fy, week }, dates: { fy, week, week_start: start, week_end: addDays(start, 6) }, days, warnings, totals }
 }
 
 /** What an import of the daily report writes, once locations are matched to stores. */

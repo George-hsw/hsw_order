@@ -598,3 +598,9 @@ table.salesitems tr.on td { background: var(--color-paper-3); }
 .itemsales p { margin-bottom: var(--space-xs); }
 table.salesmini { margin-bottom: var(--space-xs); }
 table.salesmini th, table.salesmini td { padding: var(--space-2xs) var(--space-xs); }
+
+.checks { margin-top: var(--space-sm); }
+.checklist { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: grid; gap: var(--space-3xs); font-size: var(--text-sm); }
+.checklist li.ok { color: var(--color-success); }
+.checklist li.no { color: var(--color-error); font-weight: 600; }
+.checklist li span { display: inline-block; width: 1.2em; }
