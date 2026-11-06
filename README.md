@@ -20,7 +20,7 @@ npm run build
 ```
 
 ## Status
-Built: sign-in, tour, Order (scan, search, Vendor filter, item popup, quantity, Copy for NAV), Orders, Sales, Reports, Stores. Runs on demo data with `npm run demo`.
+Built: sign-in, tour, Order (scan, search, Vendor filter, item popup, quantity, Copy for NAV), Orders, Sales, Stores. Runs on demo data with `npm run demo`.
 
 Written but **not yet run against a real Supabase project or real NAV** (so expect a first-run fix or two):
 - `supabase/migrations`: 001 stores and people, 002 items and store stock, 003 orders (with the `open_order`, `save_line`, `set_order_status` functions), 004 grants, 005 the stores, 006 one order per vendor. They pass a Postgres syntax check; the functions have not been executed.
@@ -42,7 +42,7 @@ The sync keeps each store's previous data when its feed is empty, much smaller t
 - How per-store stock reaches us (OData web service or report export).
 
 ## Design
-`DESIGN.md` and `CLAUDE.md` rule. New CSS lives at the end of `src/styles.css` and uses tokens only: `.facts`, `.stepper`, and the Orders, Reports and Stores phone card rules.
+`DESIGN.md` and `CLAUDE.md` rule. New CSS lives at the end of `src/styles.css` and uses tokens only: `.facts`, `.stepper`, and the Orders and Stores phone card rules.
 
 ## NAV fields used
 **Replen. Qty. (per store and item, from the field list HSW supplied)**

@@ -83,7 +83,6 @@ export const demoApi: OrdersApi = {
 
   orderLines: (orderId) => wait([...(lines.get(orderId) ?? [])]),
 
-  reportLines: (storeIds) => wait(orders.filter((o) => storeIds.includes(o.store_id)).map((o) => ({ order: o, lines: lines.get(o.id) ?? [] }))),
 
   async syncRuns() {
     const runs: SyncRun[] = demoStores().map((s, i) => ({

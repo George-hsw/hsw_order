@@ -34,8 +34,6 @@ export interface OrdersApi {
   deleteOrder(orderId: string): Promise<void>
   listOrders(storeIds: string[]): Promise<OrderSummary[]>
   orderLines(orderId: string): Promise<OrderLine[]>
-  /** Every line on every order for these stores, for reports. */
-  reportLines(storeIds: string[]): Promise<{ order: OrderRow; lines: OrderLine[] }[]>
   /** Latest sync result per store (admin). */
   syncRuns(): Promise<SyncRun[]>
 }
@@ -44,7 +42,7 @@ const notConnected = (): never => { throw new Error('The back end is not connect
 const offline: OrdersApi = {
   vendors: async () => notConnected(), range: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
-  orderLines: async () => notConnected(), reportLines: async () => notConnected(), syncRuns: async () => notConnected(),
+  orderLines: async () => notConnected(), syncRuns: async () => notConnected(),
 }
 
 export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline

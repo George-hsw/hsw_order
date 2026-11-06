@@ -7,7 +7,7 @@ interface Props {
 }
 
 type Scene = 'welcome' | 'build' | 'scan' | 'phone' | 'send' | 'docs' | 'pay' | 'stores' | 'done'
-interface Step { title: string; body: string; scene: Scene; tab?: 'order' | 'orders' | 'reports' | 'stores' }
+interface Step { title: string; body: string; scene: Scene; tab?: 'order' | 'orders' | 'sales' | 'stores' }
 
 /** What each person is shown, in order. The steps they cannot use are left out. */
 function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Step[] {
@@ -19,7 +19,6 @@ function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Ste
     { scene: 'send', title: 'Copy into NAV', body: 'When the order looks right, choose Copy for NAV and paste it into the NAV purchase order for that vendor. Then record the NAV order number.' },
     { scene: 'docs', tab: 'orders', title: 'Find past orders in Orders', body: 'Each order shows its status and NAV number. Open one to see its lines, or copy it for NAV again.' },
   ]
-  if (manager) steps.push({ scene: 'pay', tab: 'reports', title: 'Reports', body: 'See what your store has ordered by vendor and division, and who placed it.' })
   if (isAdmin) steps.push({ scene: 'stores', tab: 'stores', title: 'Stores and people', body: 'Open a store to add people. Everyone in a store has the same access there. The sync status for each store is shown here too.' })
   steps.push({ scene: 'done', title: 'You are ready', body: 'You can replay this tour from the question mark at the top. If you cannot sign in, contact support@hsw.com.au.' })
   return steps

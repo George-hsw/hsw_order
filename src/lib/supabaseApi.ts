@@ -124,15 +124,6 @@ export const supabaseApi: OrdersApi = {
 
   orderLines: linesOf,
 
-  async reportLines(storeIds) {
-    if (!storeIds.length) return []
-    const orders = await readAll<OrderRow>((from, to, count) => db().from('orders').select('*', countOpt(count)).in('store_id', storeIds).order('created_at', { ascending: false }).order('id').range(from, to))
-    const lines = await readAll<OrderLine>((from, to, count) => db().from('order_lines').select('*').in('store_id', storeIds).order('id').range(from, to))
-    const byOrder = new Map<string, OrderLine[]>()
-    for (const l of lines) byOrder.set(l.order_id, [...(byOrder.get(l.order_id) ?? []), l])
-    return orders.map((order) => ({ order, lines: byOrder.get(order.id) ?? [] }))
-  },
-
   async syncRuns(): Promise<SyncRun[]> {
     const { data, error } = await db().from('sync_runs').select('store_id,finished_at,ok,rows,message').not('store_id', 'is', null)
       .not('finished_at', 'is', null).order('finished_at', { ascending: false }).limit(500)

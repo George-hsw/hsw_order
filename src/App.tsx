@@ -3,7 +3,6 @@ import type { Session } from '@supabase/supabase-js'
 import Login from './Login'
 import Order from './Order'
 import Orders from './Orders'
-import Reports from './Reports'
 import Sales, { type OrderJump } from './Sales'
 import Stores from './Stores'
 import Tour from './Tour'
@@ -11,7 +10,7 @@ import { useToast } from './Toast'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
 import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type Member, type StoreRow } from './lib/supabase'
 
-type Tab = 'order' | 'orders' | 'sales' | 'reports' | 'stores'
+type Tab = 'order' | 'orders' | 'sales' | 'stores'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined) // undefined = still checking
@@ -46,7 +45,7 @@ function Shell({ session }: { session: Session }) {
   const [people, setPeople] = useState<AppUser[] | null>(null) // admin: everyone. everyone else: people in their stores
   const [members, setMembers] = useState<Member[]>([]) // who is in which store, and as what
   const [jump, setJump] = useState<OrderJump | null>(null) // set when the Sales tab sends someone to order an item
-  const [refresh, setRefresh] = useState(0) // bumped when an order is saved so Orders and Reports reload
+  const [refresh, setRefresh] = useState(0) // bumped when an order is saved so Orders reloads
 
   // The tour is shown once per account. The account remembers it (user_metadata), so a new phone or browser does not
   // show it again; the browser copy covers accounts that finished it before this existed.
@@ -98,7 +97,6 @@ function Shell({ session }: { session: Session }) {
             {tabBtn('order', 'Order')}
             {tabBtn('orders', 'Orders')}
             {tabBtn('sales', 'Sales')}
-            {tabBtn('reports', 'Reports')}
             {isAdmin && tabBtn('stores', 'Stores')}
           </nav>
           <div className="who">
@@ -114,7 +112,6 @@ function Shell({ session }: { session: Session }) {
           : tab === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : tab === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : tab === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setTab('order') }} />
-          : tab === 'reports' ? <Reports multi={multi} stores={active} names={names} refreshKey={refresh} />
           : tab === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
       </main>
