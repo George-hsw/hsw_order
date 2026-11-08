@@ -161,3 +161,36 @@ export function weeksOf(rows: WeekRef[]): WeekRef[] {
   for (const r of rows) seen.set(weekKey(r), { fy: r.fy, week: r.week })
   return [...seen.values()].sort((a, b) => weekKey(b) - weekKey(a))
 }
+
+// ---------- one item over the weeks ----------
+
+export interface ItemTrendWeek extends WeekRef { qty: number; net_sales: number; chain_avg: number; store_rank: number; potential_loss: number }
+export interface ItemTrend {
+  weeks: ItemTrendWeek[] // oldest first, only weeks the report recorded the item in
+  total_qty: number
+  total_sales: number
+  total_lost: number
+  last: ItemTrendWeek | null
+  /** Units in the last four recorded weeks against the four before, as a fraction; null when there is nothing to compare. */
+  growth4: number | null
+  /** Latest recorded week against the one before it. */
+  growth1: number | null
+  best: ItemTrendWeek | null
+}
+
+/** Weekly figures for one item, with the average store that stocks it beside it, and how the item is trending. Pure: no network. */
+export function itemTrend(history: ItemWeek[]): ItemTrend {
+  const weeks: ItemTrendWeek[] = [...history].sort((a, b) => weekKey(a) - weekKey(b)).map((h) => ({
+    fy: h.fy, week: h.week, qty: h.qty, net_sales: h.net_sales, chain_avg: h.stores_stocking > 0 ? h.group_qty / h.stores_stocking : 0, store_rank: h.store_rank, potential_loss: h.potential_loss,
+  }))
+  const sum = (xs: ItemTrendWeek[], f: (w: ItemTrendWeek) => number) => xs.reduce((a, w) => a + f(w), 0)
+  const recent = weeks.slice(-4), before = weeks.slice(-8, -4)
+  const prev = weeks.length > 1 ? weeks[weeks.length - 2] : null
+  const last = weeks.length ? weeks[weeks.length - 1] : null
+  return {
+    weeks, total_qty: sum(weeks, (w) => w.qty), total_sales: sum(weeks, (w) => w.net_sales), total_lost: sum(weeks, (w) => w.potential_loss), last,
+    growth4: before.length && sum(before, (w) => w.qty) > 0 ? change(sum(recent, (w) => w.qty), sum(before, (w) => w.qty)) : null,
+    growth1: last && prev && prev.qty > 0 ? change(last.qty, prev.qty) : null,
+    best: weeks.reduce<ItemTrendWeek | null>((b, w) => (!b || w.qty > b.qty ? w : b), null),
+  }
+}

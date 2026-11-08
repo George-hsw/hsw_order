@@ -45,12 +45,12 @@ export function Delta({ f, label = 'on last year' }: { f: number | null; label?:
   return <span className={`delta ${dir}`}><span aria-hidden="true">{dir === 'up' ? '▲' : dir === 'down' ? '▼' : '–'}</span> {pctText(f)} <small>{label}</small></span>
 }
 
-export function StatTile({ label, value, ly, delta, note }: { label: string; value: string; ly?: string; delta?: number | null; note?: ReactNode }) {
+export function StatTile({ label, value, ly, delta, deltaLabel, note }: { label: string; value: string; ly?: string; delta?: number | null; deltaLabel?: string; note?: ReactNode }) {
   return (
     <div className="stat">
       <p className="stat-label">{label}</p>
       <p className="stat-value">{value}</p>
-      {delta !== undefined && <Delta f={delta} />}
+      {delta !== undefined && <Delta f={delta} label={deltaLabel} />}
       {ly && <p className="stat-ly">{ly}</p>}
       {note && <p className="stat-ly">{note}</p>}
     </div>

@@ -15,7 +15,7 @@ const SHORT: Record<ItemFlag, string> = { out: 'Out of stock', not_selling: 'Not
 const CHIP: Record<ItemFlag, string> = { out: 'bad', not_selling: 'warn', below: 'warn', above: 'paid', ok: '' }
 
 /** One store's items for the week, with the chain's figures beside them and plain flags for where to act. */
-export default function SalesItems({ storeId, week, onOrder }: { storeId: string; week: WeekRef; onOrder: (vendor: string, item: string) => void }) {
+export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeId: string; week: WeekRef; onOrder: (vendor: string, item: string) => void; onTrend: (code: string) => void }) {
   const items = useLoad(() => salesApi.items(storeId, week), [storeId, weekKey(week)])
   const [flag, setFlag] = useState<ItemFlag | null>(null)
   const [find, setFind] = useState('')
@@ -108,12 +108,12 @@ export default function SalesItems({ storeId, week, onOrder }: { storeId: string
         {sorted.length > limit && <div className="actions"><button type="button" className="btn" onClick={() => setLimit(limit + PAGE)}>Show {Math.min(PAGE, sorted.length - limit)} more</button></div>}
       </section>
 
-      {picked && <ItemPanel item={picked} onClose={() => setOpen(null)} onOrder={onOrder} />}
+      {picked && <ItemPanel item={picked} onClose={() => setOpen(null)} onOrder={onOrder} onTrend={onTrend} />}
     </div>
   )
 }
 
-function ItemPanel({ item, onClose, onOrder }: { item: ItemSale; onClose: () => void; onOrder: (vendor: string, item: string) => void }) {
+function ItemPanel({ item, onClose, onOrder, onTrend }: { item: ItemSale; onClose: () => void; onOrder: (vendor: string, item: string) => void; onTrend: (code: string) => void }) {
   const f = itemFlag(item)
   const avg = chainAvg(item)
   return (
@@ -136,6 +136,7 @@ function ItemPanel({ item, onClose, onOrder }: { item: ItemSale; onClose: () => 
           <div><dt>Order in multiples of</dt><dd className="num">{item.moq}</dd></div>
         </dl>
         <div className="actions">
+          <button type="button" className="btn" onClick={() => onTrend(item.item_code)}>See week by week</button>
           {item.vendor_no && <button type="button" className="btn primary" onClick={() => onOrder(item.vendor_no!, item.item_code)}>Order this item</button>}
           <button type="button" className="btn" onClick={onClose}>Close</button>
         </div>

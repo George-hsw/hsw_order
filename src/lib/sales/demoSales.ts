@@ -118,6 +118,11 @@ export const demoSalesApi: SalesApi = {
   chain: (w) => wait(chain(w)),
   items: (storeId, w) => wait(items(storeId, w)),
   itemHistory: (storeId, code) => wait(Array.from({ length: WEEKS }, (_, i) => WEEKS - i).flatMap((week) => { const it = items(storeId, { fy: FY, week }).find((x) => x.item_code === code); return it && (it.qty > 0 || it.potential_loss > 0) ? [{ fy: FY, week, qty: it.qty, net_sales: it.net_sales, store_rank: it.store_rank, group_qty: it.group_qty, stores_stocking: it.stores_stocking, potential_loss: it.potential_loss }] : [] })),
+  lookupItem: (storeId, query) => {
+    const q = query.trim().toLowerCase()
+    const it = items(storeId, { fy: FY, week: WEEKS }).find((x) => x.item_code.toLowerCase() === q || x.description.toLowerCase().includes(q))
+    return wait(q && it ? { code: it.item_code, description: it.description, vendor_no: it.vendor_no, division: it.division, barcode: null, inventory: it.inventory, moq: it.moq } : null)
+  },
   league: (w) => wait(allWeeks().filter((x) => x.week === w.week)),
   uploads: () => wait(uploads),
   importWeekly: async () => { throw new Error('Demo mode: nothing is saved.') },

@@ -72,3 +72,28 @@ describe('weeks', () => {
     expect(weeksOf([{ fy: 2027, week: 9 }, { fy: 2027, week: 10 }, { fy: 2027, week: 9 }, { fy: 2026, week: 52 }])).toEqual([{ fy: 2027, week: 10 }, { fy: 2027, week: 9 }, { fy: 2026, week: 52 }])
   })
 })
+
+import { itemTrend, type ItemWeek } from './model'
+describe('one item over the weeks', () => {
+  const w = (week: number, qty: number, extra: Partial<ItemWeek> = {}): ItemWeek => ({ fy: 2027, week, qty, net_sales: qty * 10, store_rank: 5, group_qty: qty * 2, stores_stocking: 4, potential_loss: 0, ...extra })
+  it('sorts the weeks, totals them and sets the average store beside each', () => {
+    const t = itemTrend([w(3, 6), w(1, 2), w(2, 4)])
+    expect(t.weeks.map((x) => x.week)).toEqual([1, 2, 3])
+    expect(t.total_qty).toBe(12)
+    expect(t.total_sales).toBe(120)
+    expect(t.weeks[0].chain_avg).toBe(1) // 4 units across 4 stores
+    expect(t.last?.week).toBe(3)
+    expect(t.best?.qty).toBe(6)
+  })
+  it('works out growth over the last four weeks against the four before, and week on week', () => {
+    const t = itemTrend([1, 1, 1, 1, 2, 2, 2, 3].map((q, i) => w(i + 1, q)))
+    expect(t.growth4).toBeCloseTo(1.25) // 2+2+2+3 = 9 units against 4
+    expect(t.growth1).toBeCloseTo(0.5) // 3 against 2
+  })
+  it('says nothing when there is nothing to compare with', () => {
+    const t = itemTrend([w(1, 5)])
+    expect(t.growth4).toBeNull()
+    expect(t.growth1).toBeNull()
+    expect(itemTrend([]).last).toBeNull()
+  })
+})

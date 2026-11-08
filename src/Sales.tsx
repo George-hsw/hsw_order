@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarList, ChartCard, ColumnChart, Delta, Donut, Legend, Meter, StatTile } from './Charts'
+import SalesItem from './SalesItem'
 import SalesItems from './SalesItems'
 import SalesLeague from './SalesLeague'
 import SalesUpload from './SalesUpload'
@@ -14,7 +15,7 @@ import type { StoreRow } from './lib/supabase'
 
 export interface OrderJump { storeId: string; vendor: string; item: string }
 interface Props { email: string; isAdmin: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder: (j: OrderJump) => void }
-type Sub = 'store' | 'items' | 'all' | 'upload'
+type Sub = 'store' | 'items' | 'item' | 'all' | 'upload'
 
 const STORE_KEY = 'hsw-orders-store'
 const LAST = 13 // weeks shown in the weekly chart
@@ -27,6 +28,7 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder }: Pr
     return stores[0]?.id ?? ''
   })
   const [week, setWeek] = useState<WeekRef | null>(null)
+  const [itemCode, setItemCode] = useState<string | null>(null) // an item sent here from the Items list
   const weeks = useLoad(() => salesApi.weeks(), [])
   const history = useLoad(() => salesApi.history(storeId), [storeId], !!storeId)
   const store = stores.find((s) => s.id === storeId)
@@ -58,6 +60,7 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder }: Pr
         <div className="segmented" role="group" aria-label="Sales view">
           {tab('store', 'My store')}
           {tab('items', 'Items')}
+          {tab('item', 'Scan item')}
           {isAdmin && tab('all', 'All stores')}
           {isAdmin && tab('upload', 'Upload')}
         </div>
@@ -66,7 +69,7 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder }: Pr
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        {sub !== 'upload' && weekOptions.length > 0 && (
+        {sub !== 'upload' && sub !== 'item' && weekOptions.length > 0 && (
           <select name="salesWeek" aria-label="Week" value={week ? weekKey(week) : ''} onChange={(e) => { const w = weekOptions.find((x) => weekKey(x) === Number(e.target.value)); if (w) setWeek({ fy: w.fy, week: w.week }) }} style={{ width: 'auto' }}>
             {weekOptions.map((w) => <option key={weekKey(w)} value={weekKey(w)}>{weekLabel(w)}{w.week_start ? `, ${rangeText(w.week_start, w.week_end)}` : ''}</option>)}
           </select>
@@ -78,11 +81,12 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder }: Pr
           <div className="state error" role="alert"><p>Could not load sales</p><p className="muted">Check your connection and try again.</p>
             <div className="actions"><button type="button" className="btn" onClick={() => { weeks.retry(); history.retry() }}>Try again</button></div></div>
         ) : weeks.loading || (sub !== 'all' && history.loading) ? <p className="muted">Loading…</p>
+        : sub === 'item' && storeId ? <SalesItem storeId={storeId} initialCode={itemCode} onOrder={(vendor, item) => onOrder({ storeId, vendor, item })} />
         : !weekOptions.length ? (
           <div className="state"><p>No sales loaded yet</p><p className="muted">{isAdmin ? 'Open the Upload view and add this week’s reports.' : 'Head office loads the weekly reports. They will appear here once they do.'}</p></div>
         ) : !week ? null
         : sub === 'all' && isAdmin ? <SalesLeague week={week} stores={allStores} />
-        : sub === 'items' ? <SalesItems storeId={storeId} week={week} onOrder={(vendor, item) => onOrder({ storeId, vendor, item })} />
+        : sub === 'items' ? <SalesItems storeId={storeId} week={week} onOrder={(vendor, item) => onOrder({ storeId, vendor, item })} onTrend={(code) => { setItemCode(code); setSub('item') }} />
         : <MyStore storeId={storeId} week={week} dates={dates} history={history.data ?? []} onWeek={setWeek} />}
     </>
   )

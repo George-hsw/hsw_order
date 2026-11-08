@@ -1,5 +1,5 @@
 import { supabase, type StoreRow } from '../supabase'
-import type { SalesApi, UploadRecord } from './api'
+import type { ItemInfo, SalesApi, UploadRecord } from './api'
 import { dailyRows, detailedRows, indexStores, weeklyRows } from './import'
 import type { ChainWeek, ItemSale, ItemWeek, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'
 
@@ -82,6 +82,24 @@ export const supabaseSalesApi: SalesApi = {
     const { data, error } = await db().from('sales_item_week').select('fy,week,qty,net_sales,store_rank,group_qty,stores_stocking,potential_loss').eq('store_id', storeId).eq('item_code', itemCode).order('fy', { ascending: false }).order('week', { ascending: false }).limit(26)
     fail(error)
     return ((data ?? []) as ItemWeek[]).map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), potential_loss: Number(r.potential_loss) }))
+  },
+  async lookupItem(storeId, query): Promise<ItemInfo | null> {
+    const q = query.trim()
+    if (!q) return null
+    // A barcode can arrive with or without leading zeros, so try the plain number and a few padded forms as well as the text itself.
+    const digits = /^\d+$/.test(q) ? q.replace(/^0+/, '') : ''
+    const forms = new Set<string>([q, q.toUpperCase()])
+    if (digits) for (const pad of [0, 1, 2, 3, 4, 5]) forms.add('0'.repeat(pad) + digits)
+    const list = [...forms].map((f) => f.replace(/[,()"]/g, ''))
+    const { data, error } = await db().from('items').select('code,description,vendor_no,division,barcode')
+      .or(list.map((f) => `barcode.eq.${f}`).concat(list.map((f) => `code.eq.${f}`)).join(',')).limit(1)
+    fail(error)
+    const item = (data ?? [])[0] as { code: string; description: string; vendor_no: string | null; division: string | null; barcode: string | null } | undefined
+    if (!item) return null
+    const stock = await db().from('store_stock').select('inventory,moq,vendor_no').eq('store_id', storeId).eq('item_code', item.code).maybeSingle()
+    fail(stock.error)
+    const s = stock.data as { inventory: number; moq: number; vendor_no: string | null } | null
+    return { ...item, vendor_no: s?.vendor_no ?? item.vendor_no, inventory: Number(s?.inventory ?? 0), moq: Number(s?.moq ?? 1) }
   },
   async league(w) {
     const { data, error } = await db().from('store_week').select(WEEK_COLUMNS).eq('fy', w.fy).eq('week', w.week).order('store_name')
