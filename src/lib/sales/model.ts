@@ -115,7 +115,7 @@ export const FLAG_LABEL: Record<ItemFlag, string> = {
   out: 'Out of stock, losing sales', not_selling: 'In stock, not selling', below: 'Selling below the chain average', above: 'Selling above the chain average', ok: 'No flag',
 }
 export const FLAG_HELP: Record<ItemFlag, string> = {
-  out: 'No stock here, and the chain or this store sells it. Consider ordering now.',
+  out: 'No stock here, but this item has been selling. Consider ordering now.',
   not_selling: 'Stock on hand, nothing sold this week, while the chain sells it. Think twice before reordering.',
   below: 'Sold, but less than the average store that stocks it. Check display, price and range.',
   above: 'Selling faster than the average store that stocks it. Check you have enough cover.',

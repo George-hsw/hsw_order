@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useToast } from './Toast'
 
 interface Props {
   onScan: (value: string) => void // return after each successful read; scanner stays open
@@ -19,7 +18,6 @@ const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'it
 /** Full-screen camera scanner. Native BarcodeDetector where available (Chrome/Android), ZXing elsewhere (iOS Safari). */
 export default function Scanner({ onScan, onClose, feedback }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const toast = useToast()
   const [error, setError] = useState('')
   const [live, setLive] = useState(false) // the camera is showing
   const [closing, setClosing] = useState(false)
@@ -85,9 +83,8 @@ export default function Scanner({ onScan, onClose, feedback }: Props) {
           if (stopped) stopZxing()
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        setError(msg)
-        toast.error(`Camera problem: ${msg}`)
+        const blocked = e instanceof Error && /denied|NotAllowed|permission/i.test(`${e.name} ${e.message}`)
+        setError(blocked ? 'The camera is blocked. Allow camera access in your browser settings, or press Done and type the code.' : 'The camera could not start. Press Done and type the code instead.')
       }
     })()
 

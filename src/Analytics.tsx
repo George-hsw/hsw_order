@@ -14,6 +14,7 @@ const SEV: Record<Finding['severity'], { chip: string; label: string }> = { high
 /** Admin only: who is using the app, what they do, what breaks, and anything unusual. Built from the usage log (migration 013). */
 export default function Analytics({ stores, people }: { stores: StoreRow[]; people: AppUser[] }) {
   const [period, setPeriod] = useState<Period>('7')
+  const [allActivity, setAllActivity] = useState(false)
   // Always read back 30 days so a new device can be told from a known one, then narrow to the chosen period on screen.
   const reach = period === '90' ? 90 : 30
   const log = useLoad(() => loadEvents(new Date(Date.now() - reach * 864e5)), [reach])
@@ -128,15 +129,16 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
           </section>
 
           <section className="sheet viz-card">
-            <div className="viz-head"><div><h2>Recent activity</h2><p className="muted">The latest 40 actions</p></div></div>
+            <div className="viz-head"><div><h2>Recent activity</h2><p className="muted">The latest {allActivity ? 40 : 10} actions</p></div></div>
             <div className="tablewrap">
               <table className="viz-table cells">
                 <thead><tr><th>When</th><th>Person</th><th>Did</th><th>Store</th></tr></thead>
-                <tbody>{events.slice(0, 40).map((e) => (
+                <tbody>{events.slice(0, allActivity ? 40 : 10).map((e) => (
                   <tr key={e.id}><td className="s3 o3" data-label="When">{when(e.at)}</td><td className="full o2" data-label="Person">{people.find((p) => p.email.toLowerCase() === e.email)?.full_name ?? e.email}</td>
                     <td className="full o1" data-label="Did">{KIND_LABEL[e.kind] ?? e.kind}{typeof e.detail.tab === 'string' ? `: ${e.detail.tab}` : typeof e.detail.view === 'string' ? `: ${e.detail.view}` : ''}</td><td className="s3 o4" data-label="Store">{e.store_id ? names.get(e.store_id) ?? '–' : '–'}</td></tr>))}</tbody>
               </table>
             </div>
+            {!allActivity && events.length > 10 && <button type="button" className="btn" onClick={() => setAllActivity(true)}>Show the latest 40</button>}
           </section>
         </div>
       )}

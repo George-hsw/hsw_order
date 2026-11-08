@@ -117,7 +117,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
           onDrop={(e) => { e.preventDefault(); setOver(false); void read([...e.dataTransfer.files]) }}>
           <p>Drop the files here, or</p>
           <button type="button" className="btn primary" onClick={() => input.current?.click()}>Choose files</button>
-          <input ref={input} type="file" accept=".xlsx" multiple hidden onChange={(e) => { void read([...(e.target.files ?? [])]); e.target.value = '' }} />
+          <input ref={input} type="file" accept=".xlsx" multiple hidden aria-label="Choose the Power BI files" onChange={(e) => { void read([...(e.target.files ?? [])]); e.target.value = '' }} />
         </div>
       </section>
 
