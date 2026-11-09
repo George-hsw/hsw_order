@@ -43,7 +43,7 @@ export default function Stores({ stores, people, members, onChanged }: Props) {
       <div className="pagehead">
         <div>
           <h1>Stores</h1>
-          <p className="muted">Using {activeCount} of {MAX_STORES} active stores. Open a store to add people and choose what each can do. The last NAV sync shows for each store.</p>
+          <p className="muted">Using {activeCount} of {MAX_STORES} active stores. Open a store to add people, choose what each can do, and edit its details. The last NAV sync shows for each store.</p>
         </div>
         <div className="actions">
           <button type="button" className="btn primary" disabled={activeCount >= MAX_STORES} onClick={() => setOpenId('new')}>Add store</button>
@@ -52,7 +52,7 @@ export default function Stores({ stores, people, members, onChanged }: Props) {
 
       <div className="tablewrap">
         <table className="book stores">
-          <thead><tr><th>Store</th><th>Code</th><th>Managers</th><th>People</th><th>Last sync</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
+          <thead><tr><th>Store</th><th>Code</th><th>Managers</th><th>People</th><th>ABN</th><th>Last sync</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
           <tbody>
             {stores.map((s) => {
               const mgrs = managersOf(s.id)
@@ -62,6 +62,7 @@ export default function Stores({ stores, people, members, onChanged }: Props) {
                   <td data-label="Code"><span className="num">{s.code}</span></td>
                   <td data-label="Managers">{mgrs.length === 0 ? <span className="chip warn">No manager yet</span> : mgrs.map((m) => <div key={m.user_id}><b>{m.full_name}</b> <small>{m.email}</small></div>)}</td>
                   <td data-label="People"><span className="num">{inStore(s.id).length}</span></td>
+                  <td data-label="ABN">{s.abn ? <span className="num">{s.abn}</span> : <span className="chip warn">Not set</span>}</td>
                   <td data-label="Last sync">{syncCell(s.id)}</td>
                   <td className="rowactions">
                     <button type="button" className="btn" onClick={() => setOpenId(s.id)}>Open</button>

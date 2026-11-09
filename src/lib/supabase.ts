@@ -13,7 +13,7 @@ export const DEMO = import.meta.env.VITE_DEMO === '1'
 export const ADMIN_EMAIL = 'george.mridun@hsw.com.au'
 export const MAX_STORES = 25
 
-/** admin: every store, and people. manager and staff (shown as "Store"): the same access inside their own store. */
+/** admin: every store, and people. manager and staff (shown as "Store"): the same access inside their own store, for quotes, invoices and orders. */
 export type Role = 'admin' | 'manager' | 'staff'
 export const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', staff: 'Store' }
 
@@ -42,8 +42,36 @@ export interface StoreRow {
   suburb: string
   phone: string
   email: string | null
+  owner_email: string | null
+  legal_name: string
+  abn: string
+  bank_name: string
+  bsb: string
+  account: string
   active: boolean
   password_set_at: string | null
+}
+
+export interface PaymentRow {
+  amount_cents: number
+  kind: 'payment' | 'deposit'
+  paid_on: string
+}
+
+export interface DocRow {
+  id: string
+  store_id: string
+  doc_type: 'Quote' | 'Tax Invoice'
+  doc_number: string
+  customer_name: string
+  total_cents: number
+  due_date: string | null
+  status: 'open' | 'part_paid' | 'paid' | 'void'
+  created_by: string | null
+  created_at: string
+  payload: unknown
+  stores: { name: string } | null
+  payments: PaymentRow[]
 }
 
 /** A product, the same for every store. Synced from NAV (Retail Items). */

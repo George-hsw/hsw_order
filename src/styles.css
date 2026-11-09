@@ -268,11 +268,18 @@ tr.inactive { opacity: 0.6; }
   table.book.docs td[data-label="Number"]::before, table.book.docs td[data-label="Customer"]::before, table.book.docs td[data-label="Status"]::before { display: none; }
 
 
+  /* Reports: the person, quotes and invoices, then the amounts */
+  table.book.reports td[data-label="Person"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
+  table.book.reports td[data-label="Quotes"], table.book.reports td[data-label="Invoices"] { grid-column: span 3; order: 2; }
+  table.book.reports td[data-label="Invoiced"], table.book.reports td[data-label="Quote deposits"], table.book.reports td[data-label="Received"], table.book.reports td[data-label="Still due"] { grid-column: span 3; order: 3; }
+  table.book.reports td[data-label="Person"]::before { display: none; }
+
   /* Stores: name and Open, then code, people and ABN, then the managers */
   table.book.stores td[data-label="Store"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
   table.book.stores td.rowactions { grid-column: span 2; order: 2; }
   table.book.stores td[data-label="Code"] { grid-column: span 2; order: 3; }
   table.book.stores td[data-label="People"] { grid-column: span 2; order: 4; }
+  table.book.stores td[data-label="ABN"] { grid-column: span 2; order: 5; }
   table.book.stores td[data-label="Managers"] { grid-column: 1 / -1; order: 6; }
   table.book.stores td[data-label="Store"]::before { display: none; }
   table td.r { text-align: left; }
@@ -661,3 +668,6 @@ button, a, select, summary, label { touch-action: manipulation; }
 
 /* The scanner is dark: its error text uses the pale error tone so it stays readable. */
 .scan-msg .bad { color: var(--color-error-soft); }
+
+/* The Quote tab's New, Documents and Reports switch sits above the screen it controls. */
+.quote-views { margin-bottom: var(--space-md); }

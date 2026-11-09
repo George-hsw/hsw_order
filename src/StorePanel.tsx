@@ -15,13 +15,14 @@ interface Props {
 
 type Draft = Omit<StoreRow, 'id'> & { id?: string }
 const blank = (): Draft => ({
-  name: '', code: '', address: '', suburb: '', phone: '', email: '', active: true, password_set_at: null,
+  name: '', code: '', address: '', suburb: '', phone: '', email: '', owner_email: null,
+  legal_name: '', abn: '', bank_name: '', bsb: '', account: '', active: true, password_set_at: null,
 })
 
 type Pick = 'manager' | 'staff'
 const PERMISSION: Record<Pick, string> = {
-  manager: 'Manager: whole store, orders and reports',
-  staff: 'Store: whole store, orders and reports',
+  manager: 'Manager: whole store, and gets its payment emails',
+  staff: 'Store: whole store (quotes, orders, payments, reports)',
 }
 
 /** One store, in a popup: who is in it and with what permission, and the store's details. Admin only. */
@@ -91,7 +92,7 @@ export default function StorePanel({ store, stores, people, members, onClose, on
   const setActive = async (p: AppUser, next: boolean) => {
     if (!next && !(await ask({
       title: `Turn off ${p.full_name}?`,
-      body: <p>They won’t be able to sign in to any store. The orders they made stay, and you can turn them back on later.</p>,
+      body: <p>They won’t be able to sign in to any store. The quotes, invoices and orders they made stay, and you can turn them back on later.</p>,
       confirmLabel: 'Turn off',
     }))) return
     const r = await call({ action: 'update', user_id: p.user_id, active: next })
@@ -110,7 +111,7 @@ export default function StorePanel({ store, stores, people, members, onClose, on
     const n = storesOf(p.user_id)
     if (!(await ask({
       title: `Delete ${p.full_name}?`,
-      body: <p>Their login is removed{n > 1 ? ` and they leave all ${n} stores` : ''}. The orders they made stay. This cannot be undone.</p>,
+      body: <p>Their login is removed{n > 1 ? ` and they leave all ${n} stores` : ''}. The quotes, invoices and orders they made stay. This cannot be undone.</p>,
       confirmLabel: 'Delete user',
       danger: true,
     }))) return
@@ -152,14 +153,14 @@ export default function StorePanel({ store, stores, people, members, onClose, on
     if (!current || !supabase) return
     if (!(await ask({
       title: `Delete ${current.name}?`,
-      body: <p>The store and its list of people are removed. This cannot be undone. A store that has orders can’t be deleted: turn it off instead by unticking Active.</p>,
+      body: <p>The store and its list of people are removed. This cannot be undone. A store that has quotes, invoices or orders can’t be deleted: turn it off instead by unticking Active.</p>,
       confirmLabel: 'Delete store',
       danger: true,
     }))) return
     const { error } = await supabase.from('stores').delete().eq('id', current.id)
     if (error) {
       toast.error(error.code === '23503'
-        ? `${current.name} has orders, so it cannot be deleted. Untick Active to turn it off.`
+        ? `${current.name} has quotes, invoices or orders, so it cannot be deleted. Untick Active to turn it off.`
         : error.message)
       return
     }
@@ -179,7 +180,7 @@ export default function StorePanel({ store, stores, people, members, onClose, on
           <section aria-labelledby="people-title">
             <h3 id="people-title">People</h3>
             {rows.length === 0 ? (
-              <p className="muted">No one yet. Add a manager first.</p>
+              <p className="muted">No one yet. Add a manager first, so the store has someone to receive payment notices.</p>
             ) : (
               <ul className="people">
                 {rows.map(({ m, p }) => (
@@ -240,6 +241,11 @@ export default function StorePanel({ store, stores, people, members, onClose, on
               {f('phone', 'Phone', { type: 'tel' })}
               {f('address', 'Address line')}
               {f('suburb', 'Suburb STATE Postcode')}
+              {f('legal_name', 'Legal entity name')}
+              {f('abn', 'ABN')}
+              {f('bank_name', 'Bank account name')}
+              {f('bsb', 'BSB')}
+              {f('account', 'Account number')}
               <label className="inline">
                 <input name="active" type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} /> Active
               </label>

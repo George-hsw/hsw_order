@@ -1,0 +1,48 @@
+name: Update local price copy (Supabase to repo)
+
+# Scheduler 2. Writes the price list from Supabase into public/items.json and commits it when it changed.
+# The app reads that file, so it keeps working if Dynamics or Supabase is down. Vercel redeploys on the push.
+# Runs after every successful Dynamics sync, weekly as a safety net, or manually.
+on:
+  workflow_run:
+    workflows: ['Sync Dynamics → Supabase']
+    types: [completed]
+  schedule:
+    - cron: '30 18 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-prices
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Skip when the triggering sync failed; the existing local copy stays live.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Export prices from Supabase
+        run: node scripts/export-snapshot.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Commit the new price list
+        run: |
+          git config user.name "hsw-price-bot"
+          git config user.email "hsw-price-bot@users.noreply.github.com"
+          git add public/items.json
+          if git diff --cached --quiet; then
+            echo "No price changes."
+          else
+            git commit -m "Update price list"
+            git push
+          fi

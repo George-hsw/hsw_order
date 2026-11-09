@@ -1,0 +1,14 @@
+{
+  "legalName": "[Enter your legal entity name, e.g. ABC Pty Ltd t/a Howards Storage World]",
+  "abn": "[Enter your ABN]",
+  "website": "hsw.com.au",
+  "validDays": 30,
+  "dueDays": 7,
+  "howToAccept": "To accept, reply to this email or visit the store with your quote number. Prices are held until the valid-until date.",
+  "howToPay": "Pay in store with this invoice, or by bank transfer using the invoice number as the reference.",
+  "bankName": "[Enter account name]",
+  "bsb": "[Enter BSB]",
+  "account": "[Enter account number]",
+  "terms": "All prices are in AUD and include GST. Installation and delivery are quoted for the address shown and may change if site conditions differ. Special-order items may require a deposit and are non-refundable once ordered. Howards' standard returns policy applies: hsw.com.au/pricing-returns",
+  "footer": "Thank you for choosing Howards Storage World"
+}
