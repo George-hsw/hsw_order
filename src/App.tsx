@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import Analytics from './Analytics'
 import Home from './Home'
 import Login from './Login'
+import Notifications from './Notifications'
 import Order from './Order'
 import Orders from './Orders'
 import PriceCheck from './PriceCheck'
@@ -11,6 +12,8 @@ import Stores from './Stores'
 import Tour from './Tour'
 import { useToast } from './Toast'
 import { api } from './lib/api'
+import { useNotices } from './lib/useNotices'
+import type { Target } from './lib/notifications'
 import { installErrorTracking, startSession, track } from './lib/analytics/track'
 import { AREAS, areaOf, isAreaId, visibleTabs, type AreaId, type Tab } from './lib/sections'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
@@ -33,7 +36,7 @@ export default function App() {
   }, [])
 
   if (DEMO && location.search.includes('login')) return <Login /> // preview the sign-in screen
-  if (DEMO) return <Shell session={{ user: { email: ADMIN_EMAIL } } as Session} />
+  if (DEMO) { const as = new URLSearchParams(location.search).get('as'); return <Shell session={{ user: { email: as ? `${as}@hsw.com.au` : ADMIN_EMAIL } } as Session} /> } // ?as=priya: see the demo as a store manager, not the admin
   if (!supabase) {
     return (
       <main className="login">
@@ -81,7 +84,13 @@ function Shell({ session }: { session: Session }) {
   useEffect(() => { track('tab_view', { tab: view === 'new' ? 'quote: new' : view === 'docs' ? 'quote: documents' : view === 'reports' ? 'quote: reports' : view }) }, [view])
 
   const loadStores = useCallback(async () => {
-    if (DEMO) return setAllStores(demoStores())
+    if (DEMO) {
+      const all = demoStores()
+      if (isAdmin) return setAllStores(all)
+      const me = demoUsers().find((u) => u.email === email)
+      const mine = new Set(demoMembers().filter((m) => m.user_id === me?.user_id).map((m) => m.store_id))
+      return setAllStores(all.filter((s) => mine.has(s.id)))
+    }
     const { data } = await supabase!.from('stores').select('*').order('name')
     setAllStores((data ?? []) as StoreRow[])
   }, [])
@@ -106,6 +115,13 @@ function Shell({ session }: { session: Session }) {
   const canPay = (storeId: string) => isAdmin || active.some((s) => s.id === storeId) // anyone in the store can take a deposit or payment
   const noAccess = allStores && !isAdmin && active.length === 0
 
+  const notices = useNotices({ isAdmin, stores: active, refreshKey: refresh + docRefresh })
+  // A notice's button: straight to the screen, and for the Order tab to the vendor and filter.
+  const goTarget = (t: Target) => {
+    if (t.view === 'order' && t.vendor) setJump({ storeId: t.storeId ?? active[0]?.id ?? '', vendor: t.vendor, item: '', show: t.show })
+    else setJump(null)
+    setView(t.view)
+  }
   const goHome = () => { setJump(null); setView('home') }
   const goTab = (t: Tab) => { if (t !== 'order') setJump(null); if (t === 'new') { setOpenDoc(null); setBuilderKey((k) => k + 1) } setView(t) }
   const pickArea = (id: AreaId) => {
@@ -145,6 +161,7 @@ function Shell({ session }: { session: Session }) {
           )}
           <div className="who">
             <span><span className="who-name">{isAdmin ? 'Admin' : me?.full_name ?? active[0]?.name ?? ''}</span><small>{email}</small></span>
+            {active.length > 0 && <Notifications shown={notices.shown} count={notices.count} urgent={notices.urgent} loading={notices.loading} partial={notices.partial} onHide={notices.hide} onGo={goTarget} onReload={notices.reload} />}
             <button type="button" className="quiet help" aria-label="Take the tour" title="Take the tour" onClick={() => setTour(true)}>?</button>
             <button type="button" className="quiet" onClick={() => (DEMO ? toast.info('Demo mode: there is no sign-in.') : supabase!.auth.signOut())}>Sign out</button>
           </div>
@@ -157,7 +174,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'new' ? <Suspense fallback={<p className="muted">Loading…</p>}><Builder key={builderKey} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
           : view === 'docs' ? <Suspense fallback={<p className="muted">Loading…</p>}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
           : view === 'reports' && sees ? <Suspense fallback={<p className="muted">Loading…</p>}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
-          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
+          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />

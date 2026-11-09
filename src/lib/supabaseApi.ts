@@ -1,4 +1,5 @@
 import { codeLines, type CustomerOrderNeed } from './customerOrders'
+import type { Counted, OverdueInvoice } from './notifications'
 import { DEFAULT_COVER } from './insights'
 import { ConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
@@ -33,6 +34,7 @@ async function readAll<T>(build: (from: number, to: number, count: boolean) => P
 }
 const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
 
+const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen'
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
@@ -199,6 +201,53 @@ export const supabaseApi: OrdersApi = {
 
   async setFulfilment(docId, to) {
     const { error } = await db().from('documents').update({ fulfilment: to }).eq('id', docId)
+    if (error) throw new Error(error.message)
+  },
+
+  async lowStock(storeIds) {
+    if (!storeIds.length) return []
+    const { data, error } = await db().rpc('low_stock_by_vendor', { p_stores: storeIds })
+    if (error) throw new Error(error.message)
+    return (data ?? []) as Counted[]
+  },
+
+  async newItems(storeIds) {
+    if (!storeIds.length) return []
+    const { data, error } = await db().rpc('new_items_by_vendor', { p_stores: storeIds })
+    if (error) throw new Error(error.message)
+    return (data ?? []) as Counted[]
+  },
+
+  async overdueInvoices(storeIds): Promise<OverdueInvoice[]> {
+    if (!storeIds.length) return []
+    const today = new Date().toLocaleDateString('en-CA')
+    const { data, error } = await db().from('documents').select('store_id,doc_number,customer_name,total_cents,due_date,payments(amount_cents)')
+      .eq('doc_type', 'Tax Invoice').in('status', ['open', 'part_paid']).lt('due_date', today).in('store_id', storeIds).order('due_date').limit(300)
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { store_id: string; doc_number: string; customer_name: string; total_cents: number; due_date: string; payments: { amount_cents: number }[] }[])
+      .map((d) => ({ store_id: d.store_id, doc_number: d.doc_number, customer_name: d.customer_name, due_date: d.due_date, balance_cents: d.total_cents - d.payments.reduce((a, p) => a + p.amount_cents, 0) }))
+      .filter((d) => d.balance_cents > 0)
+  },
+
+  // Hidden notices. If the table is not there yet (before migration 017) they are kept in this browser instead.
+  async dismissals() {
+    const out = new Map<string, string>()
+    const now = new Date().toISOString()
+    try { const raw = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '{}') as Record<string, string>; for (const [k, u] of Object.entries(raw)) if (u > now) out.set(k, u) } catch { /* ignore */ }
+    const { data, error } = await db().from('notice_dismissals').select('key,until').gt('until', now)
+    if (!error) for (const r of (data ?? []) as { key: string; until: string }[]) out.set(r.key, r.until)
+    return out
+  },
+
+  async dismiss(keys, until) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '{}') as Record<string, string>
+      for (const k of keys) raw[k] = until
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify(raw))
+    } catch { /* ignore */ }
+    const { data: u } = await db().auth.getUser()
+    if (!u.user) return
+    const { error } = await db().from('notice_dismissals').upsert(keys.map((key) => ({ user_id: u.user!.id, key, until })), { onConflict: 'user_id,key' })
     if (error) throw new Error(error.message)
   },
 

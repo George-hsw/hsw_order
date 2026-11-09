@@ -13,7 +13,7 @@ import {
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
 
-export interface OrderJump { storeId: string; vendor: string; item: string }
+export interface OrderJump { storeId: string; vendor: string; item: string; show?: 'low' | 'new' }
 interface Props { email: string; isAdmin: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder: (j: OrderJump) => void }
 type Sub = 'store' | 'items' | 'item' | 'all' | 'upload'
 

@@ -717,3 +717,27 @@ button, a, select, summary, label { touch-action: manipulation; }
 .custneeds ul { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: grid; gap: var(--space-xs); }
 .custneeds li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-xs); }
 .custneeds li span { flex: 1 1 16rem; min-width: 0; }
+
+/* ---------- The notification bell ---------- */
+.who { position: relative; }
+.bellbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: var(--hit); min-height: var(--hit); padding: 0; }
+.bellcount { position: absolute; top: 2px; right: 0; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--space-3xs); border-radius: var(--radius-pill); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 700; line-height: 1.25rem; text-align: center; font-variant-numeric: tabular-nums; }
+.bellcount.urgent { background: var(--color-error); }
+.noticescrim { position: fixed; inset: 0; background: transparent; }
+.noticepanel { position: absolute; top: calc(100% + var(--space-xs)); right: 0; width: min(26rem, calc(100vw - 2 * var(--space-md))); max-height: min(34rem, calc(100dvh - 9rem - var(--tabbar))); overflow-y: auto; text-align: left; padding: var(--space-md); background: var(--color-paper-2); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); box-shadow: var(--shadow-lift); }
+.noticepanel:focus { outline: none; } /* the panel only takes focus so a screen reader starts reading it; its buttons keep their rings */
+.noticehead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+.noticehead h2 { margin: 0; font-size: var(--text-md); }
+.noticelist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-sm); }
+.notice { display: grid; gap: var(--space-xs); padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md); border: var(--rule-hair) solid var(--color-rule); border-left-width: 4px; border-radius: var(--radius-card); }
+.notice.bad { border-left-color: var(--color-error); }
+.notice.warn { border-left-color: var(--color-warn); }
+.notice.info { border-left-color: var(--color-accent-edge); }
+.notice b { display: block; }
+.notice p { margin: var(--space-3xs) 0 0; }
+.noticeacts { display: flex; gap: var(--space-xs); }
+.noticefoot { margin: var(--space-sm) 0 0; font-size: var(--text-sm); }
+@media (max-width: 44rem) {
+  /* On a phone the panel spans the screen under the top bar. */
+  .noticepanel { position: fixed; top: 4rem; right: var(--space-md); left: var(--space-md); width: auto; }
+}

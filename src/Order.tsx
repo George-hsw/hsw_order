@@ -13,7 +13,7 @@ import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, moqNote, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
-interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; jump?: { storeId: string; vendor: string; item: string } | null }
+interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; jump?: { storeId: string; vendor: string; item: string; show?: 'low' | 'new' } | null }
 
 const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
@@ -43,7 +43,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const [attempt, setAttempt] = useState(0)
   const [orderAttempt, setOrderAttempt] = useState(0)
   const [find, setFind] = useState(jump && stores.some((x) => x.id === jump.storeId) ? jump.item : '')
-  const [show, setShow] = useState<Show>('all')
+  const [show, setShow] = useState<Show>(jump?.show ?? 'all')
   const [below, setBelow] = useState('') // show only items with less than this much in stock ('' = no limit)
   const [sortBy, setSortBy] = useState<SortBy>('code')
   const [limit, setLimit] = useState(PAGE)
@@ -141,7 +141,10 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const waiting = useMemo(() => needsByItem(needs, storeId), [needs, storeId])
   const vendorNeeds = useMemo(() => needs.filter((n) => n.lines.some((l) => l.vendor === vendor || range.some((p) => p.item.code === l.code))), [needs, vendor, range])
   const isNew = (p: Product) => p.item.status.trim().toUpperCase() === 'NEW'
-  const lowCount = useMemo(() => [...insightOf.values()].filter((i) => i.low).length, [insightOf])
+  // Items that cannot be ordered (blocked, excluded, PO-blocked) are not flagged low: the same rule as the bell.
+  const orderable = (p: Product) => !p.item.blocked && !p.item.exclude_from_replen && !p.stock?.po_blocked
+  const isLow = (p: Product) => orderable(p) && !!insightOf.get(p.item.code)?.low
+  const lowCount = useMemo(() => range.filter(isLow).length, [range, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
   const newCount = useMemo(() => range.filter(isNew).length, [range]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => {
@@ -149,7 +152,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     const shown = range.filter((p) => {
       if (hit && !hit.has(p.item.code)) return false
       const on = lineOf.has(p.item.code)
-      if (show === 'low') return !!insightOf.get(p.item.code)?.low
+      if (show === 'low') return isLow(p)
       if (show === 'new') return isNew(p)
       return show === 'all' || (show === 'ordered' ? on : !on)
     })
@@ -454,7 +457,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                                 {isNew(p) && <small className="chk ok">New item</small>}
                                 {(waiting.get(p.item.code) ?? []).map((w) => <small key={w.id} className="chk error">Customer order: {w.qty} for {w.customer_name} ({w.doc_number})</small>)}
                                 {ins && ins.rate > 0 && <small className="muted">Sells about {perWeekText(ins.rate)} a week, {coverText(ins.cover)}{l ? ' counting this order' : ''}</small>}
-                                {ins?.low && <small className="chk warn">Low stock: suggested {ins.suggest} to hold {target} {target === 1 ? 'week' : 'weeks'}</small>}
+                                {ins?.low && orderable(p) && <small className="chk warn">Low stock: suggested {ins.suggest} to hold {target} {target === 1 ? 'week' : 'weeks'}</small>}
                                 {warnings.map((w) => <small key={w.text} className={'chk ' + w.level}>{w.text}</small>)}
                               </td>
                               <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}</td>

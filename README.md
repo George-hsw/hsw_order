@@ -18,6 +18,12 @@ The **Quote** tab: New (scan or search items, build a Quote or Tax Invoice, PDF,
 
 Who can do what is the same everywhere: the admin sees every store and manages people; a manager or Store person has full access inside their own store; One person can be in several stores. Row Level Security enforces it, not the screens (`001_stores_people.sql`, `014_quote_documents.sql`).
 
+## Store tools
+- **Price check**: scan or search any item for its price, stock here and recent sales, and print a price label through the device's print dialog.
+- **Order insights**: each item shows how fast it sells at the store (last 13 weeks loaded), weeks of stock, a Low stock warning and a suggested quantity against the store's cover target (migration 015). Nothing is filled in automatically.
+- **Customer orders**: a document type under Quote with deposits and progress (to order, ordered, arrived, collected) (migration 016); the Order tab and Home remind the store until it is ordered.
+- **The notification bell** (top corner): worked out from live data each time, so a notice goes when its problem is fixed. Customers waiting, overdue invoices, orders copied but not marked ordered, items running low (`low_stock_by_vendor`), new items, stale stock, and for the admin failed syncs, late Sales reports and unusual activity. Each has an Open button to the right screen and a Hide (a day, a week for information, remembered per person in `notice_dismissals`, migration 017). In-app only: it is not a phone push notification.
+
 ## Run it
 ```
 npm install
