@@ -671,3 +671,18 @@ button, a, select, summary, label { touch-action: manipulation; }
 
 /* The Quote tab's New, Documents and Reports switch sits above the screen it controls. */
 .quote-views { margin-bottom: var(--space-md); }
+
+/* ---------- Home: the first screen after sign-in, one tile for each area ---------- */
+.logobtn { display: inline-flex; padding: 0; border: 0; background: none; border-radius: var(--radius-pill); cursor: pointer; }
+.logobtn:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.bar .who { margin-inline-start: auto; }
+.hometiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-md); margin-top: var(--space-md); }
+.hometile { align-content: start; min-height: 8rem; padding: var(--space-md); }
+.hometile.last { border-color: var(--color-accent-edge); }
+@media (max-width: 44rem) {
+  /* Home has no tab bar, so the page does not leave room for one. */
+  :root:has(.homepage) { --tabbar: 0px; }
+}
+@media (max-width: 44rem) {
+  .logobtn { min-height: var(--hit); align-items: center; }
+}

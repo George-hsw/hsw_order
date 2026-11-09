@@ -1,0 +1,27 @@
+import { describe, expect, it } from 'vitest'
+import { AREAS, areaOf, isAreaId, visibleAreas, visibleTabs, type Tab } from './sections'
+
+describe('sections', () => {
+  it('every tab belongs to exactly one area', () => {
+    const all = AREAS.flatMap((a) => a.tabs.map((t) => t.tab))
+    expect(new Set(all).size).toBe(all.length)
+  })
+  it('finds the area of a tab', () => {
+    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin']]
+    for (const [tab, area] of cases) expect(areaOf(tab).id).toBe(area)
+  })
+  it('only the admin sees the Admin area', () => {
+    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'sales'])
+    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'sales', 'admin'])
+  })
+  it('Reports needs someone who works in a store', () => {
+    const quote = AREAS[0]
+    expect(visibleTabs(quote, true).map((t) => t.tab)).toEqual(['new', 'docs', 'reports'])
+    expect(visibleTabs(quote, false).map((t) => t.tab)).toEqual(['new', 'docs'])
+  })
+  it('recognises an area id', () => {
+    expect(isAreaId('sales')).toBe(true)
+    expect(isAreaId('nope')).toBe(false)
+    expect(isAreaId(null)).toBe(false)
+  })
+})

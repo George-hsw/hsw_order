@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import Analytics from './Analytics'
+import Home from './Home'
 import Login from './Login'
 import Order from './Order'
 import Orders from './Orders'
@@ -9,6 +10,7 @@ import Stores from './Stores'
 import Tour from './Tour'
 import { useToast } from './Toast'
 import { installErrorTracking, startSession, track } from './lib/analytics/track'
+import { AREAS, areaOf, isAreaId, visibleTabs, type AreaId, type Tab } from './lib/sections'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
 import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type DocRow, type Member, type StoreRow } from './lib/supabase'
 
@@ -17,8 +19,7 @@ const Builder = lazy(() => import('./Builder'))
 const Documents = lazy(() => import('./Documents'))
 const Reports = lazy(() => import('./Reports'))
 
-type Tab = 'quote' | 'order' | 'orders' | 'sales' | 'analytics' | 'stores'
-type QuoteView = 'new' | 'docs' | 'reports'
+type View = 'home' | Tab
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined) // undefined = still checking
@@ -48,13 +49,14 @@ function Shell({ session }: { session: Session }) {
   const toast = useToast()
   const email = (session.user.email ?? '').toLowerCase()
   const isAdmin = email === ADMIN_EMAIL
-  const [tab, setTab] = useState<Tab>('order')
+  const [view, setView] = useState<View>('home') // always Home after sign-in
+  const lastKey = `hsw-last-area:${email}`
+  const [lastArea, setLastArea] = useState<AreaId | null>(() => { try { const v = localStorage.getItem(lastKey); return isAreaId(v) ? v : null } catch { return null } })
   const [allStores, setAllStores] = useState<StoreRow[] | null>(null)
   const [people, setPeople] = useState<AppUser[] | null>(null) // admin: everyone. everyone else: people in their stores
   const [members, setMembers] = useState<Member[]>([]) // who is in which store, and as what
   const [jump, setJump] = useState<OrderJump | null>(null) // set when the Sales tab sends someone to order an item
   const [refresh, setRefresh] = useState(0) // bumped when an order is saved so Orders reloads
-  const [quoteView, setQuoteView] = useState<QuoteView>('new') // inside the Quote tab: a new quote, past documents, reports
   const [openDoc, setOpenDoc] = useState<DocRow | null>(null) // a quote or invoice being reopened
   const [builderKey, setBuilderKey] = useState(0) // changes to start the builder from blank
   const [docRefresh, setDocRefresh] = useState(0) // bumped when a quote is saved so Documents reloads
@@ -74,7 +76,7 @@ function Shell({ session }: { session: Session }) {
 
   // Usage log for the admin's Analytics tab: one sign-in per browser session, each tab opened, and any error that reaches the screen.
   useEffect(() => { startSession(); return installErrorTracking() }, [])
-  useEffect(() => { track('tab_view', { tab: tab === 'quote' ? `quote (${quoteView})` : tab }) }, [tab, quoteView])
+  useEffect(() => { track('tab_view', { tab: view === 'new' ? 'quote: new' : view === 'docs' ? 'quote: documents' : view === 'reports' ? 'quote: reports' : view }) }, [view])
 
   const loadStores = useCallback(async () => {
     if (DEMO) return setAllStores(demoStores())
@@ -102,27 +104,34 @@ function Shell({ session }: { session: Session }) {
   const canPay = (storeId: string) => isAdmin || active.some((s) => s.id === storeId) // anyone in the store can take a deposit or payment
   const noAccess = allStores && !isAdmin && active.length === 0
 
-  const goQuote = (v: QuoteView) => { setQuoteView(v); if (v === 'new') { setOpenDoc(null); setBuilderKey((k) => k + 1) } }
-  const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setQuoteView('new'); setTab('quote') }
-  const quoteTab = (v: QuoteView, label: string) => <button type="button" aria-pressed={quoteView === v} onClick={() => goQuote(v)}>{label}</button>
-
+  const goHome = () => { setJump(null); setView('home') }
+  const goTab = (t: Tab) => { if (t !== 'order') setJump(null); if (t === 'new') { setOpenDoc(null); setBuilderKey((k) => k + 1) } setView(t) }
+  const pickArea = (id: AreaId) => {
+    try { localStorage.setItem(lastKey, id) } catch { /* ignore */ }
+    setLastArea(id)
+    setJump(null)
+    setView(AREAS.find((a) => a.id === id)!.tabs[0].tab)
+  }
+  const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setView('new') }
   const tabBtn = (t: Tab, label: string) => (
-    <button type="button" className="tab" data-tour={t} aria-current={tab === t ? 'page' : undefined} onClick={() => { if (t !== 'order') setJump(null); setTab(t) }}>{label}</button>
+    <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}</button>
   )
+  const area = view === 'home' ? null : areaOf(view)
+  const works = isAdmin || active.length > 0
 
   return (
     <>
       <header className="topbar">
         <div className="container bar">
-          <img className="logo" src={`${import.meta.env.BASE_URL}logo.png`} alt="Howards Storage World" width="120" height="32" />
-          <nav aria-label="Main">
-            {tabBtn('quote', 'Quote')}
-            {tabBtn('order', 'Order')}
-            {tabBtn('orders', 'Orders')}
-            {tabBtn('sales', 'Sales')}
-            {isAdmin && tabBtn('analytics', 'Analytics')}
-            {isAdmin && tabBtn('stores', 'Stores')}
-          </nav>
+          <button type="button" className="logobtn" aria-label="Home" title="Home" onClick={goHome}>
+            <img className="logo" src={`${import.meta.env.BASE_URL}logo.png`} alt="Howards Storage World" width="120" height="32" />
+          </button>
+          {area && (
+            <nav aria-label="Main">
+              <button type="button" className="tab" data-tour="home" onClick={goHome}>Home</button>
+              {visibleTabs(area, works).map((t) => tabBtn(t.tab, t.label))}
+            </nav>
+          )}
           <div className="who">
             <span><span className="who-name">{isAdmin ? 'Admin' : me?.full_name ?? active[0]?.name ?? ''}</span><small>{email}</small></span>
             <button type="button" className="quiet help" aria-label="Take the tour" title="Take the tour" onClick={() => setTour(true)}>?</button>
@@ -131,27 +140,17 @@ function Shell({ session }: { session: Session }) {
         </div>
       </header>
       <main className="container page">
-        {!allStores || (!people && tab !== 'order') ? <p className="muted">Loading…</p>
+        {!allStores || (!people && view !== 'order' && view !== 'home') ? <p className="muted">Loading…</p>
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
-          : tab === 'quote' ? (
-            <>
-              <div className="segmented quote-views" role="group" aria-label="Quote view">
-                {quoteTab('new', 'New')}
-                {quoteTab('docs', 'Documents')}
-                {sees && quoteTab('reports', 'Reports')}
-              </div>
-              <Suspense fallback={<p className="muted">Loading…</p>}>
-              {quoteView === 'new' ? <Builder key={builderKey} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goQuote('new')} />
-                : quoteView === 'docs' ? <Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} />
-                : sees ? <Reports isAdmin={multi} stores={active} names={names} /> : null}
-              </Suspense>
-            </>
-          )
-          : tab === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
-          : tab === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
-          : tab === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setTab('order') }} />
-          : tab === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
-          : tab === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
+          : view === 'home' ? <Home isAdmin={isAdmin} last={lastArea} onPick={pickArea} />
+          : view === 'new' ? <Suspense fallback={<p className="muted">Loading…</p>}><Builder key={builderKey} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
+          : view === 'docs' ? <Suspense fallback={<p className="muted">Loading…</p>}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
+          : view === 'reports' && sees ? <Suspense fallback={<p className="muted">Loading…</p>}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
+          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
+          : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
+          : view === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
+          : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
+          : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
       </main>
       {tour && allStores && people && <Tour isAdmin={isAdmin} manager={active.length > 0 || isAdmin} onClose={closeTour} />}

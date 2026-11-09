@@ -2,6 +2,8 @@
 
 One app for Howards Storage World stores: **Quote** (quotes, tax invoices, deposits and payments, PDFs and email), **Order** and **Orders** (the weekly stock order, replacing `Ordering feed.xlsx`), **Sales** (the weekly Power BI reports), **Analytics** (admin) and **Stores** (admin: stores, people and what each can do). It was two apps, HSW Quote and HSW Orders; it is now one site, one sign-in and one Supabase project (the Orders one; the old Quote project was never in production and is retired). Same look and feel throughout: `DESIGN.md` rules.
 
+After sign-in everyone lands on **Home**: one tile for each area they can open (Quote, Order, Sales, and Admin for the admin). Inside an area the top bar and the phone bottom bar show only that area's tabs and a Home button. The areas and their tabs are one list in `src/lib/sections.ts`, so a new area (for example Operations) is one more entry.
+
 ## How it works
 1. Each night NAV's items and each store's stock are copied into Supabase.
 2. A store **chooses a vendor** (a NAV purchase order is made for one vendor). The screen lists the vendor's whole range for that store: in stock, on order, sold last week, MOQ. Staff type a quantity beside each item, or scan to jump to one. It saves as they go.
