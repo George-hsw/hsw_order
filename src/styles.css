@@ -686,3 +686,8 @@ button, a, select, summary, label { touch-action: manipulation; }
 @media (max-width: 44rem) {
   .logobtn { min-height: var(--hit); align-items: center; }
 }
+
+/* Top sellers: how many, ranked by what, and for which vendor or category. */
+.topfilters { margin-bottom: var(--space-sm); }
+.topfilters select { width: auto; min-width: 0; }
+@media (max-width: 44rem) { .topfilters select { flex: 1 1 calc(50% - var(--space-xs)); } }

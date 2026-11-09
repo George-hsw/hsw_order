@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chainAvg, change, compact, flagCounts, itemFlag, money2, ordinal, pctText, rangeText, rankText, topBy, weekLabel, weeksOf, type ItemSale } from './model'
+import { chainAvg, change, compact, flagCounts, itemFlag, money2, ordinal, pctText, rangeText, rankText, topBy, weekLabel, weeksOf, type ItemSale, distinct, divisionLabel, topSellers } from './model'
 
 const item = (over: Partial<ItemSale>): ItemSale => ({
   item_code: 'A', description: 'a', vendor_no: 'V', division: null, qty: 0, net_sales: 0, store_rank: 0, group_qty: 0, group_net: 0, stores_stocking: 0,
@@ -95,5 +95,22 @@ describe('one item over the weeks', () => {
     expect(t.growth4).toBeNull()
     expect(t.growth1).toBeNull()
     expect(itemTrend([]).last).toBeNull()
+  })
+})
+
+describe('topSellers', () => {
+  const mk = (code: string, qty: number, net: number, vendor: string, division: string) => ({ item_code: code, description: code, vendor_no: vendor, division, qty, net_sales: net, store_rank: 0, group_qty: 0, group_net: 0, stores_stocking: 0, business_rank: 0, potential_sales: 0, potential_loss: 0, inventory: 0, moq: 1 })
+  const items = [mk('A', 10, 50, 'V1', 'HOME_DECOR'), mk('B', 2, 200, 'V1', 'KITCHEN'), mk('C', 7, 70, 'V2', 'KITCHEN'), mk('D', 0, 0, 'V2', 'KITCHEN')]
+  it('ranks by sales or by units, and leaves out what did not sell', () => {
+    expect(topSellers(items, { n: 10, by: 'net_sales', vendor: '', division: '' }).map((i) => i.item_code)).toEqual(['B', 'C', 'A'])
+    expect(topSellers(items, { n: 2, by: 'qty', vendor: '', division: '' }).map((i) => i.item_code)).toEqual(['A', 'C'])
+  })
+  it('narrows to a vendor and a category', () => {
+    expect(topSellers(items, { n: 10, by: 'qty', vendor: 'V1', division: '' }).map((i) => i.item_code)).toEqual(['A', 'B'])
+    expect(topSellers(items, { n: 10, by: 'qty', vendor: 'V2', division: 'KITCHEN' }).map((i) => i.item_code)).toEqual(['C'])
+  })
+  it('lists vendors and categories once each, and words a division', () => {
+    expect(distinct(items as never, 'vendor_no')).toEqual(['V1', 'V2'])
+    expect(divisionLabel('HOME_DECOR')).toBe('Home decor')
   })
 })

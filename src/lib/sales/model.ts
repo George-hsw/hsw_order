@@ -150,6 +150,17 @@ export function topBy(items: ItemSale[], key: 'qty' | 'net_sales' | 'potential_l
   return items.filter((i) => i[key] > 0).sort((a, b) => b[key] - a[key] || a.item_code.localeCompare(b.item_code)).slice(0, n)
 }
 
+/** A NAV division code as words: HOME_DECOR -> Home decor. */
+export const divisionLabel = (d: string): string => { const t = d.replace(/_/g, ' ').trim().toLowerCase(); return t ? t[0].toUpperCase() + t.slice(1) : t }
+
+export interface TopFilter { n: number; by: 'qty' | 'net_sales'; vendor: string; division: string } // '' = every vendor or division
+/** The best sellers after narrowing to one vendor and/or one division. */
+export function topSellers(items: ItemSale[], f: TopFilter): ItemSale[] {
+  return topBy(items.filter((i) => (!f.vendor || i.vendor_no === f.vendor) && (!f.division || i.division === f.division)), f.by, f.n)
+}
+/** The distinct non-empty values of one field, sorted, for a filter list. */
+export const distinct = (items: ItemSale[], key: 'vendor_no' | 'division'): string[] => [...new Set(items.map((i) => i[key]).filter((v): v is string => !!v))].sort()
+
 // ---------- weeks ----------
 
 /** One item at one store in one week: what the report recorded. A week with no row means nothing sold, was ranked or lost. */
