@@ -1,0 +1,26 @@
+-- Seed: the 23 stores from the workbook. Login/owner emails and ABN are filled in by the admin in the app.
+insert into public.stores (name, code, address, suburb, phone) values
+  ('Moore Park', 'MPK', 'South Dowling Street & Todman Avenue', 'Kensington NSW 2033', '(02) 9697 2777'),
+  ('Northbridge', 'NTB', '113 Sailors Bay Road', 'Northbridge NSW 2063', '(02) 9958 7064'),
+  ('Artarmon', 'ART', '1 Frederick Street', 'Artarmon NSW 2064', '(02) 9437 1955'),
+  ('Brookvale', 'BRK', 'Cnr Old Pittwater Road', 'Brookvale NSW 2100', '(02) 9170 3754'),
+  ('North Ryde', 'NRY', 'Herring Road & Waterloo Road', 'Macquarie Park NSW 2113', '(02) 9888 6655'),
+  ('Rhodes', 'RHO', '1 Rider Boulevard', 'Rhodes NSW 2138', '(02) 9736 3111'),
+  ('Kotara', 'KOT', '150 Park Avenue', 'Kotara NSW 2289', '(02) 4952 9333'),
+  ('Port Macquarie', 'PMQ', '160 Hastings River Drive', 'Port Macquarie NSW 2444', '(02) 6584 3500'),
+  ('Fyshwick', 'FYS', 'Shop 23, 337 Canberra Avenue', 'Fyshwick ACT 2609', '(02) 6280 5552'),
+  ('South Wharf', 'SWF', '20 Convention Centre Place', 'South Wharf VIC 3006', '(03) 9682 0911'),
+  ('Richmond', 'RIC', 'Victoria Street & Burnley Street', 'Richmond VIC 3121', '(03) 9428 4060'),
+  ('Nunawading', 'NUN', '372-394 Whitehorse Road', 'Nunawading VIC 3131', '(03) 9894 8411'),
+  ('Cheltenham', 'CHL', '1239 Nepean Highway', 'Cheltenham VIC 3192', '(03) 9583 9155'),
+  ('Mornington', 'MOR', '1128-1132 Nepean Highway', 'Mornington VIC 3931', '(03) 5973 5399'),
+  ('Fortitude Valley', 'FTV', 'Wickham Street & Montpelier Road', 'Fortitude Valley QLD 4006', '(07) 3216 0222'),
+  ('Aspley', 'ASP', '825 Zillmere Road', 'Aspley QLD 4034', '(07) 3862 7633'),
+  ('Mt Gravatt', 'MTG', 'Kessels Road', 'Mount Gravatt QLD 4122', '(07) 3422 2003'),
+  ('Bundall', 'BUN', 'Showroom D, 29-45 Ashmore Road', 'Bundall QLD 4217', '(07) 5527 6049'),
+  ('Robina', 'ROB', 'Robina Town Centre', 'Robina QLD 4230', '(07) 5578 7875'),
+  ('Maroochydore', 'MAR', '4/70 Dalton Drive', 'Maroochydore QLD 4558', '(07) 5479 3833'),
+  ('Mile End', 'MIL', '122/138 Railway Terrace', 'Mile End South SA 5031', '(08) 8152 0400'),
+  ('Subiaco', 'SUB', '427 Hay Street', 'Subiaco WA 6008', '(08) 9381 4599'),
+  ('Cambridge', 'CAM', 'Unit 5 Building A, 66 Kennedy Drive', 'Cambridge TAS 7170', '(03) 6216 0411')
+on conflict (code) do nothing;
