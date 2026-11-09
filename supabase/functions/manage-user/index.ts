@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
 
       const fullName = String(b.full_name ?? '').trim().slice(0, 80)
       if (!fullName) return json({ error: 'Enter the person’s name.' }, 400)
+      // A shared store login and a person must never share an address, or the two would be confused.
+      const { data: stores } = await admin.from('stores').select('email')
+      if ((stores ?? []).some((s) => String(s.email ?? '').toLowerCase() === email))
+        return json({ error: 'That address is a store’s own email. Use a personal email for a person.' }, 400)
 
       const pw = chosenPassword()
       if ('error' in pw) return json({ error: pw.error }, 400)

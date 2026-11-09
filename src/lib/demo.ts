@@ -1,13 +1,27 @@
 import storesJson from '../data/stores.json'
-import type { AppUser, ItemRow, Member, OrderLine, OrderRow, StockRow, StoreRow } from './supabase'
+import { isoDate, type AppUser, type DocRow, type ItemRow, type Member, type OrderLine, type OrderRow, type StockRow, type StoreRow } from './supabase'
 
 const dayAgo = (n: number) => new Date(Date.now() - n * 864e5)
 
 export const demoStores = (): StoreRow[] =>
   storesJson.map((s, i) => ({
     id: 'demo-' + i, name: s.name, code: s.code, address: s.address, suburb: s.suburb, phone: s.phone,
-    email: i < 3 ? s.code.toLowerCase() + '@hsw.com.au' : null, active: true, password_set_at: i < 3 ? new Date().toISOString() : null,
+    email: i < 3 ? s.code.toLowerCase() + '@hsw.com.au' : null,
+    owner_email: i < 3 ? 'owner.' + s.code.toLowerCase() + '@example.com' : null,
+    legal_name: i < 3 ? 'Demo Pty Ltd t/a Howards Storage World' : '', abn: i < 3 ? '12 345 678 901' : '',
+    bank_name: '', bsb: '', account: '', active: true, password_set_at: i < 3 ? new Date().toISOString() : null,
   }))
+
+// Sample quotes and invoices for the Quote tab, on the first two demo stores.
+export const demoDocs = (): DocRow[] => [
+  { id: 'd1', store_id: 'demo-0', doc_type: 'Tax Invoice', doc_number: 'INV-' + storesJson[0].code + '-1001', customer_name: 'Jo Smith', total_cents: 247187,
+    due_date: isoDate(dayAgo(-4)), status: 'part_paid', created_by: 'sam@hsw.com.au', created_at: dayAgo(3).toISOString(), payload: {}, stores: { name: storesJson[0].name },
+    payments: [{ amount_cents: 50000, kind: 'deposit', paid_on: isoDate(dayAgo(3)) }] },
+  { id: 'd2', store_id: 'demo-1', doc_type: 'Tax Invoice', doc_number: 'INV-' + storesJson[1].code + '-2040', customer_name: 'A. Nguyen', total_cents: 89900,
+    due_date: isoDate(dayAgo(2)), status: 'open', created_by: 'lee@hsw.com.au', created_at: dayAgo(9).toISOString(), payload: {}, stores: { name: storesJson[1].name }, payments: [] },
+  { id: 'd3', store_id: 'demo-0', doc_type: 'Quote', doc_number: 'Q-' + storesJson[0].code + '-1002', customer_name: 'Pat Lee', total_cents: 129500,
+    due_date: null, status: 'open', created_by: 'priya@hsw.com.au', created_at: dayAgo(1).toISOString(), payload: {}, stores: { name: storesJson[0].name }, payments: [] },
+]
 
 export const demoUsers = (): AppUser[] => [
   { user_id: 'u1', email: 'priya@hsw.com.au', full_name: 'Priya Nair', active: true, password_set_at: dayAgo(20).toISOString(), created_at: dayAgo(20).toISOString() },

@@ -5,7 +5,7 @@ import { DEMO, supabase } from './lib/supabase'
 interface Props {
   name: string // who the password is for
   email: string | null // what they sign in with
-  fn: string // the edge function that sets it: set-store-password or manage-user
+  fn: string // the edge function that sets it (manage-user)
   body: Record<string, unknown> // what that function needs besides the password (which store, or which person)
   onClose: () => void
   onDone: () => void // the password was set; refresh the list

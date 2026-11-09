@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import Analytics from './Analytics'
 import Login from './Login'
@@ -10,9 +10,15 @@ import Tour from './Tour'
 import { useToast } from './Toast'
 import { installErrorTracking, startSession, track } from './lib/analytics/track'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
-import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type Member, type StoreRow } from './lib/supabase'
+import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type DocRow, type Member, type StoreRow } from './lib/supabase'
 
-type Tab = 'order' | 'orders' | 'sales' | 'analytics' | 'stores'
+// The quote screens carry the PDF library, so they load only when someone opens the Quote tab.
+const Builder = lazy(() => import('./Builder'))
+const Documents = lazy(() => import('./Documents'))
+const Reports = lazy(() => import('./Reports'))
+
+type Tab = 'quote' | 'order' | 'orders' | 'sales' | 'analytics' | 'stores'
+type QuoteView = 'new' | 'docs' | 'reports'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined) // undefined = still checking
@@ -48,6 +54,10 @@ function Shell({ session }: { session: Session }) {
   const [members, setMembers] = useState<Member[]>([]) // who is in which store, and as what
   const [jump, setJump] = useState<OrderJump | null>(null) // set when the Sales tab sends someone to order an item
   const [refresh, setRefresh] = useState(0) // bumped when an order is saved so Orders reloads
+  const [quoteView, setQuoteView] = useState<QuoteView>('new') // inside the Quote tab: a new quote, past documents, reports
+  const [openDoc, setOpenDoc] = useState<DocRow | null>(null) // a quote or invoice being reopened
+  const [builderKey, setBuilderKey] = useState(0) // changes to start the builder from blank
+  const [docRefresh, setDocRefresh] = useState(0) // bumped when a quote is saved so Documents reloads
 
   // The tour is shown once per account. The account remembers it (user_metadata), so a new phone or browser does not
   // show it again; the browser copy covers accounts that finished it before this existed.
@@ -64,7 +74,7 @@ function Shell({ session }: { session: Session }) {
 
   // Usage log for the admin's Analytics tab: one sign-in per browser session, each tab opened, and any error that reaches the screen.
   useEffect(() => { startSession(); return installErrorTracking() }, [])
-  useEffect(() => { track('tab_view', { tab }) }, [tab])
+  useEffect(() => { track('tab_view', { tab: tab === 'quote' ? `quote (${quoteView})` : tab }) }, [tab, quoteView])
 
   const loadStores = useCallback(async () => {
     if (DEMO) return setAllStores(demoStores())
@@ -88,7 +98,13 @@ function Shell({ session }: { session: Session }) {
   const active = (allStores ?? []).filter((s) => s.active) // Row Level Security already limits this to the person's own stores
   const multi = isAdmin || active.length > 1 // may pick the store
   const names = Object.fromEntries((people ?? []).map((p) => [p.email.toLowerCase(), p.full_name]))
+  const sees = isAdmin || active.length > 0 // quote reports, and who created what: everyone works with their whole store
+  const canPay = (storeId: string) => isAdmin || active.some((s) => s.id === storeId) // anyone in the store can take a deposit or payment
   const noAccess = allStores && !isAdmin && active.length === 0
+
+  const goQuote = (v: QuoteView) => { setQuoteView(v); if (v === 'new') { setOpenDoc(null); setBuilderKey((k) => k + 1) } }
+  const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setQuoteView('new'); setTab('quote') }
+  const quoteTab = (v: QuoteView, label: string) => <button type="button" aria-pressed={quoteView === v} onClick={() => goQuote(v)}>{label}</button>
 
   const tabBtn = (t: Tab, label: string) => (
     <button type="button" className="tab" data-tour={t} aria-current={tab === t ? 'page' : undefined} onClick={() => { if (t !== 'order') setJump(null); setTab(t) }}>{label}</button>
@@ -100,6 +116,7 @@ function Shell({ session }: { session: Session }) {
         <div className="container bar">
           <img className="logo" src={`${import.meta.env.BASE_URL}logo.png`} alt="Howards Storage World" width="120" height="32" />
           <nav aria-label="Main">
+            {tabBtn('quote', 'Quote')}
             {tabBtn('order', 'Order')}
             {tabBtn('orders', 'Orders')}
             {tabBtn('sales', 'Sales')}
@@ -116,6 +133,20 @@ function Shell({ session }: { session: Session }) {
       <main className="container page">
         {!allStores || (!people && tab !== 'order') ? <p className="muted">Loading…</p>
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
+          : tab === 'quote' ? (
+            <>
+              <div className="segmented quote-views" role="group" aria-label="Quote view">
+                {quoteTab('new', 'New')}
+                {quoteTab('docs', 'Documents')}
+                {sees && quoteTab('reports', 'Reports')}
+              </div>
+              <Suspense fallback={<p className="muted">Loading…</p>}>
+              {quoteView === 'new' ? <Builder key={builderKey} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goQuote('new')} />
+                : quoteView === 'docs' ? <Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} />
+                : sees ? <Reports isAdmin={multi} stores={active} names={names} /> : null}
+              </Suspense>
+            </>
+          )
           : tab === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : tab === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : tab === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setTab('order') }} />
