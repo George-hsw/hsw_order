@@ -5,6 +5,7 @@ import Home from './Home'
 import Login from './Login'
 import Order from './Order'
 import Orders from './Orders'
+import PriceCheck from './PriceCheck'
 import Sales, { type OrderJump } from './Sales'
 import Stores from './Stores'
 import Tour from './Tour'
@@ -148,6 +149,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'reports' && sees ? <Suspense fallback={<p className="muted">Loading…</p>}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
           : view === 'order' ? <Order key={jump ? jump.vendor + jump.item : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
+          : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
           : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />

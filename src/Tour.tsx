@@ -22,6 +22,7 @@ function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Ste
     { scene: 'send', title: 'Copy into NAV', body: 'When the order looks right, choose Copy for NAV and paste it into the NAV purchase order for that vendor. Then record the NAV order number.' },
     { scene: 'docs', tab: 'orders', title: 'Find past orders in Orders', body: 'Each order shows its status and NAV number. Open one to see its lines, or copy it for NAV again.' },
   ]
+  steps.push({ scene: 'scan', tab: 'price', title: 'Check a price', body: 'Price check: scan a barcode, or type an item number or part of the name, to see the price, the stock here and recent sales. Print a price label to any printer on the same Wi-Fi.' })
   if (manager) steps.push({ scene: 'pay', tab: 'new', title: 'Payments and reports', body: 'Record a deposit or payment on an invoice and the store managers are told. Under Quote, Reports shows each person’s quotes and invoices.' })
   steps.push({ scene: 'sales', tab: 'sales', title: 'See how your store is selling', body: 'Sales shows each week against the same week last year, day by day, and where your store ranks. Items lists what to act on: out of stock, not selling, below or above the chain average. Open an item and press Order this item to jump straight to it.' })
   steps.push({ scene: 'sales', tab: 'order', title: 'Sales on every item', body: 'Open Details on any item in the Order tab to see how it sold at your store in recent weeks, its rank, and the sales lost while it was out of stock. Item sales are before GST and leave out Elfa.' })

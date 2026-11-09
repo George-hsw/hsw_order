@@ -143,6 +143,36 @@ export const supabaseApi: OrdersApi = {
     return [...latest.values()]
   },
 
+  async findItems(storeId, query): Promise<Product[]> {
+    const clean = query.trim().replace(/[,()"%*\\]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!clean) return []
+    let items: ItemRow[] = []
+    if (!clean.includes(' ')) {
+      // A barcode (with or without leading zeros) or an exact item number.
+      const digits = /^\d+$/.test(clean) ? clean.replace(/^0+/, '') : ''
+      const forms = new Set<string>([clean, clean.toUpperCase()])
+      if (digits) for (const pad of [0, 1, 2, 3, 4, 5]) forms.add('0'.repeat(pad) + digits)
+      const { data, error } = await db().from('items').select(ITEM_COLUMNS).or([...forms].flatMap((f) => [`barcode.eq.${f}`, `code.eq.${f}`]).join(',')).limit(5)
+      if (error) throw new Error(error.message)
+      items = (data ?? []) as ItemRow[]
+    }
+    if (!items.length) {
+      // Words from the name (every word must appear), or the start of an item number.
+      const words = clean.split(' ').slice(0, 5)
+      let q = db().from('items').select(ITEM_COLUMNS)
+      if (words.length === 1) q = q.or(`description.ilike.%${words[0]}%,code.ilike.${words[0]}%`)
+      else for (const w of words) q = q.ilike('description', `%${w}%`)
+      const { data, error } = await q.order('description').limit(30)
+      if (error) throw new Error(error.message)
+      items = (data ?? []) as ItemRow[]
+    }
+    if (!items.length) return []
+    const { data: stock, error } = await db().from('store_stock').select(STOCK_COLUMNS).eq('store_id', storeId).in('item_code', items.map((i) => i.code))
+    if (error) throw new Error(error.message)
+    const byCode = new Map(((stock ?? []) as StockRow[]).map((s) => [s.item_code, s]))
+    return items.map((item) => ({ item: { ...item, price: item.price === null ? null : Number(item.price) }, stock: byCode.get(item.code) }))
+  },
+
   async coverTarget(storeId) {
     const { data, error } = await db().from('store_prefs').select('cover_weeks').eq('store_id', storeId).maybeSingle()
     if (error) return DEFAULT_COVER // before migration 015 is deployed there is no table: use the default

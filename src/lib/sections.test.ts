@@ -7,12 +7,12 @@ describe('sections', () => {
     expect(new Set(all).size).toBe(all.length)
   })
   it('finds the area of a tab', () => {
-    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin']]
+    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['price', 'price'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin']]
     for (const [tab, area] of cases) expect(areaOf(tab).id).toBe(area)
   })
   it('only the admin sees the Admin area', () => {
-    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'sales'])
-    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'sales', 'admin'])
+    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'price', 'sales'])
+    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'price', 'sales', 'admin'])
   })
   it('Reports needs someone who works in a store', () => {
     const quote = AREAS[0]

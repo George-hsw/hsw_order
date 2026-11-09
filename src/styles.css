@@ -691,3 +691,24 @@ button, a, select, summary, label { touch-action: manipulation; }
 .topfilters { margin-bottom: var(--space-sm); }
 .topfilters select { width: auto; min-width: 0; }
 @media (max-width: 44rem) { .topfilters select { flex: 1 1 calc(50% - var(--space-xs)); } }
+
+/* ---------- Price check ---------- */
+.pricehits { list-style: none; margin: var(--space-sm) 0 0; padding: 0; display: grid; gap: var(--space-3xs); }
+.pricehits li { border-top: var(--rule-hair) solid var(--color-rule); }
+.pricehits .linkish { display: grid; width: 100%; text-align: left; padding: var(--space-xs) 0; min-height: var(--hit); }
+.pricehits small { color: var(--color-ink-2); }
+.bigprice { display: grid; gap: var(--space-3xs); margin: var(--space-sm) 0 var(--space-md); }
+.bigprice b { font-family: var(--font-display); font-size: var(--text-display); font-weight: 600; line-height: 1.05; }
+.pricesub { margin: var(--space-md) 0 var(--space-xs); font-size: var(--text-md); }
+.printlabel { display: none; }
+
+/* Printing a price label: only the label goes to the printer. */
+@media print {
+  body * { visibility: hidden; }
+  .printlabel, .printlabel * { visibility: visible; }
+  .printlabel { display: block; position: absolute; inset: 0 auto auto 0; width: 90mm; padding: 4mm; border: 0.3mm solid var(--color-ink); color: var(--color-ink); background: var(--color-paper-2); }
+  .printlabel p { margin: 0 0 2mm; }
+  .pl-name { font-weight: 600; font-size: 12pt; }
+  .pl-price { font-family: var(--font-display); font-size: 30pt; font-weight: 600; line-height: 1.05; }
+  .pl-code, .pl-store { font-size: 9pt; color: var(--color-ink-2); }
+}

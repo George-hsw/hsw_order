@@ -1,6 +1,6 @@
 /** The areas of the app, as shown on Home, and the tabs inside each. Adding an area later is one more entry here. */
-export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'sales' | 'analytics' | 'stores'
-export type AreaId = 'quote' | 'order' | 'sales' | 'admin'
+export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'price' | 'sales' | 'analytics' | 'stores'
+export type AreaId = 'quote' | 'order' | 'price' | 'sales' | 'admin'
 
 export interface Area {
   id: AreaId
@@ -15,6 +15,8 @@ export const AREAS: Area[] = [
     tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }] },
   { id: 'order', label: 'Order', blurb: 'Order stock for your store, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order' }, { tab: 'orders', label: 'Orders' }] },
+  { id: 'price', label: 'Price check', blurb: 'Scan or search any item for its price, stock here and recent sales. Print a price label.',
+    tabs: [{ tab: 'price', label: 'Price check' }] },
   { id: 'sales', label: 'Sales', blurb: 'See how your store is selling and what to act on.',
     tabs: [{ tab: 'sales', label: 'Sales' }] },
   { id: 'admin', label: 'Admin', blurb: 'Usage and errors, stores and people.', adminOnly: true,

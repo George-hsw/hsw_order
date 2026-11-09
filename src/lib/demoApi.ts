@@ -2,7 +2,7 @@ import { DEFAULT_COVER } from './insights'
 import type { OrderData, OrdersApi } from './api'
 import { ConflictError } from './api'
 import { demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
-import { applyLine, rangeFor, totals, vendorOptions } from './order'
+import { applyLine, findByScan, rangeFor, searchItems, totals, vendorOptions } from './order'
 import type { OrderLine, OrderRow, OrderSummary, SyncRun } from './supabase'
 
 // In-memory stand-in for the back end. Resets when the page reloads.
@@ -91,6 +91,13 @@ export const demoApi: OrdersApi = {
   orderLines: (orderId) => wait([...(lines.get(orderId) ?? [])]),
 
 
+  findItems(storeId, query) {
+    const items = demoItems()
+    const exact = findByScan(items, query)
+    const hits = exact ? [exact] : searchItems(items, query, 30)
+    const stock = demoStock(storeId)
+    return wait(hits.map((item) => ({ item, stock: stock.find((s) => s.item_code === item.code) })))
+  },
   coverTarget: (storeId) => wait(covers.get(storeId) ?? DEFAULT_COVER),
   async setCoverTarget(storeId, weeks) { covers.set(storeId, weeks); await wait(null) },
 
