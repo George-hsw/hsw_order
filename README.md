@@ -1,6 +1,6 @@
 # HSW
 
-One app for Howards Storage World stores: **Quote** (quotes, tax invoices, deposits and payments, PDFs and email), **Order** and **Orders** (the weekly stock order, replacing `Ordering feed.xlsx`), **Sales** (the weekly Power BI reports), **Analytics** (admin) and **Stores** (admin: stores, people and what each can do). It was two apps, HSW Quote and HSW Orders; it is now one site, one sign-in and one Supabase project (the one HSW Quote always used). Same look and feel throughout: `DESIGN.md` rules.
+One app for Howards Storage World stores: **Quote** (quotes, tax invoices, deposits and payments, PDFs and email), **Order** and **Orders** (the weekly stock order, replacing `Ordering feed.xlsx`), **Sales** (the weekly Power BI reports), **Analytics** (admin) and **Stores** (admin: stores, people and what each can do). It was two apps, HSW Quote and HSW Orders; it is now one site, one sign-in and one Supabase project (the Orders one; the old Quote project was never in production and is retired). Same look and feel throughout: `DESIGN.md` rules.
 
 ## How it works
 1. Each night NAV's items and each store's stock are copied into Supabase.
@@ -14,7 +14,7 @@ Sales history, forecasting and Power BI are not part of this app. Last week's sa
 ## Quotes and invoices
 The **Quote** tab: New (scan or search items, build a Quote or Tax Invoice, PDF, email), Documents, and Reports. Money rules match the old workbook: prices include GST, GST = total / 11, line = qty x price x (1 - disc%), numbers `Q-<STORE>-<n>` and `INV-<STORE>-<n>`, quotes valid 30 days, invoices due in 7 days. Managers and the admin record deposits and payments (`record-payment`), which email the store's managers; `send-document` emails the PDF. Prices come from `public/items.json`, a copy that ships with the site. The quote being built is one live draft per person (`src/lib/draftSync.ts`).
 
-Who can do what is the same everywhere: the admin sees every store and manages people; a manager or Store person has full access inside their own store; a shared store login (`stores.email`) acts as that store's manager. One person can be in several stores. Row Level Security enforces it, not the screens (`012_store_members.sql`, `017_store_full_access.sql`).
+Who can do what is the same everywhere: the admin sees every store and manages people; a manager or Store person has full access inside their own store; One person can be in several stores. Row Level Security enforces it, not the screens (`001_stores_people.sql`, `014_quote_documents.sql`).
 
 ## Run it
 ```
@@ -28,16 +28,16 @@ npm run build
 Built and tested on demo data and a local copy of the database (`npm run demo`): sign-in, tour, Quote (New, Documents, Reports), Order, Orders, Sales, Analytics, Stores.
 
 Written but **not yet run against the real Supabase project or real NAV** (so expect a first-run fix or two):
-- `supabase/migrations`: **001 to 017 are the Quote schema, unchanged**. 018 adds what ordering needs to the shared tables (item columns, `in_any_store`, stock and sync tables). 019 to 024 are orders, 025 Sales, 026 Analytics, 027 permissions. All additive: nothing in the Quote tables changes, except the South Wharf store code (13006 to 13006C).
-- `supabase/functions`: `manage-user`, `set-store-password`, `record-payment`, `send-document`.
+- `supabase/migrations`: 001 to 013 are the ordering database already deployed (unchanged). **014 adds the Quote tables** (`documents`, `payments`, `document_emails`, `quote_drafts`, the store details a quote prints, the invoice-from-quote and freeze triggers, and their Row Level Security). It is additive: it changes no ordering table.
+- `supabase/functions`: `manage-user`, `record-payment`, `send-document`.
 - `scripts/sync-dynamics.mjs` and `.github/workflows/sync-dynamics.yml`: the one nightly NAV sync, for both apps.
 
 ## Setting it up
-1. **Supabase**: the project HSW Quote already uses. In GitHub, Settings, Secrets and variables, Actions: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`, `RESEND_API_KEY` and `MAIL_FROM` (a Resend-verified sender, for payment notices and emailed quotes). Authentication, Email stays on and "Allow new users to sign up" stays off. Take a backup first, then run **Deploy Supabase**: it applies only 018 to 027 (001 to 017 are already there) and deploys the functions.
+1. **Supabase**: the project Orders already uses. In GitHub, Settings, Secrets and variables, Actions, it already has `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` and `SUPABASE_PROJECT_REF`; add `RESEND_API_KEY` and `MAIL_FROM` (a Resend-verified sender, for payment notices and emailed quotes). Take a backup, then run **Deploy Supabase**: it applies only 014 and deploys the three functions.
 2. **The admin login** already exists (`george.mridun@hsw.com.au`). Everyone else is added in Stores.
-3. **Vercel**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (the same project) and, for Myriad Pro, `VITE_ADOBE_FONTS_KIT`.
-4. **NAV sync**: `DYN_ITEMS_URL`, `DYN_STOCK_URL` and either `DYN_USER` + `DYN_ACCESS_KEY` or the tenant sign-in. This one sync fills items and store stock for both Quote and Order. **Update prices** (`publish-prices.yml`) then writes `public/items.json`, the price list the quote builder reads, so quoting still works if NAV or Supabase is down.
-5. **People**: sign in as the admin, open Stores, add a manager to each store. Existing Quote people and store logins keep working.
+3. **Vercel**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (unchanged) and, for Myriad Pro, `VITE_ADOBE_FONTS_KIT`.
+4. **NAV sync** (already set up for Orders): `DYN_ITEMS_URL`, `DYN_STOCK_URL` and the sign-in. This one sync fills items and store stock for both Quote and Order. **Update prices** (`publish-prices.yml`) then writes `public/items.json`, the price list the quote builder reads, so quoting still works if NAV or Supabase is down.
+5. **People**: sign in as the admin, open Stores, add a manager to each store. There are no Quote users to carry over: the old Quote project was never live.
 
 The sync keeps each store's previous data when its feed is empty, much smaller than yesterday, or has duplicate rows, and the Stores tab shows it as Failed.
 

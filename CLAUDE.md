@@ -1,6 +1,6 @@
 # HSW Orders
 
-One app for Howards Storage World stores: Quote (quotes, invoices, payments), Order and Orders (stock ordering), Sales, Analytics and Stores, on the one Supabase project that HSW Quote always used. The Quote screens came from the old HSW Quote app; the design system is shared and unchanged.
+One app for Howards Storage World stores: Quote (quotes, invoices, payments), Order and Orders (stock ordering), Sales, Analytics and Stores, on one Supabase project. The Quote screens came from the old HSW Quote app; the design system is shared and unchanged.
 
 ## Rules that never change
 1. Read `DESIGN.md` before building or changing any screen, and follow it.

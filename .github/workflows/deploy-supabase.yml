@@ -33,5 +33,4 @@ jobs:
           fi
           supabase functions deploy record-payment --no-verify-jwt --yes
           supabase functions deploy send-document --no-verify-jwt --yes
-          supabase functions deploy set-store-password --no-verify-jwt --yes
           supabase functions deploy manage-user --no-verify-jwt --yes

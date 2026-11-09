@@ -1,4 +1,4 @@
-// Who is calling, and what may they touch? The same rules as the database (migration 012), for the functions
+// Who is calling, and what may they touch? The same rules as the database (role_in), for the functions
 // that use the service role and so bypass Row Level Security.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { ADMIN_EMAIL } from './cors.ts'
@@ -19,9 +19,6 @@ export async function accessOf(admin: SupabaseClient, userId: string | undefined
       for (const m of mine ?? []) if ((m.stores as { active: boolean } | null)?.active) stores[m.store_id] = m.role as StoreRole
     }
   }
-  // A shared store login (stores.email, the original way) acts as a manager of its store.
-  const { data: shared } = await admin.from('stores').select('id,email').eq('active', true)
-  for (const s of shared ?? []) if (String(s.email ?? '').toLowerCase() === email) stores[s.id] = 'manager'
   return Object.keys(stores).length ? { admin: false, stores } : null
 }
 
