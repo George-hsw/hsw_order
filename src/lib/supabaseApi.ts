@@ -1,3 +1,4 @@
+import { DEFAULT_COVER } from './insights'
 import { ConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
 import { supabase, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun } from './supabase'
@@ -140,5 +141,16 @@ export const supabaseApi: OrdersApi = {
     const latest = new Map<string, SyncRun>() // newest first, so the first one seen per store is its latest
     for (const r of (data ?? []) as SyncRun[]) if (!latest.has(r.store_id)) latest.set(r.store_id, r)
     return [...latest.values()]
+  },
+
+  async coverTarget(storeId) {
+    const { data, error } = await db().from('store_prefs').select('cover_weeks').eq('store_id', storeId).maybeSingle()
+    if (error) return DEFAULT_COVER // before migration 015 is deployed there is no table: use the default
+    return Number((data as { cover_weeks: number } | null)?.cover_weeks ?? DEFAULT_COVER)
+  },
+
+  async setCoverTarget(storeId, weeks, email) {
+    const { error } = await db().from('store_prefs').upsert({ store_id: storeId, cover_weeks: weeks, updated_by: email, updated_at: new Date().toISOString() }, { onConflict: 'store_id' })
+    if (error) throw new Error(error.message)
   },
 }

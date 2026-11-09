@@ -1,3 +1,4 @@
+import { DEFAULT_COVER } from './insights'
 import type { OrderData, OrdersApi } from './api'
 import { ConflictError } from './api'
 import { demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
@@ -17,6 +18,7 @@ const lines = new Map<string, OrderLine[]>([
   ['o3', demoLines().slice(0, 1).map((l) => ({ ...l, id: 'q0', order_id: 'o3' }))],
 ])
 const subs = new Map<string, Set<(l: OrderLine[]) => void>>()
+const covers = new Map<string, number>()
 const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ?? ''
 const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
@@ -88,6 +90,9 @@ export const demoApi: OrdersApi = {
 
   orderLines: (orderId) => wait([...(lines.get(orderId) ?? [])]),
 
+
+  coverTarget: (storeId) => wait(covers.get(storeId) ?? DEFAULT_COVER),
+  async setCoverTarget(storeId, weeks) { covers.set(storeId, weeks); await wait(null) },
 
   async syncRuns() {
     const runs: SyncRun[] = demoStores().map((s, i) => ({
