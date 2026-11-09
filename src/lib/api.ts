@@ -1,3 +1,4 @@
+import type { CustomerOrderNeed, Fulfilment } from './customerOrders'
 import { applyLine, type LineInput, type Product, type VendorOption } from './order'
 import { DEMO, supabase, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type SyncRun } from './supabase'
 import { demoApi } from './demoApi'
@@ -40,6 +41,10 @@ export interface OrdersApi {
   syncRuns(): Promise<SyncRun[]>
   /** Items matching a scanned barcode, an item number, or words from the name, with this store's stock. At most 30. */
   findItems(storeId: string, query: string): Promise<Product[]>
+  /** Customer orders still to be ordered from the vendor, for these stores, with each item's vendor at its store. */
+  customerOrders(storeIds: string[]): Promise<CustomerOrderNeed[]>
+  /** Move a customer order on (ordered, arrived, collected). */
+  setFulfilment(docId: string, to: Fulfilment): Promise<void>
   /** Weeks of stock the store aims to hold (its preference, or the default). */
   coverTarget(storeId: string): Promise<number>
   setCoverTarget(storeId: string, weeks: number, email: string): Promise<void>
@@ -49,7 +54,7 @@ const notConnected = (): never => { throw new Error('The back end is not connect
 const offline: OrdersApi = {
   vendors: async () => notConnected(), range: async () => notConnected(), findOrder: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
-  orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), findItems: async () => notConnected(), setCoverTarget: async () => notConnected(),
+  orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(),
 }
 
 export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline

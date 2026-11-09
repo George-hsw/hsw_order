@@ -21,6 +21,9 @@ export const demoDocs = (): DocRow[] => [
     due_date: isoDate(dayAgo(2)), status: 'open', created_by: 'lee@hsw.com.au', created_at: dayAgo(9).toISOString(), payload: {}, stores: { name: storesJson[1].name }, payments: [] },
   { id: 'd3', store_id: 'demo-0', doc_type: 'Quote', doc_number: 'Q-' + storesJson[0].code + '-1002', customer_name: 'Pat Lee', total_cents: 129500,
     due_date: null, status: 'open', created_by: 'priya@hsw.com.au', created_at: dayAgo(1).toISOString(), payload: {}, stores: { name: storesJson[0].name }, payments: [] },
+  { id: 'd4', store_id: 'demo-0', doc_type: 'Customer Order', fulfilment: 'to_order', doc_number: 'CO-' + storesJson[0].code + '-1003', customer_name: 'Mia Chen', total_cents: 9900,
+    due_date: null, status: 'part_paid', created_by: 'sam@hsw.com.au', created_at: dayAgo(2).toISOString(), payload: { lines: [{ code: 'ANA01093', qty: '2' }, { code: 'ANA01096', qty: '1' }] }, stores: { name: storesJson[0].name },
+    payments: [{ amount_cents: 2000, kind: 'deposit', paid_on: isoDate(dayAgo(2)) }] },
 ]
 
 export const demoUsers = (): AppUser[] => [

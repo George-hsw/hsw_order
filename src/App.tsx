@@ -10,6 +10,7 @@ import Sales, { type OrderJump } from './Sales'
 import Stores from './Stores'
 import Tour from './Tour'
 import { useToast } from './Toast'
+import { api } from './lib/api'
 import { installErrorTracking, startSession, track } from './lib/analytics/track'
 import { AREAS, areaOf, isAreaId, visibleTabs, type AreaId, type Tab } from './lib/sections'
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
@@ -118,6 +119,15 @@ function Shell({ session }: { session: Session }) {
     <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}</button>
   )
   const area = view === 'home' ? null : areaOf(view)
+  // Customer orders still to order, shown on Home so nobody forgets them.
+  const [waitingCount, setWaitingCount] = useState(0)
+  const activeIds = active.map((s) => s.id).join(',')
+  useEffect(() => {
+    if (view !== 'home' || !activeIds) return
+    let live = true
+    api.customerOrders(activeIds.split(',')).then((n) => live && setWaitingCount(n.length)).catch(() => live && setWaitingCount(0))
+    return () => { live = false }
+  }, [view, activeIds])
   const works = isAdmin || active.length > 0
 
   return (
@@ -143,7 +153,7 @@ function Shell({ session }: { session: Session }) {
       <main className="container page">
         {!allStores || (!people && view !== 'order' && view !== 'home') ? <p className="muted">Loading…</p>
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
-          : view === 'home' ? <Home isAdmin={isAdmin} last={lastArea} onPick={pickArea} />
+          : view === 'home' ? <Home isAdmin={isAdmin} last={lastArea} onPick={pickArea} alerts={waitingCount ? { order: `${waitingCount} customer ${waitingCount === 1 ? 'order' : 'orders'} to order` } : {}} />
           : view === 'new' ? <Suspense fallback={<p className="muted">Loading…</p>}><Builder key={builderKey} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
           : view === 'docs' ? <Suspense fallback={<p className="muted">Loading…</p>}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
           : view === 'reports' && sees ? <Suspense fallback={<p className="muted">Loading…</p>}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>

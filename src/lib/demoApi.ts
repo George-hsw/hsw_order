@@ -1,7 +1,8 @@
+import { codeLines, type CustomerOrderNeed, type Fulfilment } from './customerOrders'
 import { DEFAULT_COVER } from './insights'
 import type { OrderData, OrdersApi } from './api'
 import { ConflictError } from './api'
-import { demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
+import { demoDocs, demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
 import { applyLine, findByScan, rangeFor, searchItems, totals, vendorOptions } from './order'
 import type { OrderLine, OrderRow, OrderSummary, SyncRun } from './supabase'
 
@@ -19,6 +20,7 @@ const lines = new Map<string, OrderLine[]>([
 ])
 const subs = new Map<string, Set<(l: OrderLine[]) => void>>()
 const covers = new Map<string, number>()
+const fulfilled = new Map<string, Fulfilment>() // demo customer orders moved on this session
 const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ?? ''
 const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
@@ -98,6 +100,15 @@ export const demoApi: OrdersApi = {
     const stock = demoStock(storeId)
     return wait(hits.map((item) => ({ item, stock: stock.find((s) => s.item_code === item.code) })))
   },
+  customerOrders(storeIds) {
+    const items = demoItems()
+    const out: CustomerOrderNeed[] = demoDocs()
+      .filter((d) => d.doc_type === 'Customer Order' && (fulfilled.get(d.id) ?? d.fulfilment) === 'to_order' && storeIds.includes(d.store_id))
+      .map((d) => ({ id: d.id, store_id: d.store_id, doc_number: d.doc_number, customer_name: d.customer_name, created_at: d.created_at,
+        lines: codeLines(d.payload).map((w) => { const it = items.find((i) => i.code === w.code); return { ...w, description: it?.description ?? w.code, vendor: demoStock(d.store_id).find((s) => s.item_code === w.code)?.vendor_no ?? it?.vendor_no ?? null } }) }))
+    return wait(out)
+  },
+  async setFulfilment(docId, to) { fulfilled.set(docId, to); await wait(null) },
   coverTarget: (storeId) => wait(covers.get(storeId) ?? DEFAULT_COVER),
   async setCoverTarget(storeId, weeks) { covers.set(storeId, weeks); await wait(null) },
 

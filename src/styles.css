@@ -712,3 +712,8 @@ button, a, select, summary, label { touch-action: manipulation; }
   .pl-price { font-family: var(--font-display); font-size: 30pt; font-weight: 600; line-height: 1.05; }
   .pl-code, .pl-store { font-size: 9pt; color: var(--color-ink-2); }
 }
+
+/* Customer orders waiting on the vendor on screen. */
+.custneeds ul { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: grid; gap: var(--space-xs); }
+.custneeds li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-xs); }
+.custneeds li span { flex: 1 1 16rem; min-width: 0; }

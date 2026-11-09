@@ -1,3 +1,4 @@
+import { codeLines, type CustomerOrderNeed } from './customerOrders'
 import { DEFAULT_COVER } from './insights'
 import { ConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
@@ -171,6 +172,34 @@ export const supabaseApi: OrdersApi = {
     if (error) throw new Error(error.message)
     const byCode = new Map(((stock ?? []) as StockRow[]).map((s) => [s.item_code, s]))
     return items.map((item) => ({ item: { ...item, price: item.price === null ? null : Number(item.price) }, stock: byCode.get(item.code) }))
+  },
+
+  async customerOrders(storeIds): Promise<CustomerOrderNeed[]> {
+    if (!storeIds.length) return []
+    const { data, error } = await db().from('documents').select('id,store_id,doc_number,customer_name,created_at,payload')
+      .eq('doc_type', 'Customer Order').eq('fulfilment', 'to_order').in('store_id', storeIds).order('created_at').limit(500)
+    if (error) throw new Error(error.message)
+    const docs = (data ?? []) as { id: string; store_id: string; doc_number: string; customer_name: string; created_at: string; payload: unknown }[]
+    const wanted = docs.map((d) => ({ ...d, want: codeLines(d.payload) })).filter((d) => d.want.length)
+    const codes = [...new Set(wanted.flatMap((d) => d.want.map((w) => w.code)))]
+    if (!codes.length) return []
+    const [items, stock] = await Promise.all([
+      db().from('items').select('code,description,vendor_no').in('code', codes),
+      db().from('store_stock').select('store_id,item_code,vendor_no').in('store_id', storeIds).in('item_code', codes),
+    ])
+    if (items.error) throw new Error(items.error.message)
+    if (stock.error) throw new Error(stock.error.message)
+    const item = new Map(((items.data ?? []) as { code: string; description: string; vendor_no: string | null }[]).map((i) => [i.code, i]))
+    const vendorAt = new Map(((stock.data ?? []) as { store_id: string; item_code: string; vendor_no: string | null }[]).map((s) => [s.store_id + '|' + s.item_code, s.vendor_no]))
+    return wanted.map(({ want, payload: _p, ...d }) => ({
+      ...d,
+      lines: want.map((w) => ({ code: w.code, qty: w.qty, description: item.get(w.code)?.description ?? w.code, vendor: vendorAt.get(d.store_id + '|' + w.code) ?? item.get(w.code)?.vendor_no ?? null })),
+    }))
+  },
+
+  async setFulfilment(docId, to) {
+    const { error } = await db().from('documents').update({ fulfilment: to }).eq('id', docId)
+    if (error) throw new Error(error.message)
   },
 
   async coverTarget(storeId) {

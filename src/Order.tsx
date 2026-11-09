@@ -7,6 +7,7 @@ import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
 import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
+import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
 import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, moqNote, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
@@ -53,6 +54,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const [pending, setPending] = useState(0)
   const [rates, setRates] = useState<Rates | null>(null) // weekly sales per item at this store, from the loaded Sales weeks
   const [target, setTarget] = useState(DEFAULT_COVER) // weeks of stock this store aims to hold
+  const [needs, setNeeds] = useState<CustomerOrderNeed[]>([]) // customer orders still to order
+  const [needsAttempt, setNeedsAttempt] = useState(0)
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
   const refreshDrafts = useCallback(() => { api.drafts(storeId).then(setDrafts).catch(() => { /* the list is a convenience */ }) }, [storeId])
@@ -89,6 +92,22 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     return () => { live = false }
   }, [storeId])
 
+  // Customer orders waiting to be ordered: warned about on the vendor that supplies them.
+  useEffect(() => {
+    if (!storeId) return
+    let live = true
+    api.customerOrders([storeId]).then((n) => live && setNeeds(n)).catch((e) => { trackError('customer orders', e); if (live) setNeeds([]) })
+    return () => { live = false }
+  }, [storeId, needsAttempt])
+  const markOrdered = async (n: CustomerOrderNeed) => {
+    try {
+      await api.setFulfilment(n.id, 'ordered')
+      track('customer_order_step', { to: 'ordered' }, storeId)
+      toast.success(`${n.doc_number} for ${n.customer_name} marked as ordered.`)
+      setNeedsAttempt((a) => a + 1)
+    } catch (e) { trackError('customer order', e); toast.error('Could not update the customer order. Try again.') }
+  }
+
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
   useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
@@ -119,6 +138,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     if (enough) for (const p of range) m.set(p.item.code, stockInsight(p.stock, rates!.perWeek.get(p.item.code) ?? 0, target, p.stock?.moq ?? 1, lineOf.get(p.item.code)?.qty ?? 0))
     return m
   }, [range, rates, enough, target, lineOf])
+  const waiting = useMemo(() => needsByItem(needs, storeId), [needs, storeId])
+  const vendorNeeds = useMemo(() => needs.filter((n) => n.lines.some((l) => l.vendor === vendor || range.some((p) => p.item.code === l.code))), [needs, vendor, range])
   const isNew = (p: Product) => p.item.status.trim().toUpperCase() === 'NEW'
   const lowCount = useMemo(() => [...insightOf.values()].filter((i) => i.low).length, [insightOf])
   const newCount = useMemo(() => range.filter(isNew).length, [range]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -293,6 +314,27 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
             <p>{vendors.length === 0 ? 'No items for this store yet' : 'Choose a vendor to start an order'}</p>
             <p className="muted">{vendors.length === 0 ? 'Stock appears here after the nightly sync from NAV.' : 'A purchase order is made for one vendor. Pick one above and its whole range for this store is listed.'}</p>
           </div>
+          {needs.length > 0 && (
+            <section className="block">
+              <h2>Customer orders to order</h2>
+              <ul className="people">
+                {needs.map((n) => (
+                  <li key={n.id}>
+                    <div className="who-line">
+                      <b>{n.doc_number}</b>
+                      <span className="muted">{n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}</span>
+                    </div>
+                    <div className="person-actions">
+                      {[...new Set(n.lines.map((l) => l.vendor).filter((v): v is string => !!v && vendors.some((x) => x.vendor === v)))].map((v) => (
+                        <button key={v} type="button" className="btn" onClick={() => chooseVendor(v)}>Open {v}</button>
+                      ))}
+                      <button type="button" className="btn" onClick={() => void markOrdered(n)}>Mark ordered</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {drafts.some((d) => d.lines > 0) && (
             <section className="block">
               <h2>Orders in progress</h2>
@@ -321,6 +363,19 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
 
       {cat && ready && (
         <>
+          {vendorNeeds.length > 0 && (
+            <div className="note bad custneeds" role="status">
+              <p><b>{vendorNeeds.length === 1 ? 'A customer is' : `${vendorNeeds.length} customers are`} waiting on {vendor} items.</b> Add them to this order, then mark the customer order as ordered.</p>
+              <ul>
+                {vendorNeeds.map((n) => (
+                  <li key={n.id}>
+                    <span>{n.doc_number}, {n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}</span>
+                    <button type="button" className="btn" onClick={() => void markOrdered(n)}>Mark ordered</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {order?.status === 'copied' && !editedAfterCopy && <p className="note">This order has been copied for NAV. Enter the NAV order number when it is done.</p>}
           {editedAfterCopy && <p className="note bad">Lines changed after this order was copied. Copy it again before you use it in NAV.</p>}
 
@@ -397,6 +452,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                               <td data-label="Description" className="desc">
                                 {p.item.description}
                                 {isNew(p) && <small className="chk ok">New item</small>}
+                                {(waiting.get(p.item.code) ?? []).map((w) => <small key={w.id} className="chk error">Customer order: {w.qty} for {w.customer_name} ({w.doc_number})</small>)}
                                 {ins && ins.rate > 0 && <small className="muted">Sells about {perWeekText(ins.rate)} a week, {coverText(ins.cover)}{l ? ' counting this order' : ''}</small>}
                                 {ins?.low && <small className="chk warn">Low stock: suggested {ins.suggest} to hold {target} {target === 1 ? 'week' : 'weeks'}</small>}
                                 {warnings.map((w) => <small key={w.text} className={'chk ' + w.level}>{w.text}</small>)}

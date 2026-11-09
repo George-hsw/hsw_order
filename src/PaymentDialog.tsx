@@ -4,7 +4,7 @@ import { money } from './lib/quote'
 import { DEMO, isoDate, supabase, type PaymentRow } from './lib/supabase'
 
 /** The parts of a saved document the payment dialog needs, so the Builder can use it before the list is loaded. */
-export interface PayDoc { id: string; doc_type: 'Quote' | 'Tax Invoice'; doc_number: string; customer_name: string; total_cents: number; payments: PaymentRow[] }
+export interface PayDoc { id: string; doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order'; doc_number: string; customer_name: string; total_cents: number; payments: PaymentRow[] }
 
 export const paidOf = (d: { payments: { amount_cents: number }[] }) => d.payments.reduce((a, p) => a + p.amount_cents, 0)
 
@@ -12,7 +12,7 @@ export const paidOf = (d: { payments: { amount_cents: number }[] }) => d.payment
 export function PaymentDialog({ doc, onClose, onDone }: { doc: PayDoc; onClose: () => void; onDone: () => void }) {
   const toast = useToast()
   const balance = doc.total_cents - paidOf(doc)
-  const quote = doc.doc_type === 'Quote'
+  const quote = doc.doc_type !== 'Tax Invoice' // quotes and customer orders take deposits
   const [kind, setKind] = useState<'deposit' | 'payment'>(paidOf(doc) === 0 ? 'deposit' : 'payment')
   const [amount, setAmount] = useState((balance / 100).toFixed(2))
   const [paidOn, setPaidOn] = useState(isoDate(new Date()))

@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     if (!canTakePayment(await accessOf(admin, u.user?.id, callerEmail), doc))
       return json({ error: 'Not allowed for this document' }, 403)
     if (doc.status === 'void') return json({ error: 'This document is void' }, 400)
-    const what = doc.doc_type === 'Quote' ? 'Quote' : 'Invoice'
+    const what = doc.doc_type === 'Quote' ? 'Quote' : doc.doc_type === 'Customer Order' ? 'Customer order' : 'Invoice'
 
     const { data: prior } = await admin.from('payments').select('amount_cents').eq('document_id', doc.id)
     const paidBefore = (prior ?? []).reduce((a, p) => a + p.amount_cents, 0)

@@ -1,3 +1,4 @@
+import type { Fulfilment } from './customerOrders'
 import { createClient } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -61,7 +62,8 @@ export interface PaymentRow {
 export interface DocRow {
   id: string
   store_id: string
-  doc_type: 'Quote' | 'Tax Invoice'
+  doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order'
+  fulfilment?: Fulfilment | null // customer orders only: where the order is up to
   doc_number: string
   customer_name: string
   total_cents: number
