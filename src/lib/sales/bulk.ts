@@ -24,6 +24,8 @@ export const sameTotals = (a: Totals, b: Totals) => a.rows === b.rows && cents(a
 const sum = <T,>(rows: T[], f: (x: T) => number): number => rows.reduce((t, x) => t + f(x), 0)
 const why = (checks: Check[]) => failures(checks).filter((c) => c.blocking).slice(0, 5).map((c) => `${c.label}: ${c.detail}`)
 const notes = (checks: Check[]) => failures(checks).filter((c) => !c.blocking).slice(0, 5).map((c) => `${c.label}: ${c.detail}`)
+/** The error's own words; a blank message is never shown as a blank. */
+const exact = (e: unknown, fallback: string) => (e instanceof Error && e.message.trim() ? e.message : fallback + ' It stopped without giving a reason.')
 const bytes = async (f: BulkFile) => new Uint8Array(await f.arrayBuffer())
 
 export function initialState(plan: FolderPlan<BulkFile>): WeekState[] {
@@ -69,7 +71,7 @@ export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: St
           notes: wk === top ? [`This file holds weeks 1 to ${top} of FY${String(fy).slice(-2)}; all of them are ${ctx.dryRun ? 'checked' : 'saved'}.`, ...notes(checks), ...(unmatched.length ? [`Stores in the report that this app does not have, so no store sees them: ${unmatched.join(', ')}.`] : [])] : undefined,
         })
       }
-    } catch (e) { put(fy, top, 'weekly', { status: 'error', why: [e instanceof Error ? e.message : 'Could not save.'] }) }
+    } catch (e) { put(fy, top, 'weekly', { status: 'error', why: [exact(e, 'Could not save.')] }) }
   }
 
   // 2. Each week's daily and item reports, oldest first, compared with the weekly report of the same week (or the next one that holds it).
@@ -90,7 +92,7 @@ export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: St
           if (!ctx.dryRun) await salesApi.importDaily(d, ctx.stores, ctx.email)
           put(w.fy, w.week, 'daily', { status: ok, source: { rows: r.rows.length, a: sum(r.rows, (x) => x.ty), b: sum(r.rows, (x) => x.ly) }, notes: [...notes(checks), ...(r.preview.unmatched.length ? [`Not in this app, so left out: ${r.preview.unmatched.join(', ')}.`] : [])] })
         }
-      } catch (e) { put(w.fy, w.week, 'daily', { status: 'error', why: [e instanceof Error ? e.message : 'Could not read the file.'] }) }
+      } catch (e) { put(w.fy, w.week, 'daily', { status: 'error', why: [exact(e, 'Could not read the file.')] }) }
     }
 
     if (stop()) break
@@ -103,10 +105,10 @@ export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: St
         else {
           const r = detailedRows(d, ix)
           const kept = dedupeItems(r.rows)
-          if (!ctx.dryRun) await salesApi.importDetailed(d, ctx.stores, ctx.email, (n, total) => put(w.fy, w.week, 'detailed', { status: 'working', notes: [`Saving ${n.toLocaleString('en-AU')} of ${total.toLocaleString('en-AU')} rows`] }))
-          put(w.fy, w.week, 'detailed', { status: ok, source: { rows: kept.length, a: sum(kept, (x) => x.net_sales), b: sum(kept, (x) => x.qty) }, notes: [...notes(checks), ...(r.preview.unmatched.length ? [`Not in this app, so left out: ${r.preview.unmatched.join(', ')}.`] : [])] })
+          const saved = ctx.dryRun ? undefined : await salesApi.importDetailed(d, ctx.stores, ctx.email, (n, total) => put(w.fy, w.week, 'detailed', { status: 'working', notes: [`Saving ${n.toLocaleString('en-AU')} of ${total.toLocaleString('en-AU')} rows`] }))
+          put(w.fy, w.week, 'detailed', { status: ok, source: { rows: kept.length, a: sum(kept, (x) => x.net_sales), b: sum(kept, (x) => x.qty) }, notes: [...notes(checks), ...(saved?.note ? [saved.note] : []), ...(r.preview.unmatched.length ? [`Not in this app, so left out: ${r.preview.unmatched.join(', ')}.`] : [])] })
         }
-      } catch (e) { put(w.fy, w.week, 'detailed', { status: 'error', why: [e instanceof Error ? e.message : 'Could not read the file.'] }) }
+      } catch (e) { put(w.fy, w.week, 'detailed', { status: 'error', why: [exact(e, 'Could not read the file.')] }) }
     }
   }
 

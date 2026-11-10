@@ -90,7 +90,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
       track('upload', { report: p.kind, week: weekOf(p).week })
       return true
     } catch (err) {
-      patch(e.id, { phase: 'error', error: err instanceof Error ? err.message : 'Could not save.' })
+      patch(e.id, { phase: 'error', error: err instanceof Error && err.message.trim() ? err.message : 'Could not save. It stopped without giving a reason.' })
       return false
     }
   }

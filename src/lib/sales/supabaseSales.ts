@@ -9,7 +9,17 @@ const db = () => {
   return supabase
 }
 const PAGE = 1000
-const fail = (e: { message: string } | null) => { if (e) throw new Error(e.message) }
+const KEEP_WEEKS = 60 // item rows are kept for each week, for more than a year, so an item's sales build up week by week
+/** Throws the database's own error. A gateway or timeout error can come back with an empty message, so every part it gave is shown. */
+const fail = (e: { message: string; details?: string | null; hint?: string | null; code?: string | null } | null) => {
+  if (!e) return
+  const parts = [e.message, e.details, e.hint, e.code ? `code ${e.code}` : ''].filter((x): x is string => !!x && x.trim() !== '')
+  throw new Error(parts.length ? parts.join('. ') : 'The database stopped the request without giving a reason. This usually means it timed out; try again.')
+}
+/** Names the step an error happened in, so the screen can say exactly what failed. */
+async function stage<T>(label: string, f: () => PromiseLike<T> | T): Promise<T> {
+  try { return await f() } catch (e) { throw new Error(`${label}: ${e instanceof Error && e.message ? e.message : 'no message was given'}`) }
+}
 
 /** Supabase returns at most 1,000 rows a request, so read in pages until one comes back short. */
 async function pages<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
@@ -147,16 +157,23 @@ export const supabaseSalesApi: SalesApi = {
     const { rows: all, preview } = detailedRows(r, indexStores(stores))
     const rows = dedupeItems(all) // one row per store and item, whatever the sheet repeats
     // The week's old rows go first, so a corrected file replaces the earlier one instead of leaving stale items behind.
-    const { error } = await db().from('sales_item_week').delete().eq('fy', r.week.fy).eq('week', r.week.week)
-    fail(error)
-    await writeBatches('sales_item_week', rows.map((x) => ({ fy: x.fy, week: x.week, store_id: x.store_id, item_code: x.item_code, description: x.description, vendor_no: x.vendor_no, division: x.division,
+    await stage('Clearing this week’s old item rows', async () => {
+      const { error } = await db().rpc('sales_week_clear', { p_fy: r.week.fy, p_week: r.week.week }) // one step in the database: a week can be 80,000+ rows
+      fail(error)
+    })
+    await stage('Saving the item rows', () => writeBatches('sales_item_week', rows.map((x) => ({ fy: x.fy, week: x.week, store_id: x.store_id, item_code: x.item_code, description: x.description, vendor_no: x.vendor_no, division: x.division,
       qty: x.qty, net_sales: x.net_sales, store_rank: x.store_rank, group_qty: x.group_qty, group_net: x.group_net, stores_stocking: x.stores_stocking, business_rank: x.business_rank,
-      potential_sales: x.potential_sales, potential_loss: x.potential_loss, moq: x.moq })), 'fy,week,store_id,item_code', 1000, (done) => onProgress(done, rows.length))
-    const keep = await db().rpc('sales_prune', { p_keep_weeks: 26 })
-    fail(keep.error)
-    await verifyCount('sales_item_week', { fy: r.week.fy, week: r.week.week }, rows.length, 'Detailed sales')
-    await log('detailed', r.week.fy, r.week.week, rows.length, by)
-    return { rows: rows.length, unmatched: preview.unmatched }
+      potential_sales: x.potential_sales, potential_loss: x.potential_loss, moq: x.moq })), 'fy,week,store_id,item_code', 1000, (done) => onProgress(done, rows.length)))
+    await stage('Counting what was saved', async () => {
+      const { data, error } = await db().rpc('sales_week_count', { p_fy: r.week.fy, p_week: r.week.week })
+      fail(error)
+      if (Number(data) !== rows.length) throw new Error(`Detailed sales: ${rows.length} rows were sent but the database holds ${data}. Run the import again.`)
+    })
+    await stage('Recording the upload', () => log('detailed', r.week.fy, r.week.week, rows.length, by))
+    // Housekeeping only, after everything above has been saved and counted: it must never fail an import. It keeps a year of weeks.
+    let note: string | undefined
+    try { const keep = await db().rpc('sales_prune', { p_keep_weeks: KEEP_WEEKS }); fail(keep.error) } catch (e) { note = `The item rows are saved. Clearing weeks older than ${KEEP_WEEKS} did not run: ${e instanceof Error ? e.message : String(e)}` }
+    return { rows: rows.length, unmatched: preview.unmatched, note }
   },
   async importDaily(r, stores, by) {
     const { rows, preview } = dailyRows(r, indexStores(stores))

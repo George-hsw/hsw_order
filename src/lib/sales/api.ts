@@ -8,7 +8,7 @@ import { supabaseSalesApi } from './supabaseSales'
 export interface UploadRecord { id: number; kind: ReportKind; fy: number; week: number; row_count: number; uploaded_by: string; uploaded_at: string }
 /** An item found by scanning or typing its code or barcode, with this store's stock. */
 export interface ItemInfo { code: string; description: string; vendor_no: string | null; division: string | null; barcode: string | null; inventory: number; moq: number }
-export interface ImportResult { rows: number; unmatched: string[] }
+export interface ImportResult { rows: number; unmatched: string[]; note?: string }
 
 /** Everything the Sales tab reads and the admin's upload writes. Row Level Security decides what a store may see; the screens never filter for it. */
 export interface SalesApi {
