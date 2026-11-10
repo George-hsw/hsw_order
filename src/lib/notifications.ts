@@ -6,6 +6,7 @@ import { money } from './order'
 import type { Tab } from './sections'
 import type { Finding } from './analytics/model'
 import type { OrderNeed } from './suggest'
+import { movCheck } from './mov'
 
 export type Level = 'bad' | 'warn' | 'info'
 /** Where a notice's button goes. `vendor` and `show` open the Order tab on that vendor, filtered. */
@@ -21,7 +22,7 @@ export const NEW_CAP = 2
 
 export interface StoreRef { id: string; name: string }
 export interface Counted { store_id: string; vendor_no: string; items: number }
-export interface OrderRef { store_id: string; vendor_no: string; status: string; copied_at: string | null }
+export interface OrderRef { store_id: string; vendor_no: string; status: string; copied_at: string | null; cost?: number }
 export interface OverdueInvoice { store_id: string; doc_number: string; customer_name: string; balance_cents: number; due_date: string }
 export interface SyncRef { store_id: string; finished_at: string; ok: boolean; message: string | null }
 
@@ -107,7 +108,12 @@ export function buildNotices(i: NoticeInput): Notice[] {
   if (low.length > LOW_CAP) out.push({ key: 'low:more', level: 'warn', group: 'Stock', title: `${plural(low.length - LOW_CAP, 'more vendor')} with items running low`, detail: `${low.slice(LOW_CAP).reduce((a, l) => a + l.items, 0)} items in all. Choose a vendor on the Order tab and use its Low stock filter.`, go: { view: 'order' } })
   // What needs ordering, a vendor at a time, biggest first: a customer waiting makes it urgent. The Order page opens on that vendor's prepared order.
   if (i.orderNeeds) {
-    const needs = [...i.orderNeeds].filter((n) => n.items > 0).sort((a, b) => b.cost - a.cost || a.vendor_no.localeCompare(b.vendor_no) || a.store_id.localeCompare(b.store_id))
+    // A suggestion under the vendor's minimum order value is not worth an order yet, so it is held back from the bell. It stays on the Order page, marked.
+    // What is already in an open order for that vendor counts towards the minimum. A customer waiting is never held back.
+    const openCost = new Map<string, number>()
+    for (const o of i.orders) if (o.status === 'open') openCost.set(`${o.store_id}:${o.vendor_no}`, (openCost.get(`${o.store_id}:${o.vendor_no}`) ?? 0) + (o.cost ?? 0))
+    const heldBack = (n: OrderNeed) => n.customers === 0 && movCheck(n.vendor_no, n.cost + (openCost.get(`${n.store_id}:${n.vendor_no}`) ?? 0))?.met === false
+    const needs = [...i.orderNeeds].filter((n) => n.items > 0 && !heldBack(n)).sort((a, b) => b.cost - a.cost || a.vendor_no.localeCompare(b.vendor_no) || a.store_id.localeCompare(b.store_id))
     for (const n of needs.slice(0, LOW_CAP)) {
       out.push({
         key: `need:${n.store_id}:${n.vendor_no}`, level: n.customers > 0 ? 'bad' : 'warn', group: 'Stock',

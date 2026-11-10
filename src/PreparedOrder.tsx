@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Loading from './Loading'
 import { money } from './lib/order'
+import { movCheck } from './lib/mov'
+import MovFlag from './MovFlag'
 
 export interface PrepLine { code: string; description: string; qty: number; cost: number; why: string; brief: string; hold: boolean; stock: number; moq: number }
 
@@ -11,8 +13,8 @@ const toQty = (text: string) => { const n = parseInt(text.replace(/\D/g, ''), 10
  * The person changes any quantity or unticks a line, then adds the lot to the order in one go. Items whose minimum order is a very long time
  * of sales are listed unticked, for the person to decide. Nothing is saved until the button is pressed.
  */
-export default function PreparedOrder({ vendor, weeks, lines, loading, busy, added, onAdd, onUndo }: {
-  vendor: string; weeks: number; lines: PrepLine[]; loading: boolean; busy: boolean; added: number
+export default function PreparedOrder({ vendor, weeks, orderCost, lines, loading, busy, added, onAdd, onUndo }: {
+  vendor: string; weeks: number; orderCost: number; lines: PrepLine[]; loading: boolean; busy: boolean; added: number
   onAdd: (entries: { code: string; qty: number }[]) => void; onUndo: () => void
 }) {
   const [qty, setQty] = useState<Record<string, string>>({})
@@ -25,6 +27,7 @@ export default function PreparedOrder({ vendor, weeks, lines, loading, busy, add
   const cost = chosen.reduce((a, l) => a + toQty(valueOf(l)) * l.cost, 0)
   const edited = Object.keys(qty).length > 0 || Object.keys(checked).length > 0
   const decide = lines.filter((l) => l.hold).length
+  const mov = chosen.length > 0 ? movCheck(vendor, orderCost + cost) : null // what is already on the order counts towards the minimum
 
   if (loading) return <Loading rows={4} />
   return (
@@ -49,6 +52,7 @@ export default function PreparedOrder({ vendor, weeks, lines, loading, busy, add
             </div>
           </div>
           <p className="prepsum"><b>{chosen.length}</b> {chosen.length === 1 ? 'line' : 'lines'}, <b>{units.toLocaleString('en-AU')}</b> {units === 1 ? 'unit' : 'units'}, about <b>{money(cost)}</b> at cost.{decide > 0 && <> {decide} {decide === 1 ? 'line is' : 'lines are'} unticked for you to decide, because one minimum order lasts a very long time.</>}</p>
+          {mov && !mov.met && <MovFlag check={mov} total={orderCost + cost} />}
           <div className="tablewrap">
             <table className="book prep">
               <thead><tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">MOQ</th><th className="r">Suggested</th><th className="r">Order qty</th><th className="r">Cost</th></tr></thead>

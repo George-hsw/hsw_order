@@ -145,4 +145,16 @@ describe('what needs ordering', () => {
   it('says nothing for a vendor with only items for the person to decide', () => {
     expect(buildNotices(base({ orderNeeds: [need('V1', 0, 0, 0, 2)] }))).toEqual([])
   })
+  it('holds back a suggestion under the vendor’s minimum order value, but not one that reaches it', () => {
+    const n = buildNotices(base({ orderNeeds: [need('ANAS001', 3, 600), need('KESR001', 3, 300), need('V1', 2, 20)] })) // ANA needs 750, KES 300, V1 has none
+    expect(n.map((x) => x.key)).toEqual(['need:s1:KESR001', 'need:s1:V1'])
+  })
+  it('does not hold back under-minimum needs when a customer is waiting', () => {
+    expect(buildNotices(base({ orderNeeds: [need('ANAS001', 1, 40, 1)] })).map((x) => x.key)).toEqual(['need:s1:ANAS001'])
+  })
+  it('counts an open order for the vendor towards the minimum', () => {
+    const open = (cost: number) => [{ store_id: 's1', vendor_no: 'ANAS001', status: 'open', copied_at: null, cost }]
+    expect(buildNotices(base({ orderNeeds: [need('ANAS001', 1, 40)], orders: open(400) })).map((x) => x.key)).toEqual([]) // 440 of 750: still held
+    expect(buildNotices(base({ orderNeeds: [need('ANAS001', 1, 40)], orders: open(710) })).map((x) => x.key)).toEqual(['need:s1:ANAS001']) // 750 reached
+  })
 })

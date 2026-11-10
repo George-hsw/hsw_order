@@ -895,3 +895,30 @@ table.book.prep .why { min-height: 32px; padding: 0; }
 .state.compact { padding: var(--space-sm) var(--space-lg); background: none; border-top: 0; }
 .state.compact p:first-child { font-size: var(--text-md); }
 @media (max-width: 44rem) { table.book.prep td[data-label="Item"]::before { display: none; } .needs ul.people > li .person-actions { width: 100%; } .needs ul.people > li .person-actions .btn { width: 100%; } }
+
+/* The Review flag shown when an order is under the supplier's minimum order value, and the panel it opens. */
+.movflag { position: relative; display: inline-block; }
+.movflag-btn { display: inline-flex; align-items: center; gap: var(--space-2xs); min-height: var(--hit); padding: 0 var(--space-sm); border: var(--rule-hair) solid var(--color-warn); border-radius: var(--radius-pill); background: var(--color-warn-soft); color: var(--color-warn); font-weight: 600; font-size: var(--text-sm); cursor: pointer; transition: background var(--dur-micro) var(--ease-out); }
+.movflag-btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+.movflag-btn[aria-expanded="true"] { background: var(--color-paper-2); }
+.movflag-i { flex: none; }
+.movflag-panel { display: grid; gap: var(--space-sm); margin-top: var(--space-xs); padding: var(--space-md); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); background: var(--color-paper-2); box-shadow: var(--shadow-card); text-align: left; font-weight: 400; }
+.movflag.float .movflag-panel { position: absolute; bottom: calc(100% + var(--space-xs)); left: 0; width: min(22rem, calc(100vw - 2 * var(--space-md))); margin-top: 0; box-shadow: var(--shadow-lift); z-index: var(--z-sticky); }
+.movflag-panel p { margin: 0; }
+.movflag-title { font-weight: 600; color: var(--color-ink); }
+.movflag-meter { height: 8px; border-radius: 4px; overflow: hidden; background: var(--color-paper-3); }
+.movflag-meter span { display: block; height: 100%; background: var(--color-warn); transform-origin: left; }
+.movflag-figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); margin: 0; }
+.movflag-figs dt { font-size: var(--text-sm); color: var(--color-ink-2); }
+.movflag-figs dd { margin: 0; font-weight: 600; }
+.movflag-figs .need dd { color: var(--color-warn); }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes movflag-in { from { opacity: 0; transform: translateY(-6px); } }
+  @keyframes movflag-up { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes movflag-fill { from { transform: scaleX(0); } }
+  .movflag-panel { animation: movflag-in var(--dur-short) var(--ease-out) backwards; }
+  .movflag.float .movflag-panel { animation-name: movflag-up; }
+  .movflag-meter span { animation: movflag-fill var(--dur-long) var(--ease-out) 80ms backwards; }
+  .movflag-figs > div { animation: rise var(--dur-short) var(--ease-out) backwards; }
+  .movflag-figs > div:nth-child(2) { animation-delay: 50ms; } .movflag-figs > div:nth-child(3) { animation-delay: 100ms; }
+}

@@ -8,6 +8,8 @@ import PreparedOrder, { type PrepLine } from './PreparedOrder'
 import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
 import { suggestLine, type OrderNeed, type Suggestion } from './lib/suggest'
+import { movCheck } from './lib/mov'
+import MovFlag from './MovFlag'
 import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
 import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
@@ -352,6 +354,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   }
 
   const t = totals(lines)
+  const mov = t.lines > 0 ? movCheck(vendor, t.cost) : null // the vendor's minimum order value, once there is something on the order
   const moqShort = range.filter((p) => { const l = lineOf.get(p.item.code); return !!l && moqNote(l.qty, p.stock?.moq ?? 1) !== null }).length // lines that do not meet their MOQ
   const editedAfterCopy = !!order?.copied_at && lines.some((l) => l.updated_at > order.copied_at!)
   const storeName = stores.find((s) => s.id === storeId)?.name ?? ''
@@ -417,6 +420,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                           <b>{n.vendor_no}</b>
                           <span className="muted">{n.items} {n.items === 1 ? 'item' : 'items'}, {n.units.toLocaleString('en-AU')} units, about {money(n.cost)}</span>
                           {n.customers > 0 && <span className="chip bad">{n.customers} for waiting customers</span>}
+                          {(() => { const open = drafts.find((d) => d.vendor_no === n.vendor_no && d.status === 'open'); const m = movCheck(n.vendor_no, n.cost + (open?.cost ?? 0)); return m && !m.met ? <span className="chip warn">Review: below {money(m.mov)} minimum</span> : null })()}
                           {n.held > 0 && <span className="chip warn">{n.held} for you to decide</span>}
                         </div>
                         <div className="person-actions"><button type="button" className="btn primary" onClick={() => chooseVendor(n.vendor_no)}>Review the order</button></div>
@@ -506,7 +510,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                     <button type="button" aria-pressed={activePane === 'items'} onClick={() => setPane('items')}>All items ({range.length})</button>
                   </div>
                 )}
-                {enough && range.length > 0 && activePane === 'suggested' && <PreparedOrder vendor={vendor} weeks={target} lines={prepLines} loading={rates === null} busy={filling} added={stillFilled.length} onAdd={(e) => void fillSuggested(e)} onUndo={() => void undoFilled()} />}
+                {enough && range.length > 0 && activePane === 'suggested' && <PreparedOrder vendor={vendor} weeks={target} orderCost={t.cost} lines={prepLines} loading={rates === null} busy={filling} added={stillFilled.length} onAdd={(e) => void fillSuggested(e)} onUndo={() => void undoFilled()} />}
 
                 {activePane === 'items' && (<>
                 <div className="orderbar">
@@ -614,6 +618,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                   <dt className="total">Cost</dt><dd className="total">{money(t.cost)}</dd>
                 </dl>
                 {moqShort > 0 && <p className="chk error" role="alert">MOQ not met on {moqShort} {moqShort === 1 ? 'line' : 'lines'}. Check before you copy.</p>}
+                {mov && !mov.met && <MovFlag check={mov} total={t.cost} />}
                 <dl className="ledger-meta">
                   <dt>Vendor</dt><dd>{vendor}</dd>
                   <dt>Status</dt><dd>{order ? <StatusChip status={order.status} /> : 'Not started'}</dd>
@@ -635,7 +640,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
           </div>
 
           <div className="stickybar">
-            <div><small>{vendor} · {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b>{moqShort > 0 && <small className="chk error">MOQ not met on {moqShort}</small>}</div>
+            <div><small>{vendor} · {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b>{moqShort > 0 && <small className="chk error">MOQ not met on {moqShort}</small>}{mov && !mov.met && <MovFlag check={mov} total={t.cost} float />}</div>
             <button type="button" className={'btn primary' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
           </div>
 
