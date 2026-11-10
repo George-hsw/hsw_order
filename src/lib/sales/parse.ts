@@ -20,7 +20,7 @@ export const TAB_STORE: Record<string, string> = {
 }
 
 /** A store name reduced so "Mt Gravatt", "Mt. Gravatt" and "Mount Gravatt" are the same key. */
-export const storeKey = (name: string) => name.toLowerCase().replace(/\bmount\b/g, 'mt').replace(/[^a-z0-9]/g, '')
+export const storeKey = (name: string) => name.toLowerCase().replace(/\((company|franchise|fran|co)\)/g, '').replace(/\bmount\b/g, 'mt').replace(/[^a-z0-9]/g, '') // "Artarmon (Company)", as older reports write company stores, is "Artarmon"
 
 /** Which report a file is, from its name. */
 export function kindOf(fileName: string): ReportKind | null {
@@ -123,7 +123,8 @@ export function parseDetailed(data: Uint8Array, fileName: string): DetailedResul
   }
   const have = new Set(sheets.map((s) => s.tab))
   const gone = Object.keys(TAB_STORE).filter((t) => !have.has(t))
-  format.push(fmt('All store sheets present', gone.length === 0, `Missing or unreadable: ${gone.join(', ')}.`))
+  // Not blocking by itself: a store that was not trading that week has no sheet. The weekly report decides (see crossDetailed): a store with sales but no sheet blocks.
+  format.push({ ...fmt('All store sheets present', gone.length === 0, `No sheet for: ${gone.join(', ')}. That is fine for a store that was not trading that week.`), blocking: false })
   if (!week) throw new Error('I cannot tell which week this is. Put it in the file name, like "Week10".')
   return { week: { fy, week }, sheets, warnings, format }
 }

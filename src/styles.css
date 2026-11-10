@@ -792,3 +792,13 @@ button, a, select, summary, label { touch-action: manipulation; }
   .notice:nth-child(2) { animation-delay: 40ms; } .notice:nth-child(3) { animation-delay: 80ms; } .notice:nth-child(4) { animation-delay: 120ms; } .notice:nth-child(n+5) { animation-delay: 160ms; }
   .tansel-result .note { animation: rise var(--dur-short) var(--ease-out) both; }
 }
+
+/* ---------- Load a folder of past weeks ---------- */
+.fweeks { list-style: none; margin: var(--space-md) 0 0; padding: 0; display: grid; gap: var(--space-md); }
+.fweeks > li { padding: var(--space-sm) var(--space-md); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); display: grid; gap: var(--space-sm); }
+.fweeks h4 { margin: 0; font-size: var(--text-md); }
+.fcell { display: grid; gap: var(--space-2xs); padding-top: var(--space-xs); border-top: var(--rule-hair) solid var(--color-rule); }
+.fhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+.fcell .tlist { margin-top: var(--space-2xs); }
+.fcell .note { margin: var(--space-2xs) 0 0; }
+.fnote { display: block; }

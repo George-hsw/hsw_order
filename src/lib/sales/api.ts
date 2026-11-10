@@ -34,13 +34,19 @@ export interface SalesApi {
   importWeekly(r: WeeklyResult, stores: StoreRow[], by: string): Promise<ImportResult>
   importDetailed(r: DetailedResult, stores: StoreRow[], by: string, onProgress: (done: number, total: number) => void): Promise<ImportResult>
   importDaily(r: DailyResult, stores: StoreRow[], by: string): Promise<ImportResult>
+  /** What is saved for each week of a year, added up (rows and two totals for each report). Used to check an import against its files. */
+  yearTotals(fy: number): Promise<SavedTotals[]>
 }
+
+export type SavedSource = 'weekly' | 'items' | 'days'
+/** weekly: a = this year's sales, b = last year's; items: a = net sales, b = units; days: a = this year, b = last year. */
+export interface SavedTotals { week: number; source: SavedSource; rows: number; a: number; b: number }
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: SalesApi = {
   weeks: async () => notConnected(), history: async () => notConnected(), days: async () => notConnected(), ranks: async () => notConnected(), chain: async () => notConnected(),
   items: async () => notConnected(), itemHistory: async () => notConnected(), itemRates: async () => notConnected(), lookupItem: async () => notConnected(), league: async () => notConnected(), uploads: async () => notConnected(), importWeekly: async () => notConnected(),
-  importDetailed: async () => notConnected(), importDaily: async () => notConnected(),
+  importDetailed: async () => notConnected(), importDaily: async () => notConnected(), yearTotals: async () => notConnected(),
 }
 
 export const salesApi: SalesApi = DEMO ? demoSalesApi : supabase ? supabaseSalesApi : offline

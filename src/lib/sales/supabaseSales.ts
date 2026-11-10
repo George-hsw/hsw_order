@@ -1,7 +1,7 @@
 import { supabase, type StoreRow } from '../supabase'
 import { RATE_WEEKS, ratesFrom } from '../insights'
-import type { ItemInfo, SalesApi, UploadRecord } from './api'
-import { dailyRows, detailedRows, indexStores, weeklyRows } from './import'
+import type { ItemInfo, SalesApi, SavedSource, UploadRecord } from './api'
+import { dailyRows, dedupeItems, detailedRows, indexStores, weeklyRows } from './import'
 import type { ChainWeek, ItemSale, ItemWeek, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'
 
 const db = () => {
@@ -121,6 +121,12 @@ export const supabaseSalesApi: SalesApi = {
     return (data ?? []) as UploadRecord[]
   },
 
+  async yearTotals(fy) {
+    const { data, error } = await db().rpc('sales_year_totals', { p_fy: fy })
+    fail(error)
+    return ((data ?? []) as { week: number; source: SavedSource; row_count: number | string; a: number | string; b: number | string }[]).map((x) => ({ week: x.week, source: x.source, rows: Number(x.row_count), a: Number(x.a), b: Number(x.b) }))
+  },
+
   async importWeekly(r, stores: StoreRow[], by) {
     const { rows, preview } = weeklyRows(r, indexStores(stores))
     await writeBatches('sales_weeks', r.weeks.filter((w) => w.week_start).map((w) => ({ fy: w.fy, week: w.week, week_start: w.week_start, week_end: w.week_end })), 'fy,week', 200)
@@ -139,7 +145,7 @@ export const supabaseSalesApi: SalesApi = {
   },
   async importDetailed(r, stores, by, onProgress) {
     const { rows: all, preview } = detailedRows(r, indexStores(stores))
-    const rows = [...new Map(all.map((x) => [x.store_id + "|" + x.item_code, x])).values()] // one row per store and item, whatever the sheet repeats
+    const rows = dedupeItems(all) // one row per store and item, whatever the sheet repeats
     // The week's old rows go first, so a corrected file replaces the earlier one instead of leaving stale items behind.
     const { error } = await db().from('sales_item_week').delete().eq('fy', r.week.fy).eq('week', r.week.week)
     fail(error)

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import SalesFolder from './SalesFolder'
 import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
 import { track } from './lib/analytics/track'
@@ -110,6 +111,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
 
   return (
     <div className="viz-stack">
+      <SalesFolder email={email} stores={stores} onLoaded={onLoaded} />
       <section className="sheet viz-card">
         <div className="viz-head"><div><h2>Load this week’s reports</h2><p className="muted">Choose the three Power BI files. They are read in your browser and checked first; only the figures are saved, never the files. Stores see only their own rows.</p></div></div>
         <div className={`drop${over ? ' over' : ''}`}

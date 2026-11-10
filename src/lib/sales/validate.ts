@@ -1,6 +1,6 @@
 // The gate before anything is saved. Every figure that goes in must agree with a total the report states for itself, or with another
 // report of the same week. A failed check blocks the import: a wrong number in front of a store is worse than a late one.
-import { storeKey, type DailyResult, type DetailedResult, type WeeklyResult } from './parse'
+import { storeKey, TAB_STORE, type DailyResult, type DetailedResult, type WeeklyResult } from './parse'
 
 export interface Check { label: string; ok: boolean; detail: string; blocking: boolean }
 
@@ -75,6 +75,17 @@ export function crossDetailed(weekly: WeeklyResult, detailed: DetailedResult): C
     if (!w) { out.push({ label: `${s.store_name ?? s.tab}: found in the weekly report`, ok: false, blocking: true, detail: 'No store with this name in the weekly report for the same week.' }); continue }
     out.push({ label: `${s.store_name}: stock matches the weekly report`, ok: near(s.totals.header_stock, w.stock, 1), blocking: true,
       detail: `The sheet's stock at cost is ${n2(s.totals.header_stock)} but the weekly report has ${n2(w.stock)} for ${w.store_name}. The sheet may belong to a different store.` })
+    // The items a store sold in a week are part of what it sold in that week, so they cannot add up to more than its weekly sales. Across the real
+    // FY27 weeks the item sheets come to 71% to 90% of the weekly sales; a sheet above 102% holds figures from somewhere else.
+    if (w.ty_sales > 0) out.push({ label: `${s.store_name}: item sales fit inside the week's sales`, ok: s.totals.sum_net <= w.ty_sales * 1.02, blocking: true,
+      detail: `The item sheet adds up to ${n2(s.totals.sum_net)} of net sales but the weekly report says the whole store sold ${n2(w.ty_sales)}. The sheet probably holds another week or another store.` })
+  }
+  // A store the weekly report shows trading but with no sheet here is shown, never hidden: its items are missing for this week. The other stores
+  // are still right, so this does not block (the first weeks of FY27 came without a Cambridge sheet).
+  const have = new Set(detailed.sheets.map((s) => storeKey(s.store_name ?? s.tab)))
+  for (const [tab, name] of Object.entries(TAB_STORE)) {
+    const w = have.has(storeKey(name)) ? undefined : wk.get(storeKey(name))
+    if (w && w.co_fran !== 'Closed' && w.co_fran !== 'eShop' && w.ty_sales !== 0) out.push({ label: `${name}: items missing this week`, ok: false, blocking: false, detail: `The weekly report shows ${n2(w.ty_sales)} of sales for ${name} but this file has no ${tab} sheet, so ${name} has no item figures for this week.` })
   }
   return out
 }

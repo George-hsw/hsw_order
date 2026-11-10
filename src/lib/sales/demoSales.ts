@@ -127,6 +127,7 @@ export const demoSalesApi: SalesApi = {
   },
   league: (w) => wait(allWeeks().filter((x) => x.week === w.week)),
   uploads: () => wait(uploads),
+  yearTotals: () => wait([]),
   importWeekly: async () => { throw new Error('Demo mode: nothing is saved.') },
   importDetailed: async () => { throw new Error('Demo mode: nothing is saved.') },
   importDaily: async () => { throw new Error('Demo mode: nothing is saved.') },

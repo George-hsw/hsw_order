@@ -26,6 +26,9 @@ export function weeklyRows(r: WeeklyResult, ix: StoreIndex): { rows: StoreWeek[]
   return { rows, preview: { label: 'Weekly sales', matched: trading.filter((w) => w.store_id).length, total: trading.length, unmatched: [...unmatched] } }
 }
 
+/** One row for each store and item, whatever the sheet repeats. The same rule the import saves with, so the check can add up exactly what is saved. */
+export const dedupeItems = <T extends { store_id: string; item_code: string }>(rows: T[]): T[] => [...new Map(rows.map((x) => [x.store_id + '|' + x.item_code, x])).values()]
+
 export function detailedRows(r: DetailedResult, ix: StoreIndex): { rows: (Omit<ItemSale, 'inventory'> & { store_id: string; fy: number; week: number })[]; preview: Preview } {
   const unmatched: string[] = []
   const rows: (Omit<ItemSale, 'inventory'> & { store_id: string; fy: number; week: number })[] = []
