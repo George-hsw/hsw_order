@@ -11,12 +11,12 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
-  { id: 'quote', label: 'Quote', blurb: 'Make quotes and tax invoices, and take deposits and payments.',
-    tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }] },
+  { id: 'quote', label: 'Quote', blurb: 'Make quotes and tax invoices, take deposits and payments, and work out Tansel pull-outs for a cabinet.',
+    tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }, { tab: 'tansel', label: 'Tansel' }] },
   { id: 'order', label: 'Order', blurb: 'Order stock for your store, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order' }, { tab: 'orders', label: 'Orders' }] },
-  { id: 'price', label: 'Store tools', blurb: 'Check a price, print a price label, and work out which Tansel pull-outs fit a cabinet.',
-    tabs: [{ tab: 'price', label: 'Price check' }, { tab: 'tansel', label: 'Tansel pull-outs' }] },
+  { id: 'price', label: 'Price check', blurb: 'Scan or search any item for its price, stock here and recent sales. Print a price label.',
+    tabs: [{ tab: 'price', label: 'Price check' }] },
   { id: 'sales', label: 'Sales', blurb: 'See how your store is selling and what to act on.',
     tabs: [{ tab: 'sales', label: 'Sales' }] },
   { id: 'admin', label: 'Admin', blurb: 'Usage and errors, stores and people.', adminOnly: true,

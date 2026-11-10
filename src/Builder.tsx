@@ -25,6 +25,7 @@ interface Props {
   canPay: (storeId: string) => boolean // anyone in the store, and the admin, can record a deposit or payment
   onSaved: () => void
   onNew: () => void // reset to a fresh builder
+  seed?: Line[] | null // a new quote that starts with these lines (from the Tansel finder)
 }
 
 const normalise = (d: Partial<QuoteInput> | undefined): QuoteInput => {
@@ -37,12 +38,13 @@ const normalise = (d: Partial<QuoteInput> | undefined): QuoteInput => {
   }
 }
 
-export default function Builder({ email, isAdmin, stores: storeRows, openDoc, canPay, onSaved, onNew }: Props) {
+export default function Builder({ email, isAdmin, stores: storeRows, openDoc, canPay, onSaved, onNew, seed }: Props) {
   const draftKey = `hsw-quote-draft:${email}`
   const toast = useToast()
   const [ask, confirmDialog] = useConfirm()
   const [quote, setQuote] = useState<QuoteInput>(() => {
     if (openDoc) return normalise(openDoc.payload as QuoteInput)
+    if (seed?.length) return normalise({ lines: seed })
     try {
       const raw = localStorage.getItem(draftKey)
       if (raw) return normalise(JSON.parse(raw))

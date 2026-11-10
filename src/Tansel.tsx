@@ -5,6 +5,8 @@ import { money, type Product } from './lib/order'
 import { BLANK, EXAMPLE, fit, type CabinetInput, type Hinges, type MountPref, type Product as Kind, type RackModel } from './lib/tansel'
 import type { StoreRow } from './lib/supabase'
 import { useToast } from './Toast'
+import { useConfirm } from './Confirm'
+import type { Line } from './lib/quote'
 
 const STORE_KEY = 'hsw-orders-store'
 const KEEP_KEY = 'hsw-tansel'
@@ -35,8 +37,9 @@ function Num({ label, hint, value, onChange, name }: { label: string; hint?: str
  * spreadsheet, moved into the app, so there is nothing to save or keep up to date on a computer. Each code on the list is
  * looked up in the item list for its price and stock.
  */
-export default function Tansel({ stores, multi }: { stores: StoreRow[]; multi: boolean }) {
+export default function Tansel({ stores, multi, draftKey, onQuote }: { stores: StoreRow[]; multi: boolean; draftKey: string; onQuote: (lines: Line[]) => void }) {
   const toast = useToast()
+  const [ask, confirmDialog] = useConfirm()
   const [cabs, setCabs] = useState<CabinetInput[]>(loadKept)
   const [at, setAt] = useState(0)
   const [storeId, setStoreId] = useState(() => { try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ } return stores[0]?.id ?? '' })
@@ -70,6 +73,15 @@ export default function Tansel({ stores, multi }: { stores: StoreRow[]; multi: b
   const copyCodes = async () => {
     const text = r.codes.map((x) => `${x.code}\t${x.qty}`).join('\n')
     try { await navigator.clipboard.writeText(text); toast.success('The code list is copied.') } catch { toast.error('Could not copy. Select the codes and copy them by hand.') }
+  }
+
+  // A new quote with these codes and quantities. If there is an unfinished quote on this device, ask before replacing it.
+  const startQuote = async () => {
+    let busy = false
+    try { const d = JSON.parse(localStorage.getItem(draftKey) ?? 'null'); busy = !!(d?.customer?.name || d?.lines?.some((l: Line) => l.code)) } catch { /* no draft */ }
+    if (busy && !(await ask({ title: 'Replace your unfinished quote?', body: <p>There is a quote in progress on this device. Starting this one clears it.</p>, confirmLabel: 'Start a new quote' }))) return
+    track('tansel_quote', { lines: r.codes.length }, storeId)
+    onQuote(r.codes.map((x) => ({ code: x.code, qty: String(x.qty), ownDescription: '', ownPrice: '', discPct: '' })))
   }
 
   const fam = c.product
@@ -227,7 +239,10 @@ export default function Tansel({ stores, multi }: { stores: StoreRow[]; multi: b
         <section className="sheet viz-card">
           <div className="viz-head">
             <div><h2>Codes to enter into the POS</h2><p className="muted">One line per item. Packers above are per drawer; the quantities here already multiply them. Battens are cut to size and spacer discs come in packs of 12.</p></div>
-            <button type="button" className="btn" onClick={() => void copyCodes()}>Copy the codes</button>
+            <div className="actions">
+              <button type="button" className="btn" onClick={() => void copyCodes()}>Copy the codes</button>
+              <button type="button" className="btn primary" onClick={() => void startQuote()}>Start a quote with these items</button>
+            </div>
           </div>
           <ul className="tcodes">
             {r.codes.map((x) => {
@@ -264,6 +279,7 @@ export default function Tansel({ stores, multi }: { stores: StoreRow[]; multi: b
           <li>Odd cabinets (corner cabinets, angled walls, very narrow or very deep spaces, or anything that does not fit): call Tansel on 02 9440 9800 or email sales2@tansel.com.au with the measurements and photos. They can do custom sizes.</li>
         </ul>
       </details>
+      {confirmDialog}
     </div>
   )
 }
