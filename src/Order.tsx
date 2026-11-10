@@ -3,8 +3,10 @@ import CopyDialog from './CopyDialog'
 import ItemSheet from './ItemSheet'
 import Scanner from './Scanner'
 import StatusChip from './StatusChip'
+import SuggestedOrder, { type SuggestedLine } from './SuggestedOrder'
 import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
+import { suggestLine, type Suggestion } from './lib/suggest'
 import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
 import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
@@ -56,6 +58,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const [target, setTarget] = useState(DEFAULT_COVER) // weeks of stock this store aims to hold
   const [needs, setNeeds] = useState<CustomerOrderNeed[]>([]) // customer orders still to order
   const [needsAttempt, setNeedsAttempt] = useState(0)
+  const [filling, setFilling] = useState(false) // the suggested quantities are being filled in or taken out
+  const [filled, setFilled] = useState<{ code: string; qty: number }[]>([]) // what the last Fill put in, so it can be undone
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
   const refreshDrafts = useCallback(() => { api.drafts(storeId).then(setDrafts).catch(() => { /* the list is a convenience */ }) }, [storeId])
@@ -116,7 +120,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   useEffect(() => { if (!window.BarcodeDetector) void import('@zxing/browser') }, []) // warm the scanner code on iPhones so the camera starts at once
   // An order that never got a line is not kept: leaving it (or an old empty one) removes it quietly.
   const dropIfEmpty = () => { if (order && order.status === 'open' && lines.length === 0 && pending === 0) void api.deleteOrder(order.id).then(onSaved).catch(() => undefined) }
-  const chooseVendor = (v: string) => { dropIfEmpty(); setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts() }
+  const chooseVendor = (v: string) => { dropIfEmpty(); setFilled([]); setVendor(v); setFind(''); setShow('all'); setBelow(''); setSortBy('code'); if (!v) refreshDrafts() }
   const changeStore = (id: string) => {
     setStoreId(id)
     setVendor('')
@@ -146,6 +150,26 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const isLow = (p: Product) => orderable(p) && !!insightOf.get(p.item.code)?.low
   const lowCount = useMemo(() => range.filter(isLow).length, [range, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
   const newCount = useMemo(() => range.filter(isNew).length, [range]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The suggested order: the rules in lib/suggest.ts over each orderable item's weekly sales, stock, what is on order and what customers are waiting for.
+  const suggestions = useMemo(() => {
+    const m = new Map<string, Suggestion>()
+    if (!enough || !rates?.series || !rates.storeUnits) return m
+    const none: number[] = Array(rates.weeks).fill(0)
+    for (const p of range) {
+      if (!orderable(p)) continue
+      const code = p.item.code
+      m.set(code, suggestLine({
+        series: rates.series.get(code) ?? none, storeUnits: rates.storeUnits, inventory: p.stock?.inventory ?? 0, onOrder: p.stock?.qty_on_po ?? 0, transferIn: p.stock?.transfer_in ?? 0,
+        inOrder: lineOf.get(code)?.qty ?? 0, waiting: (waiting.get(code) ?? []).reduce((a, w) => a + w.qty, 0), moq: p.stock?.moq ?? 1, weeks: target,
+      }))
+    }
+    return m
+  }, [range, rates, enough, target, lineOf, waiting]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sugLine = (p: Product, s: Suggestion): SuggestedLine => ({ code: p.item.code, description: p.item.description, qty: s.qty, cost: p.stock?.store_cost ?? 0, why: s.why, hold: s.hold !== null })
+  const sugLines = useMemo(() => range.flatMap((p) => { const s = suggestions.get(p.item.code); return s && s.fill && !lineOf.has(p.item.code) ? [sugLine(p, s)] : [] }), [range, suggestions, lineOf]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sugHeld = useMemo(() => range.flatMap((p) => { const s = suggestions.get(p.item.code); return s && s.hold && !lineOf.has(p.item.code) ? [sugLine(p, s)] : [] }), [range, suggestions, lineOf]) // eslint-disable-line react-hooks/exhaustive-deps
+  const stillFilled = filled.filter((f) => lineOf.get(f.code)?.qty === f.qty) // quantities the person has since changed are theirs, and are left alone
 
   const rows = useMemo(() => {
     const hit = find.trim() ? new Set(searchItems(range.map((p) => p.item), find, 100000).map((i) => i.code)) : null
@@ -191,6 +215,55 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     } finally {
       setPending((n) => n - 1)
     }
+  }
+
+  /** Puts the suggested quantities into the order as ordinary lines. Only items with no quantity yet; every one can be changed afterwards. */
+  const fillSuggested = async () => {
+    const todo = range.filter((p) => { const s = suggestions.get(p.item.code); return !!s && s.fill && !lineOf.has(p.item.code) })
+    if (!todo.length || !ready || filling) return
+    setFilling(true)
+    const done: { code: string; qty: number }[] = []
+    let od = order
+    try {
+      if (!od) {
+        const o = await api.openOrder(storeId, vendor, email)
+        od = o.order
+        setOrderLoad({ phase: 'ready', order: o.order })
+        track('order_started', { vendor }, storeId)
+      }
+      let latest: OrderLine[] | null = null
+      for (const p of todo) {
+        const qty = suggestions.get(p.item.code)!.qty
+        try { latest = await api.saveLine(od.id, email, { item: p.item, qty, unitCost: p.stock?.store_cost ?? 0, vendorNo: vendor }, 0); done.push({ code: p.item.code, qty }) } catch (e) { if (!(e instanceof ConflictError)) throw e }
+      }
+      if (latest) setLines(latest)
+      setFilled(done)
+      onSaved()
+      track('suggested_fill', { lines: done.length }, storeId)
+      toast.success(`Filled ${done.length} suggested ${done.length === 1 ? 'quantity' : 'quantities'}. Change any of them below.`)
+    } catch (e) {
+      trackError('suggested fill', e)
+      toast.error('Could not fill all of the suggested quantities. Check your connection and try again.')
+      if (done.length) setFilled(done)
+      if (od) api.orderLines(od.id).then(setLines).catch(() => { /* live updates will catch up */ })
+    } finally { setFilling(false) }
+  }
+
+  /** Takes out what the last Fill put in, but not a quantity the person has changed since. */
+  const undoFilled = async () => {
+    if (!order || !stillFilled.length || filling) return
+    setFilling(true)
+    try {
+      let latest: OrderLine[] | null = null
+      for (const f of stillFilled) {
+        const l = lineOf.get(f.code); const p = range.find((r) => r.item.code === f.code)
+        if (l && p) latest = await api.saveLine(order.id, email, { item: p.item, qty: 0, unitCost: p.stock?.store_cost ?? 0, vendorNo: vendor }, l.revision)
+      }
+      if (latest) setLines(latest)
+      setFilled([])
+      onSaved()
+      toast.success('Took out the suggested quantities.')
+    } catch (e) { trackError('suggested undo', e); toast.error('Could not take them all out. Check your connection and try again.') } finally { setFilling(false) }
   }
 
   const sheetDone = async (qty: number) => {
@@ -386,7 +459,9 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
             <div className="sheet">
               <section className="block">
                 <h2>{vendor} <small>{range.length} items · {orderedCount} on order{pending > 0 ? ' · Saving…' : ''}</small></h2>
-                <div className="finder">
+                {enough && range.length > 0 && <SuggestedOrder vendor={vendor} weeks={target} lines={sugLines} held={sugHeld} busy={filling} filled={stillFilled.length} onFill={() => void fillSuggested()} onUndo={() => void undoFilled()} />}
+
+                <div className="orderbar">
                   <div className="findrow">
                     <input type="search" name="find" aria-label={`Find an item from ${vendor}`} placeholder="Search this vendor, or scan…" value={find} enterKeyHint="search"
                       autoComplete="off" onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onFinderEnter()} />
@@ -396,43 +471,44 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                       Scan
                     </button>
                   </div>
-                  {!DEMO && <p className="muted desktop-only">Scan with your phone: sign in on it, choose the same vendor and tap Scan. Quantities you save appear here a moment later.</p>}
-                </div>
-
-                <div className="filters">
-                  <div className="segmented" role="group" aria-label="Show items">
-                    <button type="button" aria-pressed={show === 'all'} onClick={() => setShow('all')}>All ({range.length})</button>
-                    <button type="button" aria-pressed={show === 'ordered'} onClick={() => setShow('ordered')}>On order ({orderedCount})</button>
-                    <button type="button" aria-pressed={show === 'not'} onClick={() => setShow('not')}>Not ordered ({range.length - orderedCount})</button>
-                    {enough && <button type="button" aria-pressed={show === 'low'} onClick={() => setShow('low')}>Low stock ({lowCount})</button>}
-                    {newCount > 0 && <button type="button" aria-pressed={show === 'new'} onClick={() => setShow('new')}>New ({newCount})</button>}
-                  </div>
-                  <label className="inline">In stock below
-                    <input className="qty" name="below" inputMode="numeric" autoComplete="off" placeholder="any" value={below} onChange={(e) => setBelow(e.target.value)} />
-                  </label>
-                  {enough && (
-                    <label className="inline">Hold
-                      <select name="cover" value={target} onChange={(e) => changeTarget(Number(e.target.value))} aria-describedby="cover-help">
-                        {COVER_CHOICES.map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
+                  <div className="filters">
+                    <div className="segmented" role="group" aria-label="Show items">
+                      <button type="button" aria-pressed={show === 'all'} onClick={() => setShow('all')}>All ({range.length})</button>
+                      <button type="button" aria-pressed={show === 'ordered'} onClick={() => setShow('ordered')}>On order ({orderedCount})</button>
+                      <button type="button" aria-pressed={show === 'not'} onClick={() => setShow('not')}>Not ordered ({range.length - orderedCount})</button>
+                      {enough && <button type="button" aria-pressed={show === 'low'} onClick={() => setShow('low')}>Low stock ({lowCount})</button>}
+                      {newCount > 0 && <button type="button" aria-pressed={show === 'new'} onClick={() => setShow('new')}>New ({newCount})</button>}
+                    </div>
+                    <label className="inline">In stock below
+                      <input className="qty" name="below" inputMode="numeric" autoComplete="off" placeholder="any" value={below} onChange={(e) => setBelow(e.target.value)} />
+                    </label>
+                    {enough && (
+                      <label className="inline">Hold
+                        <select name="cover" value={target} onChange={(e) => changeTarget(Number(e.target.value))} aria-describedby="cover-help">
+                          {COVER_CHOICES.map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    <label className="inline">Sort by
+                      <select name="sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+                        {(Object.keys(SORT_LABEL) as SortBy[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
                       </select>
                     </label>
+                  </div>
+                  {(filtered || sortBy !== 'code') && range.length > 0 && (
+                    <p className="muted listcount">
+                      Showing {rows.length} of {range.length} items.{' '}
+                      <button type="button" className="quiet" onClick={() => { setFind(''); setShow('all'); setBelow(''); setSortBy('code') }}>Clear filters</button>
+                    </p>
                   )}
-                  <label className="inline">Sort by
-                    <select name="sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
-                      {(Object.keys(SORT_LABEL) as SortBy[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
-                    </select>
-                  </label>
+                  <details className="orderhelp">
+                    <summary>How suggestions and scanning work</summary>
+                    {enough
+                      ? <p className="muted" id="cover-help">Low stock and suggested quantities use this store’s sales over the last {rates!.weeks} weeks loaded, against a target of {target} {target === 1 ? 'week' : 'weeks'} of stock (in stock, on order and on its way). Suggested quantities are only filled in when you press Fill.</p>
+                      : rates && <p className="muted" id="cover-help">Low stock warnings and suggested quantities start once {MIN_WEEKS} weeks of item sales are loaded in Sales ({rates.weeks} so far).</p>}
+                    {!DEMO && <p className="muted desktop-only">Scan with your phone: sign in on it, choose the same vendor and tap Scan. Quantities you save appear here a moment later.</p>}
+                  </details>
                 </div>
-                {enough
-                  ? <p className="muted listcount" id="cover-help">Low stock and suggested quantities use this store’s sales over the last {rates!.weeks} weeks loaded, against a target of {target} {target === 1 ? 'week' : 'weeks'} of stock (in stock, on order and on its way). Suggestions are never filled in for you.</p>
-                  : rates && <p className="muted listcount">Low stock warnings and suggested quantities start once {MIN_WEEKS} weeks of item sales are loaded in Sales ({rates.weeks} so far).</p>}
-                {newCount > 0 && show !== 'new' && <p className="note">{newCount} new {newCount === 1 ? 'item is' : 'items are'} in the {vendor} range. <button type="button" className="quiet" onClick={() => setShow('new')}>Show {newCount === 1 ? 'it' : 'them'}</button></p>}
-                {(filtered || sortBy !== 'code') && range.length > 0 && (
-                  <p className="muted listcount">
-                    Showing {rows.length} of {range.length} items.{' '}
-                    <button type="button" className="quiet" onClick={() => { setFind(''); setShow('all'); setBelow(''); setSortBy('code') }}>Clear filters</button>
-                  </p>
-                )}
 
                 {range.length === 0 ? (
                   <div className="state"><p>No items for {vendor}</p><p className="muted">This store has no stock records with that vendor.</p></div>
@@ -456,8 +532,8 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                                 {p.item.description}
                                 {isNew(p) && <small className="chk ok">New item</small>}
                                 {(waiting.get(p.item.code) ?? []).map((w) => <small key={w.id} className="chk error">Customer order: {w.qty} for {w.customer_name} ({w.doc_number})</small>)}
-                                {ins && ins.rate > 0 && <small className="muted">Sells about {perWeekText(ins.rate)} a week, {coverText(ins.cover)}{l ? ' counting this order' : ''}</small>}
-                                {ins?.low && orderable(p) && <small className="chk warn">Low stock: suggested {ins.suggest} to hold {target} {target === 1 ? 'week' : 'weeks'}</small>}
+                                {ins && ins.rate > 0 && <small className="muted">Sells about {perWeekText(ins.rate)} a week, {coverText(ins.cover)}{l ? ' with this order' : ''}</small>}
+                                {(() => { const sg = suggestions.get(p.item.code); if (sg && sg.qty > 0) return <small className="chk warn" title={sg.why}>{sg.hold ? `Your call: ${sg.qty}, a long time of sales` : `Suggested ${sg.qty}`}{ins?.low ? ', low stock' : ''}</small>; return ins?.low && orderable(p) ? <small className="chk warn">Low stock</small> : null })()}
                                 {warnings.map((w) => <small key={w.text} className={'chk ' + w.level}>{w.text}</small>)}
                               </td>
                               <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}</td>

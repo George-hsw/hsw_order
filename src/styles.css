@@ -837,3 +837,27 @@ button, a, select, summary, label { touch-action: manipulation; }
   .screen tbody tr:nth-child(n+8) { animation-delay: 210ms; }
 }
 .progress span { transition: transform var(--dur-short) var(--ease-out); }
+
+/* ---------- Suggested order ---------- */
+.suggest { display: grid; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.suggest .viz-head { margin-bottom: 0; }
+.suggest p { margin: 0; }
+.suglist { list-style: none; margin: 0; padding: 0; display: grid; }
+.suglist > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-md); align-items: start; padding: var(--space-xs) 0; border-top: var(--rule-hair) solid var(--color-rule); }
+.suglist small { display: block; }
+.sugqty { font-weight: 700; white-space: nowrap; }
+
+/* ---------- Order page: a tidy toolbar and denser rows ---------- */
+.orderbar { display: grid; gap: var(--space-xs); margin-bottom: var(--space-sm); }
+.orderbar .findrow, .orderbar .filters, .orderbar .listcount { margin: 0; }
+.orderbar .filters { align-items: center; }
+.orderhelp summary { cursor: pointer; display: flex; align-items: center; min-height: 32px; color: var(--color-link); font-size: var(--text-sm); font-weight: 600; }
+.orderhelp summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.orderhelp p { margin: var(--space-2xs) 0 0; font-size: var(--text-sm); }
+.workspace .block h2 { margin-bottom: var(--space-sm); }
+@media (min-width: 44.0625rem) {
+  table.book.range td { padding: var(--space-2xs) var(--space-sm); }
+  table.book.range input.qty { min-height: 36px; }
+  table.book.range tbody tr:hover td { background: var(--color-paper); }
+}
+.suggest .quiet { justify-self: start; }

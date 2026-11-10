@@ -9,17 +9,30 @@ export const RATE_WEEKS = 13
 export const DEFAULT_COVER = 4
 export const COVER_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12]
 
-/** Units sold a week at one store, per item, over the weeks loaded. A week with no row for an item counts as nothing sold. */
-export interface Rates { weeks: number; perWeek: Map<string, number> }
+/**
+ * Units sold a week at one store, per item, over the weeks loaded. A week with no row for an item counts as nothing sold.
+ * `series` is each item's units in every loaded week, oldest first, and `storeUnits` the store's units in those same weeks: the suggested order
+ * uses them to see how an item sold lately and how the whole store is trending.
+ */
+export interface Rates { weeks: number; perWeek: Map<string, number>; series?: Map<string, number[]>; storeUnits?: number[] }
 
 /** Work out the weekly rates from item-week rows. `weeks` is the number of weeks the rows cover for this store. */
 export function ratesFrom(rows: { item_code: string; qty: number; wk: number }[]): Rates {
-  const weeks = new Set(rows.map((r) => r.wk)).size
-  const total = new Map<string, number>()
-  for (const r of rows) total.set(r.item_code, (total.get(r.item_code) ?? 0) + Math.max(0, Number(r.qty) || 0))
+  const wks = [...new Set(rows.map((r) => r.wk))].sort((a, b) => a - b)
+  const weeks = wks.length
+  const at = new Map(wks.map((w, i) => [w, i]))
+  const series = new Map<string, number[]>()
+  const storeUnits: number[] = Array(weeks).fill(0)
+  for (const r of rows) {
+    const q = Math.max(0, Number(r.qty) || 0)
+    let s = series.get(r.item_code)
+    if (!s) { s = Array(weeks).fill(0); series.set(r.item_code, s) }
+    s[at.get(r.wk)!] += q
+    storeUnits[at.get(r.wk)!] += q
+  }
   const perWeek = new Map<string, number>()
-  if (weeks > 0) for (const [code, qty] of total) perWeek.set(code, qty / weeks)
-  return { weeks, perWeek }
+  if (weeks > 0) for (const [code, s] of series) perWeek.set(code, s.reduce((a, b) => a + b, 0) / weeks)
+  return { weeks, perWeek, series, storeUnits }
 }
 
 export interface StockInsight {
