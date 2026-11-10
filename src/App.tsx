@@ -66,6 +66,7 @@ function Shell({ session }: { session: Session }) {
   const [refresh, setRefresh] = useState(0) // bumped when an order is saved so Orders reloads
   const [openDoc, setOpenDoc] = useState<DocRow | null>(null) // a quote or invoice being reopened
   const [builderKey, setBuilderKey] = useState(0) // changes to start the builder from blank
+  const [salesStart, setSalesStart] = useState<{ storeId: string; code: string } | null>(null) // an item sent to Sales from Price check
   const [seed, setSeed] = useState<Line[] | null>(null) // lines a new quote starts with, from the Tansel finder
   const [docRefresh, setDocRefresh] = useState(0) // bumped when a quote is saved so Documents reloads
 
@@ -126,12 +127,13 @@ function Shell({ session }: { session: Session }) {
     setView(t.view)
   }
   const goHome = () => { setJump(null); setView('home') }
-  const goTab = (t: Tab) => { if (t !== 'order') setJump(null); if (t === 'new') { setOpenDoc(null); setSeed(null); setBuilderKey((k) => k + 1) } setView(t) }
+  const goTab = (t: Tab) => { if (t !== 'order') setJump(null); if (t === 'sales') setSalesStart(null); if (t === 'new') { setOpenDoc(null); setSeed(null); setBuilderKey((k) => k + 1) } setView(t) }
   const quoteFrom = (lines: Line[]) => { setOpenDoc(null); setSeed(lines); setBuilderKey((k) => k + 1); setView('new') }
   const pickArea = (id: AreaId) => {
     try { localStorage.setItem(lastKey, id) } catch { /* ignore */ }
     setLastArea(id)
     setJump(null)
+    setSalesStart(null)
     setView(AREAS.find((a) => a.id === id)!.tabs[0].tab)
   }
   const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setView('new') }
@@ -139,15 +141,6 @@ function Shell({ session }: { session: Session }) {
     <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}</button>
   )
   const area = view === 'home' ? null : areaOf(view)
-  // Customer orders still to order, shown on Home so nobody forgets them.
-  const [waitingCount, setWaitingCount] = useState(0)
-  const activeIds = active.map((s) => s.id).join(',')
-  useEffect(() => {
-    if (view !== 'home' || !activeIds) return
-    let live = true
-    api.customerOrders(activeIds.split(',')).then((n) => live && setWaitingCount(n.length)).catch(() => live && setWaitingCount(0))
-    return () => { live = false }
-  }, [view, activeIds])
   const works = isAdmin || active.length > 0
 
   return (
@@ -174,15 +167,15 @@ function Shell({ session }: { session: Session }) {
       <main className="container page">
         {!allStores || (!people && view !== 'order' && view !== 'home') ? <p className="muted">Loading…</p>
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
-          : view === 'home' ? <Home isAdmin={isAdmin} last={lastArea} onPick={pickArea} alerts={waitingCount ? { order: `${waitingCount} customer ${waitingCount === 1 ? 'order' : 'orders'} to order` } : {}} />
+          : view === 'home' ? <Home isAdmin={isAdmin} last={lastArea} onPick={pickArea} />
           : view === 'new' ? <Suspense fallback={<p className="muted">Loading…</p>}><Builder key={builderKey} seed={seed} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
           : view === 'docs' ? <Suspense fallback={<p className="muted">Loading…</p>}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
           : view === 'reports' && sees ? <Suspense fallback={<p className="muted">Loading…</p>}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
           : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
-          : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} />
+          : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} onSales={(storeId, code) => { setSalesStart({ storeId, code }); setView('sales') }} />
           : view === 'tansel' ? <Suspense fallback={<p className="muted">Loading…</p>}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>
-          : view === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
+          : view === 'sales' ? <Sales key={salesStart ? `${salesStart.storeId}:${salesStart.code}` : 'sales'} start={salesStart} email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
           : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}

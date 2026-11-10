@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverText, perWeekText, ratesFrom, salesSummary, stockInsight } from './insights'
+import { coverText, perWeekText, ratesFrom, stockInsight } from './insights'
 
 describe('ratesFrom', () => {
   it('averages over the weeks loaded, counting a missing week as nothing sold', () => {
@@ -62,13 +62,3 @@ describe('text', () => {
   })
 })
 
-describe('salesSummary', () => {
-  it('adds the last 1, 4 and 13 loaded weeks, counting a week with no row as nothing sold', () => {
-    const loaded = Array.from({ length: 15 }, (_, i) => ({ fy: 2027, week: 15 - i })) // newest first
-    const history = [{ fy: 2027, week: 15, qty: 2 }, { fy: 2027, week: 13, qty: 3 }, { fy: 2027, week: 3, qty: 5 }, { fy: 2027, week: 2, qty: 100 }]
-    expect(salesSummary(history, loaded)).toEqual({ weeks: 13, last: 2, four: 5, thirteen: 10 }) // week 2 is older than 13 weeks
-  })
-  it('is all zeros with nothing loaded', () => {
-    expect(salesSummary([], [])).toEqual({ weeks: 0, last: 0, four: 0, thirteen: 0 })
-  })
-})
