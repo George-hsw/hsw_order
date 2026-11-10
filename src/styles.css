@@ -724,7 +724,7 @@ button, a, select, summary, label { touch-action: manipulation; }
 .bellcount { position: absolute; top: 2px; right: 0; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--space-3xs); border-radius: var(--radius-pill); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 700; line-height: 1.25rem; text-align: center; font-variant-numeric: tabular-nums; }
 .bellcount.urgent { background: var(--color-error); }
 .noticescrim { position: fixed; inset: 0; background: transparent; }
-.noticepanel { position: absolute; top: calc(100% + var(--space-xs)); right: 0; width: min(26rem, calc(100vw - 2 * var(--space-md))); max-height: min(34rem, calc(100dvh - 9rem - var(--tabbar))); overflow-y: auto; text-align: left; padding: var(--space-md); background: var(--color-paper-2); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); box-shadow: var(--shadow-lift); }
+.noticepanel { position: absolute; top: calc(100% + var(--space-xs)); right: 0; width: 26rem; max-height: min(34rem, calc(100dvh - 9rem - var(--tabbar))); overflow-y: auto; text-align: left; padding: var(--space-md); background: var(--color-paper-2); border-radius: var(--radius-card); box-shadow: 0 0 0 1px var(--color-ink), var(--shadow-lift); }
 .noticepanel:focus { outline: none; } /* the panel only takes focus so a screen reader starts reading it; its buttons keep their rings */
 .noticehead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-sm); }
 .noticehead h2 { margin: 0; font-size: var(--text-md); }
@@ -736,8 +736,18 @@ button, a, select, summary, label { touch-action: manipulation; }
 .notice b { display: block; }
 .notice p { margin: var(--space-3xs) 0 0; }
 .noticeacts { display: flex; gap: var(--space-xs); }
+.noticeacts button { min-width: var(--hit); }
 .noticefoot { margin: var(--space-sm) 0 0; font-size: var(--text-sm); }
 @media (max-width: 44rem) {
   /* On a phone the panel spans the screen under the top bar. */
   .noticepanel { position: fixed; top: 4rem; right: var(--space-md); left: var(--space-md); width: auto; }
+}
+
+/* Audit fixes: five filter buttons wrap on a phone; the price card facts use two columns and never leave an empty cell */
+.facts dd { overflow-wrap: anywhere; }
+@media (max-width: 44rem) {
+  .filters .segmented { flex-wrap: wrap; border-radius: var(--radius-card); }
+  .filters .segmented button { flex: 1 1 auto; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
