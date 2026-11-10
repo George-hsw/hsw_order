@@ -6,6 +6,8 @@ describe('minimum order value', () => {
     expect(movFor('ANAS001')?.mov).toBe(750)
     expect(movFor('kesr001')?.mov).toBe(300)
     expect(movFor('JOSE001')?.mov).toBe(500)
+    expect(movFor('VERG001')?.mov).toBe(500)
+    expect(movFor('MYHO001')?.mov).toBe(2000)
   })
   it('is null for a vendor with none, or no vendor', () => {
     expect(movFor('ZZZ0001')).toBeNull()

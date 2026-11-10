@@ -9,6 +9,8 @@ export const MOV: Record<string, { mov: number; note?: string }> = {
   KEN: { mov: 300 }, KES: { mov: 300 }, LSC: { mov: 550 }, LTW: { mov: 700, note: '$50 charge if under' }, MMA: { mov: 300 },
   TRA: { mov: 250 }, SHL: { mov: 150 }, BRB: { mov: 400 }, STE: { mov: 400 }, TAN: { mov: 750, note: '$24.95 shipping fee if under' },
   THR: { mov: 300 }, THU: { mov: 400 }, TOL: { mov: 250 },
+  VER: { mov: 500 }, // The Verge Collective (trading as Stackers Australia), VERG001
+  MYH: { mov: 2000 }, // My Home Storage, MYHO001
 }
 
 export interface MovCheck { mov: number; short: number; met: boolean; note?: string }
