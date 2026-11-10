@@ -2,13 +2,28 @@
 // report of the same week. A failed check blocks the import: a wrong number in front of a store is worse than a late one.
 import { storeKey, TAB_STORE, type DailyResult, type DetailedResult, type WeeklyResult } from './parse'
 
-export interface Check { label: string; ok: boolean; detail: string; blocking: boolean }
+export interface Check { label: string; ok: boolean; detail: string; blocking: boolean; store?: string /* storeKey of the one store this check is about */ }
 
 const TOL = 0.5 // a few cents of rounding in the sheet, never a real difference
 const near = (a: number, b: number, tol = TOL) => Math.abs(a - b) <= tol
 const n2 = (n: number) => n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export const blocked = (checks: Check[]) => checks.some((c) => c.blocking && !c.ok)
+/** Marks each check that starts with a store's name ("Robina: ...") as being about that store. */
+export const tagStores = (checks: Check[], names: string[]) => { for (const n of names) for (const c of checks) if (c.label.startsWith(n + ':')) c.store = storeKey(n) }
+
+/**
+ * A Detailed report blocked only by some stores' sheets can still load the stores that pass. Null when something that is not about one store
+ * blocks it (the file as a whole is wrong), or when there is nothing to load or nothing to skip.
+ */
+export function loadableStores(checks: Check[], names: string[]): { load: string[]; skip: { name: string; why: string }[] } | null {
+  const stops = checks.filter((c) => c.blocking && !c.ok)
+  if (!stops.length || stops.some((c) => !c.store)) return null
+  const why = new Map(stops.map((c) => [c.store!, c]).reverse() as [string, Check][])
+  const skip = names.filter((n) => why.has(storeKey(n))).map((n) => ({ name: n, why: why.get(storeKey(n))!.detail }))
+  const load = names.filter((n) => !why.has(storeKey(n)))
+  return skip.length && load.length ? { load, skip } : null
+}
 export const failures = (checks: Check[]) => checks.filter((c) => !c.ok)
 
 export function checkDetailed(r: DetailedResult): Check[] {
@@ -24,6 +39,7 @@ export function checkDetailed(r: DetailedResult): Check[] {
     out.push({ label: `${who}: no repeated items`, ok: dup === 0, blocking: true, detail: `${dup} item code${dup === 1 ? ' appears' : 's appear'} more than once.` })
     out.push({ label: `${who}: right week`, ok: !t.sheet_week || t.sheet_week === r.week.week, blocking: true, detail: `The sheet says week ${t.sheet_week}; the file name says week ${r.week.week}.` })
   }
+  tagStores(out, r.sheets.map((s) => s.store_name ?? s.tab))
   return out
 }
 
@@ -65,7 +81,8 @@ export function checkDaily(r: DailyResult): Check[] {
  * weekly report holds the same figure for each store, so the two must agree to the cent. (This is how a sheet whose A1 names the wrong store,
  * like CAMB saying Bundall, is shown to be the right store after all.)
  */
-export function crossDetailed(weekly: WeeklyResult, detailed: DetailedResult): Check[] {
+/** `proven` holds the stores whose sheet agrees with a Power BI item export of the same week, item by item. For those the sheet is known to be the right store, so a stock figure that differs from the weekly report is noted instead of blocking. */
+export function crossDetailed(weekly: WeeklyResult, detailed: DetailedResult, proven: Set<string> = new Set()): Check[] {
   if (weekly.current.fy !== detailed.week.fy) return []
   const wk = new Map(weekly.rows.filter((x) => x.week === detailed.week.week).map((x) => [storeKey(x.store_name), x]))
   if (!wk.size) return []
@@ -73,8 +90,10 @@ export function crossDetailed(weekly: WeeklyResult, detailed: DetailedResult): C
   for (const s of detailed.sheets) {
     const w = s.store_name ? wk.get(storeKey(s.store_name)) : undefined
     if (!w) { out.push({ label: `${s.store_name ?? s.tab}: found in the weekly report`, ok: false, blocking: true, detail: 'No store with this name in the weekly report for the same week.' }); continue }
-    out.push({ label: `${s.store_name}: stock matches the weekly report`, ok: near(s.totals.header_stock, w.stock, 1), blocking: true,
-      detail: `The sheet's stock at cost is ${n2(s.totals.header_stock)} but the weekly report has ${n2(w.stock)} for ${w.store_name}. The sheet may belong to a different store.` })
+    const known = proven.has(storeKey(s.store_name ?? s.tab))
+    out.push({ label: `${s.store_name}: stock matches the weekly report`, ok: near(s.totals.header_stock, w.stock, 1), blocking: !known,
+      detail: known ? `The sheet's stock at cost is ${n2(s.totals.header_stock)} but the weekly report has ${n2(w.stock)}. The Power BI item export proves the sheet is ${w.store_name}, so the difference is in the weekly report's stock figure, not in this sheet.`
+        : `The sheet's stock at cost is ${n2(s.totals.header_stock)} but the weekly report has ${n2(w.stock)} for ${w.store_name}. The sheet may belong to a different store.` })
     // The items a store sold in a week are part of what it sold in that week, so they cannot add up to more than its weekly sales. Across the real
     // FY27 weeks the item sheets come to 71% to 90% of the weekly sales; a sheet above 102% holds figures from somewhere else.
     if (w.ty_sales > 0) out.push({ label: `${s.store_name}: item sales fit inside the week's sales`, ok: s.totals.sum_net <= w.ty_sales * 1.02, blocking: true,
@@ -87,6 +106,7 @@ export function crossDetailed(weekly: WeeklyResult, detailed: DetailedResult): C
     const w = have.has(storeKey(name)) ? undefined : wk.get(storeKey(name))
     if (w && w.co_fran !== 'Closed' && w.co_fran !== 'eShop' && w.ty_sales !== 0) out.push({ label: `${name}: items missing this week`, ok: false, blocking: false, detail: `The weekly report shows ${n2(w.ty_sales)} of sales for ${name} but this file has no ${tab} sheet, so ${name} has no item figures for this week.` })
   }
+  tagStores(out, detailed.sheets.map((s) => s.store_name ?? s.tab))
   return out
 }
 

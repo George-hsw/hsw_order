@@ -3,6 +3,7 @@ import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
 import { track } from './lib/analytics/track'
 import { importFolder, initialState, resultsCsv, type BulkFile, type Step, type Totals, type WeekState } from './lib/sales/bulk'
+import { parseReference, type ReferenceExport } from './lib/sales/reference'
 import { planFolder } from './lib/sales/folder'
 import type { StoreRow } from './lib/supabase'
 
@@ -33,18 +34,26 @@ export default function SalesFolder({ email, stores, onLoaded }: { email: string
   const [files, setFiles] = useState<BulkFile[]>([])
   const [weeks, setWeeks] = useState<WeekState[]>([])
   const [phase, setPhase] = useState<'idle' | 'checking' | 'checked' | 'importing' | 'done'>('idle')
+  const [refs, setRefs] = useState<{ name: string; ref: ReferenceExport }[]>([]) // Power BI item exports found among the files
   const plan = useMemo(() => planFolder(files), [files])
+  const unrecognised = plan.unknown.filter((u) => !refs.some((r) => r.name === u.name))
 
   const choose = (list: FileList | null) => {
     const f = [...(list ?? [])] as BulkFile[]
-    setFiles(f); setPhase('idle')
+    setFiles(f); setPhase('idle'); setRefs([])
     setWeeks(f.length ? initialState(planFolder(f)) : [])
+    // A file the name cannot place may still be a Power BI item export, which says so inside.
+    void (async () => {
+      const found: { name: string; ref: ReferenceExport }[] = []
+      for (const u of planFolder(f).unknown) { const ref = parseReference(new Uint8Array(await u.file.arrayBuffer())); if (ref) found.push({ name: u.name, ref }) }
+      setRefs(found)
+    })()
   }
   const run = async (dryRun: boolean) => {
     stopped.current = false
     setPhase(dryRun ? 'checking' : 'importing')
     try {
-      const out = await importFolder(plan, { stores, email, dryRun }, setWeeks, () => stopped.current)
+      const out = await importFolder(plan, { stores, email, dryRun, references: refs.map((r) => r.ref) }, setWeeks, () => stopped.current)
       setPhase(dryRun ? 'checked' : 'done')
       if (!dryRun) {
         const loaded = out.flatMap((w) => [w.weekly, w.daily, w.detailed]).filter((s) => s.status === 'loaded').length
@@ -87,7 +96,8 @@ export default function SalesFolder({ email, stores, onLoaded }: { email: string
           <h3 className="pricesub">What is in the folder</h3>
           <p>{int(files.length)} file{files.length === 1 ? '' : 's'}{first ? `, covering FY${String(first.fy).slice(-2)} week ${first.week} to FY${String(last.fy).slice(-2)} week ${last.week}` : ''}. {int(plan.weeks.filter((w) => w.files.weekly).length)} weekly, {int(plan.weeks.filter((w) => w.files.daily).length)} daily and {int(plan.weeks.filter((w) => w.files.detailed).length)} item reports.</p>
           {gaps.length > 0 && <p className="note">No files of their own for week{gaps.length === 1 ? '' : 's'} {gaps.map((g) => g.week).join(', ')}. Their weekly figures are inside the newest weekly report, so they are still loaded; they have no item report.</p>}
-          {plan.unknown.length > 0 && <p className="note bad">Not recognised, so left out: {plan.unknown.map((u) => `${u.name} (${u.why})`).join('; ')}</p>}
+          {refs.length > 0 && <p className="note">Power BI item exports used only as a check, never saved: {refs.map((r) => `${r.name} (FY${String(r.ref.fy).slice(-2)} week ${r.ref.week}, ${r.ref.stores.size} stores)`).join('; ')}. They prove which stores' item sheets are right for that week.</p>}
+          {unrecognised.length > 0 && <p className="note bad">Not recognised, so left out: {unrecognised.map((u) => `${u.name} (${u.why})`).join('; ')}</p>}
           {plan.weeks.some((w) => w.ignored.length) && <p className="note">Two copies of the same report: the newer one is used and the other is left out: {plan.weeks.flatMap((w) => w.ignored).join(', ')}.</p>}
 
           <div className="actions">
@@ -108,7 +118,7 @@ export default function SalesFolder({ email, stores, onLoaded }: { email: string
               {verifiedAll && wrong.length === 0
                 ? <p className="note"><b>Verified.</b> All {saved.length} saved reports match their files exactly: the same rows and the same totals, to the cent.</p>
                 : <p className="note bad"><b>Check this.</b> {wrong.length} report{wrong.length === 1 ? ' does' : 's do'} not match its file or could not be saved. They are marked below.</p>}
-              {notLoaded.length > 0 && <p className="note">{notLoaded.length} report{notLoaded.length === 1 ? ' was' : 's were'} not loaded because a check failed. The reason is under each one.</p>}
+              {notLoaded.length > 0 && <p className="note">{notLoaded.length} report{notLoaded.length === 1 ? ' was' : 's were'} not loaded because a check failed. The reason is under each one. A week where only some stores fail can have its passing stores loaded from “Load this week’s reports” below, with that week’s Power BI item export.</p>}
             </div>
           )}
 

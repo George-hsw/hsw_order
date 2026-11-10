@@ -13,17 +13,18 @@ export interface FolderPlan<T extends Named> {
   weeks: PlannedWeek<T>[]
   /** The weekly report with the highest week of each year. It holds every week up to there, so it is the one that is imported. */
   latestWeekly: Map<number, T>
-  unknown: { name: string; why: string }[]
+  /** Files whose name does not say what they are. The screen asks the file itself: a Power BI item export is recognised by its content. */
+  unknown: { name: string; why: string; file: T }[]
 }
 
 export function planFolder<T extends Named>(files: T[]): FolderPlan<T> {
   const by = new Map<string, PlannedWeek<T>>()
-  const unknown: { name: string; why: string }[] = []
+  const unknown: { name: string; why: string; file: T }[] = []
   for (const f of files) {
     if (!/\.xlsx$/i.test(f.name) || f.name.startsWith('~$')) continue
     const kind = kindOf(f.name), fy = fyOf(f.name), week = weekOfName(f.name)
-    if (!kind) { unknown.push({ name: f.name, why: 'The name does not say Detailed Sales, Australian Weekly or Daily Sales.' }); continue }
-    if (!fy || !week) { unknown.push({ name: f.name, why: 'The name needs the year and week, like FY2027 and Week 10.' }); continue }
+    if (!kind) { unknown.push({ name: f.name, why: 'The name does not say Detailed Sales, Australian Weekly or Daily Sales.', file: f }); continue }
+    if (!fy || !week) { unknown.push({ name: f.name, why: 'The name needs the year and week, like FY2027 and Week 10.', file: f }); continue }
     const key = `${fy}|${week}`
     const w = by.get(key) ?? { fy, week, files: {}, covered: false, ignored: [] }
     const had = w.files[kind]

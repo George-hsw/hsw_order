@@ -7,6 +7,7 @@ import { salesApi, type SavedSource, type SavedTotals } from './api'
 import type { FolderPlan, Named } from './folder'
 import { dailyRows, dedupeItems, detailedRows, indexStores } from './import'
 import { parseDaily, parseDetailed, parseWeekly, storeKey, weekOfName, type WeeklyResult } from './parse'
+import { crossReference, type ReferenceExport } from './reference'
 import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, crossDetailed, failures, type Check } from './validate'
 
 export type Status = 'waiting' | 'working' | 'ok' | 'loaded' | 'blocked' | 'error' | 'none' | 'covered'
@@ -40,7 +41,7 @@ export function initialState(plan: FolderPlan<BulkFile>): WeekState[] {
   }))
 }
 
-export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: StoreRow[]; email: string; dryRun: boolean }, onChange: (s: WeekState[]) => void, stop: () => boolean): Promise<WeekState[]> {
+export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: StoreRow[]; email: string; dryRun: boolean; references?: ReferenceExport[] }, onChange: (s: WeekState[]) => void, stop: () => boolean): Promise<WeekState[]> {
   const ix = indexStores(ctx.stores)
   const state = initialState(plan)
   const put = (fy: number, week: number, kind: 'weekly' | 'daily' | 'detailed', step: Partial<Step>) => {
@@ -100,7 +101,10 @@ export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: St
       put(w.fy, w.week, 'detailed', { status: 'working' })
       try {
         const d = parseDetailed(await bytes(w.files.detailed), w.files.detailed.name)
-        const checks = [...checkDetailed(d), ...(ref ? crossDetailed(ref, d) : [])]
+        // Power BI item exports of the same week prove which stores' sheets are right, item by item.
+        const proven = new Set<string>(); const refChecks: Check[] = []
+        for (const rf of ctx.references ?? []) if (rf.fy === d.week.fy && rf.week === d.week.week) { const r = crossReference(rf, d); refChecks.push(...r.checks); r.proven.forEach((k) => proven.add(k)) }
+        const checks = [...checkDetailed(d), ...refChecks, ...(ref ? crossDetailed(ref, d, proven) : [])]
         if (blocked(checks)) put(w.fy, w.week, 'detailed', { status: 'blocked', why: why(checks) })
         else {
           const r = detailedRows(d, ix)

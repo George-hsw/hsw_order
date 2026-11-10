@@ -7,7 +7,8 @@ import { salesApi } from './lib/sales/api'
 import { dailyRows, detailedRows, indexStores, weeklyRows, type Preview } from './lib/sales/import'
 import { weekLabel } from './lib/sales/model'
 import { kindOf, parseDaily, parseDetailed, parseWeekly, type DailyResult, type DetailedResult, type ReportKind, type WeeklyResult } from './lib/sales/parse'
-import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, crossDetailed, failures, type Check } from './lib/sales/validate'
+import { crossReference, parseReference, type ReferenceExport } from './lib/sales/reference'
+import { blocked, checkDaily, checkDetailed, checkWeekly, crossCheck, crossDetailed, failures, loadableStores, type Check } from './lib/sales/validate'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
 
@@ -24,6 +25,8 @@ interface Entry {
   error?: string
   progress?: [number, number]
   imported?: number
+  reference?: ReferenceExport // a Power BI item export: used to check the Detailed report of its week, never saved
+  skipped?: string[] // stores left out of a partial load
 }
 const KIND_LABEL: Record<ReportKind, string> = { weekly: 'Australian Weekly Sales', detailed: 'Detailed Sales Report', daily: 'Daily Sales' }
 const ORDER: Record<ReportKind, number> = { weekly: 0, daily: 1, detailed: 2 }
@@ -45,11 +48,16 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
     for (const f of files) {
       const id = next.current++
       const kind = kindOf(f.name)
-      setEntries((es) => [...es, { id, name: f.name, kind, phase: kind ? 'reading' : 'error', warnings: [], checks: [], error: kind ? undefined : 'I do not recognise this file. The name should contain Detailed Sales, Australian Weekly or Daily Sales.' }])
-      if (!kind) continue
+      setEntries((es) => [...es, { id, name: f.name, kind, phase: 'reading', warnings: [], checks: [] }])
       try {
         await new Promise((r) => setTimeout(r, 30)) // let the screen show "Reading" before the work starts
         const bytes = new Uint8Array(await f.arrayBuffer())
+        if (!kind) {
+          // The name does not say what it is, so the file is asked: a Power BI item export says so inside.
+          const reference = parseReference(bytes)
+          patch(id, reference ? { phase: 'ready', reference } : { phase: 'error', error: 'I do not recognise this file. The name should contain Detailed Sales, Australian Weekly or Daily Sales, or it should be the Power BI item export (a sheet called Export).' })
+          continue
+        }
         let parsed: Parsed, preview: Preview, warnings: string[], checks: Check[]
         if (kind === 'weekly') { const d = parseWeekly(bytes, f.name); parsed = { kind, data: d }; preview = weeklyRows(d, ix).preview; warnings = d.warnings; checks = checkWeekly(d) }
         else if (kind === 'detailed') { const d = parseDetailed(bytes, f.name); parsed = { kind, data: d }; preview = detailedRows(d, ix).preview; warnings = d.warnings; checks = checkDetailed(d) }
@@ -66,13 +74,20 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
     const me = e.parsed
     if (!me) return e.checks
     const extra: Check[] = []
+    // The stores whose Detailed sheet agrees item by item with a Power BI export of the same week.
+    const proven = (d: DetailedResult) => {
+      const set = new Set<string>(); const found: Check[] = []
+      for (const o of entries) if (o.reference && o.reference.fy === d.week.fy && o.reference.week === d.week.week) { const r = crossReference(o.reference, d); found.push(...r.checks); r.proven.forEach((k) => set.add(k)) }
+      return { set, found }
+    }
+    if (me.kind === 'detailed') extra.push(...proven(me.data).found)
     for (const o of entries) {
       const other = o.id !== e.id ? o.parsed : undefined
       if (!other) continue
       if (me.kind === 'daily' && other.kind === 'weekly') extra.push(...crossCheck(other.data, me.data))
       else if (me.kind === 'weekly' && other.kind === 'daily') extra.push(...crossCheck(me.data, other.data))
-      else if (me.kind === 'detailed' && other.kind === 'weekly') extra.push(...crossDetailed(other.data, me.data))
-      else if (me.kind === 'weekly' && other.kind === 'detailed') extra.push(...crossDetailed(me.data, other.data))
+      else if (me.kind === 'detailed' && other.kind === 'weekly') extra.push(...crossDetailed(other.data, me.data, proven(me.data).set))
+      else if (me.kind === 'weekly' && other.kind === 'detailed') extra.push(...crossDetailed(me.data, other.data, proven(other.data).set))
     }
     return [...e.checks, ...extra]
   }
@@ -95,13 +110,30 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
     }
   }
 
+  // A Detailed report where only some stores' sheets fail: load the stores that pass and say which were left out. A corrected report loaded later replaces the whole week.
+  const partOf = (e: Entry) => (e.parsed?.kind === 'detailed' && e.phase === 'ready' ? loadableStores(checksOf(e), e.parsed.data.sheets.map((s) => s.store_name ?? s.tab)) : null)
+  const importPart = async (e: Entry) => {
+    const part = partOf(e)
+    if (!part || e.parsed?.kind !== 'detailed') return
+    if (!(await ask({ title: `Load ${part.load.length} of ${part.load.length + part.skip.length} stores?`, body: <><p>These stores pass every check and will be loaded for {weekLabel(weekOf(e.parsed))}. The item rows already saved for that week are replaced.</p><p>Left out, with no item figures for the week until a corrected report is loaded: <b>{part.skip.map((s) => s.name).join(', ')}</b>.</p></>, confirmLabel: 'Load these stores' }))) return
+    const skipped = new Set(part.skip.map((s) => s.name))
+    patch(e.id, { phase: 'importing', progress: undefined })
+    try {
+      const d = e.parsed.data
+      const res = await salesApi.importDetailed({ ...d, sheets: d.sheets.filter((s) => !skipped.has(s.store_name ?? s.tab)) }, stores, email, (done, total) => patch(e.id, { progress: [done, total] }))
+      patch(e.id, { phase: 'done', imported: res.rows, skipped: [...skipped] })
+      track('upload', { report: 'detailed_partial', week: d.week.week })
+      toast.success(`Loaded ${part.load.length} stores. ${part.skip.length} left out.`); onLoaded(); log.retry()
+    } catch (err) { patch(e.id, { phase: 'error', error: err instanceof Error && err.message.trim() ? err.message : 'Could not save. It stopped without giving a reason.' }) }
+  }
+
   const importOne = async (e: Entry) => {
     if (!e.parsed) return
     if (e.parsed.kind === 'detailed' && !(await ask({ title: `Replace ${weekLabel(weekOf(e.parsed))} items?`, body: 'The item rows already saved for that week are replaced by this file. The other weeks are not touched.', confirmLabel: 'Import' }))) return
     if (await run(e)) { toast.success(`${KIND_LABEL[e.kind!]} loaded.`); onLoaded(); log.retry() }
   }
 
-  const ready = entries.filter((e) => e.phase === 'ready' && !blocked(checksOf(e))).sort((a, b) => ORDER[a.kind!] - ORDER[b.kind!])
+  const ready = entries.filter((e) => e.phase === 'ready' && e.parsed && !blocked(checksOf(e))).sort((a, b) => ORDER[a.kind!] - ORDER[b.kind!])
   const importAll = async () => {
     if (ready.some((e) => e.parsed?.kind === 'detailed') && !(await ask({ title: 'Import everything?', body: 'The item rows already saved for the Detailed Sales week are replaced by that file.', confirmLabel: 'Import all' }))) return
     let ok = 0
@@ -126,11 +158,14 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
       {entries.map((e) => (
         <section key={e.id} className="sheet viz-card upload">
           <div className="viz-head">
-            <div><h2>{e.kind ? KIND_LABEL[e.kind] : 'Unknown file'}</h2><p className="muted">{e.name}{e.parsed ? `, ${weekLabel(weekOf(e.parsed))}` : ''}</p></div>
-            {e.phase === 'ready' && <button type="button" className="btn primary" disabled={blocked(checksOf(e))} onClick={() => importOne(e)}>Import</button>}
+            <div><h2>{e.kind ? KIND_LABEL[e.kind] : e.reference ? 'Power BI item export' : 'Unknown file'}</h2><p className="muted">{e.name}{e.parsed ? `, ${weekLabel(weekOf(e.parsed))}` : e.reference ? `, FY${String(e.reference.fy).slice(-2)} week ${e.reference.week}` : ''}</p></div>
+            {e.phase === 'ready' && e.parsed && <button type="button" className="btn primary" disabled={blocked(checksOf(e))} onClick={() => importOne(e)}>Import</button>}
             {e.phase === 'done' && <span className="chip paid">Loaded {e.imported?.toLocaleString('en-AU')} rows</span>}
           </div>
           {e.phase === 'reading' && <p className="muted">Reading the file…</p>}
+          {e.reference && <p>Used only to check the Detailed Sales Report of the same week, store by store and item by item. {e.reference.stores.size} stores and {e.reference.items.toLocaleString('en-AU')} items. Nothing from this file is saved.</p>}
+          {e.skipped && e.skipped.length > 0 && <p className="note">Left out because their sheets failed a check: {e.skipped.join(', ')}. They have no item figures for this week until a corrected report is loaded.</p>}
+          {(() => { const part = partOf(e); return part && <div className="note" role="status"><p><b>{part.skip.length} of {part.load.length + part.skip.length} stores fail a check:</b> {part.skip.map((s) => s.name).join(', ')}. The other {part.load.length} pass.</p><div className="actions"><button type="button" className="btn primary" onClick={() => void importPart(e)}>Load only the {part.load.length} stores that pass</button></div></div> })()}
           {e.phase === 'importing' && (
             <div><p className="muted">Saving{e.progress ? ` ${e.progress[0].toLocaleString('en-AU')} of ${e.progress[1].toLocaleString('en-AU')} rows` : '…'}</p>
               <div className="progress" aria-hidden="true"><span style={{ transform: `scaleX(${e.progress ? e.progress[0] / Math.max(1, e.progress[1]) : 0.05})` }} /></div></div>
