@@ -143,14 +143,8 @@ export default function PriceCheck({ stores, multi, onOrder }: { stores: StoreRo
             <div><dt>Category</dt><dd>{it.division ? divisionLabel(it.division) : '–'}{it.category ? `, ${it.category}` : ''}</dd></div>
           </dl>
 
-          <h3 className="pricesub">Sales at this store</h3>
-          {!sales ? <p className="muted">Loading…</p> : sales.weeks === 0 ? <p className="muted">No weekly sales have been loaded yet.</p> : (
-            <dl className="facts">
-              <div><dt>Last week loaded</dt><dd className="num">{sales.last} units</dd></div>
-              <div><dt>Last {Math.min(4, sales.weeks)} weeks</dt><dd className="num">{sales.four} units</dd></div>
-              <div><dt>Last {sales.weeks} weeks</dt><dd className="num">{sales.thirteen} units, about {perWeekText(sales.thirteen / sales.weeks)} a week</dd></div>
-            </dl>
-          )}
+          {/* One line only: the full item sales live in Sales > Items, and the weekly pace is on each Order row. */}
+          {sales && sales.weeks > 0 && <p className="muted">Sells about {perWeekText(sales.thirteen / sales.weeks)} a week here, over the last {sales.weeks} weeks loaded.</p>}
 
           <div className="actions">
             <button type="button" className="btn" onClick={() => { track('price_label_print', {}, storeId); window.print() }}>Print price label</button>
