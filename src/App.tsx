@@ -23,6 +23,7 @@ import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type DocRow, type Member, ty
 const Builder = lazy(() => import('./Builder'))
 const Documents = lazy(() => import('./Documents'))
 const Reports = lazy(() => import('./Reports'))
+const Tansel = lazy(() => import('./Tansel')) // carries the Tansel packer table, so it loads only when opened
 
 type View = 'home' | Tab
 
@@ -177,6 +178,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} />
+          : view === 'tansel' ? <Suspense fallback={<p className="muted">Loading…</p>}><Tansel stores={active} multi={multi} /></Suspense>
           : view === 'sales' ? <Sales email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
           : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />

@@ -7,7 +7,7 @@ describe('sections', () => {
     expect(new Set(all).size).toBe(all.length)
   })
   it('finds the area of a tab', () => {
-    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['price', 'price'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin']]
+    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['price', 'price'], ['tansel', 'price'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin']]
     for (const [tab, area] of cases) expect(areaOf(tab).id).toBe(area)
   })
   it('only the admin sees the Admin area', () => {
