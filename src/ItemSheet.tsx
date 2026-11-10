@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Loading from './Loading'
 import { SHOW_SALES, itemWarnings, lineCost, money, parseQty, syncedLabel, vendorOf, type Product } from './lib/order'
 import { useEscape } from './lib/useEscape'
 import { useLoad } from './lib/useLoad'
@@ -74,7 +75,7 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
 
         <div className="itemsales">
           <h3>Sales at this store</h3>
-          {sales.loading ? <p className="muted">Loading…</p> : sales.failed ? <p className="muted">Sales are not available right now.</p> : !sales.data?.length ? (
+          {sales.loading ? <Loading /> : sales.failed ? <p className="muted">Sales are not available right now.</p> : !sales.data?.length ? (
             <p className="muted">No sales recorded for this item in the weeks loaded. The weekly report lists an item only when it sold, was ranked or lost sales.</p>
           ) : (
             <>

@@ -16,6 +16,8 @@ export function reveal(el: HTMLElement | null): void {
   if (!el) { stop.forEach((s) => s()); stop.clear(); return }
   if (reduced()) return
   const below = [...el.querySelectorAll<HTMLElement>('.viz-card, .kpis > *')].filter((n) => n.getBoundingClientRect().top > window.innerHeight * 0.92)
+  // A chart grows the moment its card is on screen: now for the cards already there, on arrival for the rest.
+  el.querySelectorAll<HTMLElement>('.viz-card').forEach((n) => { if (!below.includes(n)) n.classList.add('grow') })
   if (!below.length) return
 
   below.forEach((n) => n.classList.add('rv'))
@@ -33,7 +35,7 @@ export function reveal(el: HTMLElement | null): void {
       triggers = ScrollTrigger.batch(below, {
         start: 'top 92%',
         once: true,
-        onEnter: (batch) => { gsap.to(batch, { opacity: 1, y: 0, duration: DUR, ease: 'power3.out', stagger: GAP, overwrite: true, clearProps: 'opacity,transform', onComplete: () => batch.forEach((n) => n.classList.remove('rv')) }) },
+        onEnter: (batch) => { batch.forEach((n) => n.classList.add('grow')); gsap.to(batch, { opacity: 1, y: 0, duration: DUR, ease: 'power3.out', stagger: GAP, overwrite: true, clearProps: 'opacity,transform', onComplete: () => batch.forEach((n) => n.classList.remove('rv')) }) },
       })
     } catch { show() }
   })()

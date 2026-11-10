@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { compact, pctText } from './lib/sales/model'
 
 // Hand-built SVG and HTML charts for the Sales tab. Colours come from the design tokens only (see the .viz rules in styles.css):
@@ -138,7 +138,7 @@ export function ColumnChart({ cats, series, fmt, selected, onSelect, height = 23
           {cats.map((c, i) => {
             const x0 = cx(i) - (barW * series.length + gap * (series.length - 1)) / 2
             return (
-              <g key={c + i} className={`col${selected === i ? ' on' : ''}${active === i ? ' hot' : ''}`} tabIndex={0} role="button" aria-pressed={selected === i}
+              <g key={c + i} style={{ '--i': i } as CSSProperties} className={`col${selected === i ? ' on' : ''}${active === i ? ' hot' : ''}`} tabIndex={0} role="button" aria-pressed={selected === i}
                 aria-label={`${c}: ${series.map((s) => `${s.name} ${fmt(s.values[i])}`).join(', ')}`}
                 onPointerEnter={() => setHover(i)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}
                 onClick={() => onSelect?.(i)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect?.(i) } }}>

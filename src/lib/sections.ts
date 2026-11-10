@@ -11,11 +11,11 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
-  { id: 'quote', label: 'Quote', blurb: 'Make quotes and tax invoices, take deposits and payments, and work out Tansel pull-outs for a cabinet.',
+  { id: 'quote', label: 'Quote', blurb: 'Quotes, tax invoices, payments and Tansel pull-outs.',
     tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }, { tab: 'tansel', label: 'Tansel' }] },
-  { id: 'order', label: 'Order', blurb: 'Order stock for your store, and find past orders.',
+  { id: 'order', label: 'Order', blurb: 'Order stock, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order' }, { tab: 'orders', label: 'Orders' }] },
-  { id: 'price', label: 'Price check', blurb: 'Scan or search any item for its price and stock here, see how it has sold, and print a price label.',
+  { id: 'price', label: 'Price check', blurb: 'Scan an item for its price and stock, see how it has sold, print a label.',
     tabs: [{ tab: 'price', label: 'Price check' }] },
   { id: 'sales', label: 'Sales', blurb: 'See how your store is selling and what to act on.',
     tabs: [{ tab: 'sales', label: 'Sales' }] },

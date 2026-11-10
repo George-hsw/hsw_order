@@ -166,8 +166,9 @@ tr.inactive { opacity: 0.6; }
 .state .actions { margin-top: var(--space-md); }
 .state.error p:first-child { color: var(--color-error); }
 .skeleton { display: grid; gap: var(--space-xs); padding: var(--space-md) var(--space-sm); background: var(--color-paper-2); border-top: var(--rule-hair) solid var(--color-ink); }
-.skeleton i { display: block; height: 40px; border-radius: var(--radius-pill); background: linear-gradient(90deg, var(--color-paper-3), var(--color-paper), var(--color-paper-3)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
-@keyframes shimmer { to { background-position: -200% 0; } }
+.skeleton i { display: block; height: 40px; border-radius: var(--radius-pill); background: var(--color-paper-3); }
+@media (prefers-reduced-motion: no-preference) { .skeleton i { animation: pulse 1.4s ease-in-out infinite; } .skeleton i:nth-child(2) { animation-delay: 140ms; } .skeleton i:nth-child(3) { animation-delay: 280ms; } .skeleton i:nth-child(4) { animation-delay: 420ms; } }
+@keyframes pulse { 50% { opacity: 0.45; } }
 
 /* ---------- Sign-in and dialogs ---------- */
 .loginwrap { min-height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -676,7 +677,7 @@ button, a, select, summary, label { touch-action: manipulation; }
 .logobtn { display: inline-flex; padding: 0; border: 0; background: none; border-radius: var(--radius-pill); cursor: pointer; }
 .logobtn:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .bar .who { margin-inline-start: auto; }
-.hometiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-md); margin-top: var(--space-md); }
+.hometiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-md); margin-top: var(--space-md); }
 .hometile { align-content: start; min-height: 8rem; padding: var(--space-md); }
 .hometile.last { border-color: var(--color-accent-edge); }
 @media (max-width: 44rem) {
@@ -785,7 +786,7 @@ button, a, select, summary, label { touch-action: manipulation; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
   .rv { opacity: 0; } /* a card below the fold waits here until src/lib/motion.ts reveals it on scroll */
-  .hometile { animation: rise var(--dur-long) var(--ease-out) both; }
+  .hometile { animation: rise var(--dur-long) var(--ease-out) backwards; } /* backwards, so the hover lift below is not held down by the finished animation */
   .hometile:nth-child(2) { animation-delay: 60ms; } .hometile:nth-child(3) { animation-delay: 120ms; } .hometile:nth-child(4) { animation-delay: 180ms; } .hometile:nth-child(5) { animation-delay: 240ms; }
   .noticepanel { animation: rise var(--dur-short) var(--ease-out) both; }
   .notice { animation: rise var(--dur-short) var(--ease-out) both; }
@@ -802,3 +803,37 @@ button, a, select, summary, label { touch-action: manipulation; }
 .fcell .tlist { margin-top: var(--space-2xs); }
 .fcell .note { margin: var(--space-2xs) 0 0; }
 .fnote { display: block; }
+
+/* ---------- Motion, part two. Opacity and transform only; nothing moves if reduced motion is asked for ---------- */
+.hometile { position: relative; gap: var(--space-xs); transition: transform var(--dur-short) var(--ease-out); }
+.hometile::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: var(--shadow-card); opacity: 0; pointer-events: none; transition: opacity var(--dur-short) var(--ease-out); }
+.hometile:focus-visible::after { opacity: 1; }
+.hometile .tileicon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; margin-bottom: var(--space-2xs); border-radius: var(--radius-pill); background: var(--color-accent-soft); color: var(--color-link); transition: transform var(--dur-short) var(--ease-out); }
+.tileicon svg { width: 1.375rem; height: 1.375rem; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .hometile:hover { transform: translateY(-3px); }
+  .hometile:hover::after { opacity: 1; }
+  .hometile:hover .tileicon { transform: scale(1.1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hometile:active { transform: translateY(0) scale(0.985); }
+  @keyframes screen-in { from { opacity: 0; transform: translateY(8px); } }
+  .screen { animation: screen-in var(--dur-short) var(--ease-out) backwards; }
+  @keyframes grow-y { from { transform: scaleY(0); } }
+  @keyframes grow-x { from { transform: scaleX(0); } }
+  @keyframes donut-in { from { opacity: 0; transform: rotate(-70deg) scale(0.92); } }
+  .viz-card.grow .bar { transform-box: fill-box; transform-origin: 50% 100%; animation: grow-y var(--dur-long) var(--ease-out) backwards; animation-delay: min(calc(var(--i, 0) * 28ms), 420ms); }
+  .viz-card.grow .col:nth-child(n) .bar { animation-delay: min(calc(var(--i, 0) * 28ms), 420ms); }
+  .viz-card.grow .bl-fill, .viz-card.grow .mt-fill { animation: grow-x var(--dur-long) var(--ease-out) backwards; }
+  .viz-card.grow .donut svg { transform-origin: 50% 50%; animation: donut-in var(--dur-long) var(--ease-out) backwards; }
+  @keyframes pop { 0% { opacity: 0; transform: scale(0.6); } 70% { transform: scale(1.14); } 100% { opacity: 1; transform: scale(1); } }
+  .toast.success svg.i, .fcell .chip.paid, .upload .chip.paid { animation: pop var(--dur-long) var(--ease-out) backwards; }
+  @keyframes tab-on { from { opacity: 0.55; transform: scale(0.93); } }
+  .tab[aria-current="page"] { animation: tab-on var(--dur-short) var(--ease-out); }
+  .screen tbody tr:nth-child(-n+10), .pricehits li, .tcodes > li, .fweeks > li:nth-child(-n+8) { animation: rise var(--dur-short) var(--ease-out) backwards; }
+  .screen tbody tr:nth-child(2), .tcodes > li:nth-child(2), .fweeks > li:nth-child(2) { animation-delay: 30ms; } .screen tbody tr:nth-child(3), .tcodes > li:nth-child(3), .fweeks > li:nth-child(3) { animation-delay: 60ms; }
+  .screen tbody tr:nth-child(4), .tcodes > li:nth-child(4), .fweeks > li:nth-child(4) { animation-delay: 90ms; } .screen tbody tr:nth-child(5), .tcodes > li:nth-child(5), .fweeks > li:nth-child(5) { animation-delay: 120ms; }
+  .screen tbody tr:nth-child(6), .tcodes > li:nth-child(6), .fweeks > li:nth-child(6) { animation-delay: 150ms; } .screen tbody tr:nth-child(7), .tcodes > li:nth-child(7), .fweeks > li:nth-child(7) { animation-delay: 180ms; }
+  .screen tbody tr:nth-child(n+8) { animation-delay: 210ms; }
+}
+.progress span { transition: transform var(--dur-short) var(--ease-out); }

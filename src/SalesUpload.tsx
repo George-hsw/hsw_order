@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import Loading from './Loading'
 import SalesFolder from './SalesFolder'
 import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
@@ -183,7 +184,7 @@ export default function SalesUpload({ email, stores, onLoaded }: { email: string
 
       <section className="sheet viz-card">
         <div className="viz-head"><div><h2>Recent loads</h2></div></div>
-        {log.loading ? <p className="muted">Loading…</p> : !log.data?.length ? <p className="muted viz-empty">Nothing loaded yet.</p> : (
+        {log.loading ? <Loading /> : !log.data?.length ? <p className="muted viz-empty">Nothing loaded yet.</p> : (
           <div className="tablewrap">
             <table className="viz-table cells">
               <thead><tr><th>Report</th><th>Week</th><th className="r">Rows</th><th>Loaded</th></tr></thead>

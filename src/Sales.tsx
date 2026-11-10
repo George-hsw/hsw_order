@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import Loading from './Loading'
 import { BarList, ChartCard, ColumnChart, Delta, Donut, Legend, Meter, StatTile } from './Charts'
 import SalesItem from './SalesItem'
 import SalesItems from './SalesItems'
@@ -82,7 +83,7 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder, star
         : weeks.failed || history.failed ? (
           <div className="state error" role="alert"><p>Could not load sales</p><p className="muted">Check your connection and try again.</p>
             <div className="actions"><button type="button" className="btn" onClick={() => { weeks.retry(); history.retry() }}>Try again</button></div></div>
-        ) : weeks.loading || (sub !== 'all' && history.loading) ? <p className="muted">Loading…</p>
+        ) : weeks.loading || (sub !== 'all' && history.loading) ? <Loading />
         : sub === 'item' && storeId ? <SalesItem storeId={storeId} initialCode={itemCode} onOrder={(vendor, item) => onOrder({ storeId, vendor, item })} />
         : !weekOptions.length ? (
           <div className="state"><p>No sales loaded yet</p><p className="muted">{isAdmin ? 'Open the Upload view and add this week’s reports.' : 'Head office loads the weekly reports. They will appear here once they do.'}</p></div>
@@ -142,7 +143,7 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
           title="Day by day" sub={dates?.week_start ? rangeText(dates.week_start, dates.week_end) : weekLabel(week)}
           legend={<Legend items={[{ tone: 'ty', label: 'This year' }, { tone: 'ly', label: 'Same day last year' }]} />}
           table={{ head: ['Day', 'Sales', 'Last year', 'Change'], rows: dayRows.map((d) => [WEEKDAYS[d.weekday - 1], money2(d.ty), money2(d.ly), pctText(change(d.ty, d.ly))]) }}>
-          {days.loading ? <p className="muted viz-empty">Loading…</p> : !dayRows.length ? <p className="muted viz-empty">No daily figures for this week yet.</p> : (
+          {days.loading ? <Loading rows={2} /> : !dayRows.length ? <p className="muted viz-empty">No daily figures for this week yet.</p> : (
             <>
               <ColumnChart label="Daily sales, this year and last year" cats={WEEKDAYS} fmt={money2} height={208} selected={dayIdx} onSelect={(i) => setDayIdx(dayIdx === i ? null : i)}
                 series={[{ name: 'This year', tone: 'ty', values: WEEKDAYS.map((_, i) => dayRows.find((d) => d.weekday === i + 1)?.ty ?? 0) }, { name: 'Last year', tone: 'ly', values: WEEKDAYS.map((_, i) => dayRows.find((d) => d.weekday === i + 1)?.ly ?? 0) }]} />
@@ -162,7 +163,7 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
 
       <section className="sheet viz-card">
         <div className="viz-head"><div><h2>How you rank</h2><p className="muted">Your place among the stores trading this week. Press a line to read it.</p></div></div>
-        {ranks.loading ? <p className="muted viz-empty">Loading…</p> : !ranks.data?.length ? <p className="muted viz-empty">Ranks appear once the week’s results are loaded for every store.</p> : (
+        {ranks.loading ? <Loading rows={2} /> : !ranks.data?.length ? <p className="muted viz-empty">Ranks appear once the week’s results are loaded for every store.</p> : (
           <>
             <div className="meters">
               {ranks.data.map((r) => <Meter key={r.metric} rank={r.rank} of={r.of} label={RANK_LABEL[r.metric]} text={rankText(r)} selected={metric === r.metric} onSelect={() => setMetric(metric === r.metric ? null : r.metric)} />)}

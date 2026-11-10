@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import Loading from './Loading'
 import { BarList, ChartCard, ColumnChart, Legend, StatTile } from './Charts'
 import { loadEvents, pruneEvents } from './lib/analytics/api'
 import {
@@ -55,7 +56,7 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
       {log.failed ? (
         <div className="state error" role="alert"><p>Could not load the usage log</p><p className="muted">Has migration 013 been applied? Check your connection and try again.</p>
           <div className="actions"><button type="button" className="btn" onClick={log.retry}>Try again</button></div></div>
-      ) : log.loading ? <p className="muted">Loading…</p> : (
+      ) : log.loading ? <Loading /> : (
         <div className="viz-stack" ref={reveal}>
           {log.data?.truncated && <p className="note bad">There is more activity than can be shown, so this is the newest part of the period.</p>}
 

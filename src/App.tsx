@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import Loading from './Loading'
 import type { Session } from '@supabase/supabase-js'
 import Analytics from './Analytics'
 import Home from './Home'
@@ -47,7 +48,7 @@ export default function App() {
       </main>
     )
   }
-  if (session === undefined) return <main className="container page"><p className="muted">Loading…</p></main>
+  if (session === undefined) return <main className="container page"><Loading /></main>
   if (!session) return <Login />
   return <Shell session={session} />
 }
@@ -165,20 +166,22 @@ function Shell({ session }: { session: Session }) {
         </div>
       </header>
       <main className="container page">
-        {!allStores || (!people && view !== 'order' && view !== 'home') ? <p className="muted">Loading…</p>
+        <div className={view === 'home' ? undefined : 'screen'} key={view}>
+        {!allStores || (!people && view !== 'order' && view !== 'home') ? <Loading />
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
           : view === 'home' ? <Home isAdmin={isAdmin} last={lastArea} onPick={pickArea} />
-          : view === 'new' ? <Suspense fallback={<p className="muted">Loading…</p>}><Builder key={builderKey} seed={seed} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
-          : view === 'docs' ? <Suspense fallback={<p className="muted">Loading…</p>}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
-          : view === 'reports' && sees ? <Suspense fallback={<p className="muted">Loading…</p>}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
+          : view === 'new' ? <Suspense fallback={<Loading />}><Builder key={builderKey} seed={seed} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
+          : view === 'docs' ? <Suspense fallback={<Loading />}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
+          : view === 'reports' && sees ? <Suspense fallback={<Loading />}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
           : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} onSales={(storeId, code) => { setSalesStart({ storeId, code }); setView('sales') }} />
-          : view === 'tansel' ? <Suspense fallback={<p className="muted">Loading…</p>}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>
+          : view === 'tansel' ? <Suspense fallback={<Loading />}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>
           : view === 'sales' ? <Sales key={salesStart ? `${salesStart.storeId}:${salesStart.code}` : 'sales'} start={salesStart} email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
           : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
+        </div>
       </main>
       {tour && allStores && people && <Tour isAdmin={isAdmin} manager={active.length > 0 || isAdmin} onClose={closeTour} />}
     </>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Loading from './Loading'
 import { BarList, ChartCard, Delta, Donut, Legend } from './Charts'
 import { salesApi } from './lib/sales/api'
 import { RANK_LABEL, avgSale, change, memberShare, money2, ordinal, pctText, weekKey, type RankMetric, type StoreWeek, type WeekRef } from './lib/sales/model'
@@ -31,7 +32,7 @@ export default function SalesLeague({ week, stores }: { week: WeekRef; stores: S
   const bars = useMemo(() => trading.flatMap((r) => { const v = value(metric, r); return v === null ? [] : [{ r, v }] }).sort((a, b) => b.v - a.v), [trading, metric])
   const names = new Map(stores.map((s) => [s.id, s.name]))
 
-  if (league.loading) return <p className="muted">Loading…</p>
+  if (league.loading) return <Loading />
   if (league.failed) return <div className="state error" role="alert"><p>Could not load the stores</p><div className="actions"><button type="button" className="btn" onClick={league.retry}>Try again</button></div></div>
   if (!rows.length) return <div className="state"><p>No store results for this week</p></div>
 

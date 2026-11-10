@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { reveal } from './lib/motion'
+import Loading from './Loading'
 import { ChartCard, ColumnChart, Delta, Legend, StatTile } from './Charts'
 import Scanner from './Scanner'
 import { beep, primeAudio } from './lib/beep'
@@ -61,7 +63,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
   const cats = weeks.map((w) => `W${w.week}`)
 
   return (
-    <div className="viz-stack">
+    <div className="viz-stack" ref={reveal}>
       <section className="sheet viz-card">
         <div className="viz-head"><div><h2>Scan an item</h2><p className="muted">Scan a barcode or type an item number to see how it has sold at this store.</p></div></div>
         <form className="findrow" onSubmit={submit}>
@@ -87,7 +89,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
             {flag && flag !== 'ok' && <p className={`note${flag === 'out' ? ' bad' : ''}`}><span className={`chip ${CHIP[flag]}`}>{FLAG_LABEL[flag]}</span> {FLAG_HELP[flag]}</p>}
           </section>
 
-          {history.loading ? <p className="muted">Loading…</p> : history.failed ? (
+          {history.loading ? <Loading /> : history.failed ? (
             <div className="state error" role="alert"><p>Could not load this item’s sales</p><div className="actions"><button type="button" className="btn" onClick={history.retry}>Try again</button></div></div>
           ) : !weeks.length ? (
             <div className="state"><p>No sales recorded for this item</p><p className="muted">The Detailed report lists an item only when it sold, was ranked or lost sales. Stock now: {item.inventory}.</p></div>

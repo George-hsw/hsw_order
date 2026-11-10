@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import Loading from './Loading'
 import { BarList, ChartCard, Legend, useEscapeKey } from './Charts'
 import { salesApi } from './lib/sales/api'
 import {
@@ -46,7 +47,7 @@ export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeI
   }
   const picked = all.find((i) => i.item_code === open) ?? null
 
-  if (items.loading) return <p className="muted">Loading…</p>
+  if (items.loading) return <Loading />
   if (items.failed) return <div className="state error" role="alert"><p>Could not load items</p><div className="actions"><button type="button" className="btn" onClick={items.retry}>Try again</button></div></div>
   if (!all.length) return <div className="state"><p>No item results for this store in this week</p><p className="muted">The detailed report may not have been loaded yet.</p></div>
 
