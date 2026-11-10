@@ -5,6 +5,8 @@ import { useToast } from './Toast'
 import { dateAU, money, parseDate } from './lib/quote'
 import { DEMO, isoDate, supabase, type DocRow } from './lib/supabase'
 import { demoDocs } from './lib/demo'
+import { FULFILMENT_CHIP, FULFILMENT_LABEL, NEXT_STEP } from './lib/customerOrders'
+import { track } from './lib/analytics/track'
 
 interface Props {
   isAdmin: boolean
@@ -19,13 +21,14 @@ interface Props {
 function statusLabel(d: DocRow): string {
   if (d.status === 'void') return 'Void'
   const paid = paidOf(d)
-  if (paid === 0) return d.doc_type === 'Quote' ? 'Quote' : 'Open'
+  if (paid === 0) return d.doc_type === 'Quote' ? 'Quote' : d.doc_type === 'Customer Order' ? 'Customer order' : 'Open'
   if (paid >= d.total_cents) return 'Paid in full'
   return d.payments.every((p) => p.kind === 'deposit') ? 'Deposit received' : 'Part paid'
 }
 const TYPES: { value: string; label: string }[] = [
   { value: '', label: 'All' },
   { value: 'Quote', label: 'Quotes' },
+  { value: 'Customer Order', label: 'Customer orders' },
   { value: 'Tax Invoice', label: 'Invoices' },
 ]
 
@@ -41,11 +44,27 @@ export default function Documents({ isAdmin, showBy, canPay, names, refreshKey, 
   const [deleting, setDeleting] = useState<string | null>(null)
 
   /** Quotes only. A tax invoice is a tax record, so it is never deleted from here. */
+  const [stepping, setStepping] = useState<string | null>(null)
+  // A customer order moves on: ordered from the vendor, arrived in store, collected by the customer.
+  const step = async (d: DocRow) => {
+    const next = d.fulfilment ? NEXT_STEP[d.fulfilment] : undefined
+    if (!next) return
+    if (DEMO) { setDocs((all) => (all ?? []).map((x) => (x.id === d.id ? { ...x, fulfilment: next.to } : x))); toast.success(`${d.doc_number}: ${FULFILMENT_LABEL[next.to]}.`); return }
+    if (!supabase) return
+    setStepping(d.id)
+    const { error } = await supabase.from('documents').update({ fulfilment: next.to }).eq('id', d.id)
+    setStepping(null)
+    if (error) { toast.error('Could not update the customer order. Try again.'); return }
+    track('customer_order_step', { to: next.to }, d.store_id)
+    toast.success(`${d.doc_number}: ${FULFILMENT_LABEL[next.to]}.`)
+    load()
+  }
+
   const deleteQuote = async (d: DocRow) => {
     if (!(await ask({
-      title: `Delete quote ${d.doc_number}?`,
-      body: <p>The quote for {d.customer_name} ({money(d.total_cents)}) is removed for good. This cannot be undone.</p>,
-      confirmLabel: 'Delete quote',
+      title: `Delete ${d.doc_type === 'Customer Order' ? 'customer order' : 'quote'} ${d.doc_number}?`,
+      body: <p>The {d.doc_type === 'Customer Order' ? 'customer order' : 'quote'} for {d.customer_name} ({money(d.total_cents)}) is removed for good. This cannot be undone.</p>,
+      confirmLabel: d.doc_type === 'Customer Order' ? 'Delete customer order' : 'Delete quote',
       danger: true,
     }))) return
     if (DEMO) { toast.info('Demo mode: nothing was deleted.'); return }
@@ -64,7 +83,7 @@ export default function Documents({ isAdmin, showBy, canPay, names, refreshKey, 
     if (!supabase) return
     const { data, error } = await supabase
       .from('documents')
-      .select('id,store_id,doc_type,doc_number,customer_name,total_cents,due_date,status,created_by,created_at,payload,stores(name),payments(amount_cents,kind,paid_on)')
+      .select('id,store_id,doc_type,doc_number,customer_name,total_cents,due_date,status,fulfilment,created_by,created_at,payload,stores(name),payments(amount_cents,kind,paid_on)')
       .order('created_at', { ascending: false })
       .limit(300)
     if (error) {
@@ -144,9 +163,10 @@ export default function Documents({ isAdmin, showBy, canPay, names, refreshKey, 
                     <td data-label={inv ? 'Paid' : 'Deposit'} className={'r' + (hasMoney ? (inv ? '' : ' qpay') : ' na')}>{hasMoney ? money(paid) : '–'}</td>
                     <td data-label="Balance" className={'r' + (hasMoney ? (inv ? '' : ' qpay') : ' na')}>{hasMoney ? money(bal) : '–'}</td>
                     <td data-label="Due" className={inv ? undefined : 'na'}>{inv && d.due_date ? dateAU(parseDate(d.due_date)!) : '–'}</td>
-                    <td data-label="Status"><span className={'chip ' + (overdue ? 'overdue' : inv || paid > 0 ? d.status : 'quote')}>{overdue ? 'Overdue' : statusLabel(d)}</span></td>
+                    <td data-label="Status"><span className={'chip ' + (overdue ? 'overdue' : inv || paid > 0 ? d.status : 'quote')}>{overdue ? 'Overdue' : statusLabel(d)}</span>{d.doc_type === 'Customer Order' && d.fulfilment && <> <span className={'chip ' + FULFILMENT_CHIP[d.fulfilment]}>{FULFILMENT_LABEL[d.fulfilment]}</span></>}</td>
                     <td className="rowactions">
                       <button type="button" className="btn" onClick={() => onOpen(d)}>{paid > 0 ? 'View' : 'Open'}</button>
+                      {d.doc_type === 'Customer Order' && d.fulfilment && NEXT_STEP[d.fulfilment] && <button type="button" className="btn" disabled={stepping === d.id} onClick={() => step(d)}>{NEXT_STEP[d.fulfilment]!.label}</button>}
                       {bal > 0 && d.status !== 'void' && canPay(d.store_id) && <button type="button" className="btn primary" onClick={() => setPaying(d)}>{inv ? 'Record payment' : 'Record deposit'}</button>}
                       {!inv && paid === 0 && <button type="button" className="btn danger" disabled={deleting === d.id} onClick={() => deleteQuote(d)}>{deleting === d.id ? 'Deleting…' : 'Delete'}</button>}
                     </td>

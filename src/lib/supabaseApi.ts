@@ -1,3 +1,6 @@
+import { codeLines, type CustomerOrderNeed } from './customerOrders'
+import type { Counted, OverdueInvoice } from './notifications'
+import { DEFAULT_COVER } from './insights'
 import { ConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
 import { supabase, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun } from './supabase'
@@ -31,6 +34,7 @@ async function readAll<T>(build: (from: number, to: number, count: boolean) => P
 }
 const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
 
+const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen'
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
@@ -140,5 +144,121 @@ export const supabaseApi: OrdersApi = {
     const latest = new Map<string, SyncRun>() // newest first, so the first one seen per store is its latest
     for (const r of (data ?? []) as SyncRun[]) if (!latest.has(r.store_id)) latest.set(r.store_id, r)
     return [...latest.values()]
+  },
+
+  async findItems(storeId, query): Promise<Product[]> {
+    const clean = query.trim().replace(/[,()"%*\\]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!clean) return []
+    let items: ItemRow[] = []
+    if (!clean.includes(' ')) {
+      // A barcode (with or without leading zeros) or an exact item number.
+      const digits = /^\d+$/.test(clean) ? clean.replace(/^0+/, '') : ''
+      const forms = new Set<string>([clean, clean.toUpperCase()])
+      if (digits) for (const pad of [0, 1, 2, 3, 4, 5]) forms.add('0'.repeat(pad) + digits)
+      const { data, error } = await db().from('items').select(ITEM_COLUMNS).or([...forms].flatMap((f) => [`barcode.eq.${f}`, `code.eq.${f}`]).join(',')).limit(5)
+      if (error) throw new Error(error.message)
+      items = (data ?? []) as ItemRow[]
+    }
+    if (!items.length) {
+      // Words from the name (every word must appear), or the start of an item number.
+      const words = clean.split(' ').slice(0, 5)
+      let q = db().from('items').select(ITEM_COLUMNS)
+      if (words.length === 1) q = q.or(`description.ilike.%${words[0]}%,code.ilike.${words[0]}%`)
+      else for (const w of words) q = q.ilike('description', `%${w}%`)
+      const { data, error } = await q.order('description').limit(30)
+      if (error) throw new Error(error.message)
+      items = (data ?? []) as ItemRow[]
+    }
+    if (!items.length) return []
+    const { data: stock, error } = await db().from('store_stock').select(STOCK_COLUMNS).eq('store_id', storeId).in('item_code', items.map((i) => i.code))
+    if (error) throw new Error(error.message)
+    const byCode = new Map(((stock ?? []) as StockRow[]).map((s) => [s.item_code, s]))
+    return items.map((item) => ({ item: { ...item, price: item.price === null ? null : Number(item.price) }, stock: byCode.get(item.code) }))
+  },
+
+  async customerOrders(storeIds): Promise<CustomerOrderNeed[]> {
+    if (!storeIds.length) return []
+    const { data, error } = await db().from('documents').select('id,store_id,doc_number,customer_name,created_at,payload')
+      .eq('doc_type', 'Customer Order').eq('fulfilment', 'to_order').in('store_id', storeIds).order('created_at').limit(500)
+    if (error) throw new Error(error.message)
+    const docs = (data ?? []) as { id: string; store_id: string; doc_number: string; customer_name: string; created_at: string; payload: unknown }[]
+    const wanted = docs.map((d) => ({ ...d, want: codeLines(d.payload) })).filter((d) => d.want.length)
+    const codes = [...new Set(wanted.flatMap((d) => d.want.map((w) => w.code)))]
+    if (!codes.length) return []
+    const [items, stock] = await Promise.all([
+      db().from('items').select('code,description,vendor_no').in('code', codes),
+      db().from('store_stock').select('store_id,item_code,vendor_no').in('store_id', storeIds).in('item_code', codes),
+    ])
+    if (items.error) throw new Error(items.error.message)
+    if (stock.error) throw new Error(stock.error.message)
+    const item = new Map(((items.data ?? []) as { code: string; description: string; vendor_no: string | null }[]).map((i) => [i.code, i]))
+    const vendorAt = new Map(((stock.data ?? []) as { store_id: string; item_code: string; vendor_no: string | null }[]).map((s) => [s.store_id + '|' + s.item_code, s.vendor_no]))
+    return wanted.map(({ want, payload: _p, ...d }) => ({
+      ...d,
+      lines: want.map((w) => ({ code: w.code, qty: w.qty, description: item.get(w.code)?.description ?? w.code, vendor: vendorAt.get(d.store_id + '|' + w.code) ?? item.get(w.code)?.vendor_no ?? null })),
+    }))
+  },
+
+  async setFulfilment(docId, to) {
+    const { error } = await db().from('documents').update({ fulfilment: to }).eq('id', docId)
+    if (error) throw new Error(error.message)
+  },
+
+  async lowStock(storeIds) {
+    if (!storeIds.length) return []
+    const { data, error } = await db().rpc('low_stock_by_vendor', { p_stores: storeIds })
+    if (error) throw new Error(error.message)
+    return (data ?? []) as Counted[]
+  },
+
+  async newItems(storeIds) {
+    if (!storeIds.length) return []
+    const { data, error } = await db().rpc('new_items_by_vendor', { p_stores: storeIds })
+    if (error) throw new Error(error.message)
+    return (data ?? []) as Counted[]
+  },
+
+  async overdueInvoices(storeIds): Promise<OverdueInvoice[]> {
+    if (!storeIds.length) return []
+    const today = new Date().toLocaleDateString('en-CA')
+    const { data, error } = await db().from('documents').select('store_id,doc_number,customer_name,total_cents,due_date,payments(amount_cents)')
+      .eq('doc_type', 'Tax Invoice').in('status', ['open', 'part_paid']).lt('due_date', today).in('store_id', storeIds).order('due_date').limit(300)
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { store_id: string; doc_number: string; customer_name: string; total_cents: number; due_date: string; payments: { amount_cents: number }[] }[])
+      .map((d) => ({ store_id: d.store_id, doc_number: d.doc_number, customer_name: d.customer_name, due_date: d.due_date, balance_cents: d.total_cents - d.payments.reduce((a, p) => a + p.amount_cents, 0) }))
+      .filter((d) => d.balance_cents > 0)
+  },
+
+  // Hidden notices. If the table is not there yet (before migration 017) they are kept in this browser instead.
+  async dismissals() {
+    const out = new Map<string, string>()
+    const now = new Date().toISOString()
+    try { const raw = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '{}') as Record<string, string>; for (const [k, u] of Object.entries(raw)) if (u > now) out.set(k, u) } catch { /* ignore */ }
+    const { data, error } = await db().from('notice_dismissals').select('key,until').gt('until', now)
+    if (!error) for (const r of (data ?? []) as { key: string; until: string }[]) out.set(r.key, r.until)
+    return out
+  },
+
+  async dismiss(keys, until) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '{}') as Record<string, string>
+      for (const k of keys) raw[k] = until
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify(raw))
+    } catch { /* ignore */ }
+    const { data: u } = await db().auth.getUser()
+    if (!u.user) return
+    const { error } = await db().from('notice_dismissals').upsert(keys.map((key) => ({ user_id: u.user!.id, key, until })), { onConflict: 'user_id,key' })
+    if (error) throw new Error(error.message)
+  },
+
+  async coverTarget(storeId) {
+    const { data, error } = await db().from('store_prefs').select('cover_weeks').eq('store_id', storeId).maybeSingle()
+    if (error) return DEFAULT_COVER // before migration 015 is deployed there is no table: use the default
+    return Number((data as { cover_weeks: number } | null)?.cover_weeks ?? DEFAULT_COVER)
+  },
+
+  async setCoverTarget(storeId, weeks, email) {
+    const { error } = await db().from('store_prefs').upsert({ store_id: storeId, cover_weeks: weeks, updated_by: email, updated_at: new Date().toISOString() }, { onConflict: 'store_id' })
+    if (error) throw new Error(error.message)
   },
 }

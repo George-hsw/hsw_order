@@ -21,6 +21,9 @@ export const demoDocs = (): DocRow[] => [
     due_date: isoDate(dayAgo(2)), status: 'open', created_by: 'lee@hsw.com.au', created_at: dayAgo(9).toISOString(), payload: {}, stores: { name: storesJson[1].name }, payments: [] },
   { id: 'd3', store_id: 'demo-0', doc_type: 'Quote', doc_number: 'Q-' + storesJson[0].code + '-1002', customer_name: 'Pat Lee', total_cents: 129500,
     due_date: null, status: 'open', created_by: 'priya@hsw.com.au', created_at: dayAgo(1).toISOString(), payload: {}, stores: { name: storesJson[0].name }, payments: [] },
+  { id: 'd4', store_id: 'demo-0', doc_type: 'Customer Order', fulfilment: 'to_order', doc_number: 'CO-' + storesJson[0].code + '-1003', customer_name: 'Mia Chen', total_cents: 9900,
+    due_date: null, status: 'part_paid', created_by: 'sam@hsw.com.au', created_at: dayAgo(2).toISOString(), payload: { lines: [{ code: 'ANA01093', qty: '2' }, { code: 'ANA01096', qty: '1' }] }, stores: { name: storesJson[0].name },
+    payments: [{ amount_cents: 2000, kind: 'deposit', paid_on: isoDate(dayAgo(2)) }] },
 ]
 
 export const demoUsers = (): AppUser[] => [
@@ -45,7 +48,7 @@ export const demoItems = (): ItemRow[] => [
   I('ANA01092', 'HUSH SOAP DISH WHT', 'ANAS001', 'IHUW-03', '9325039010921', 'BATHROOM', 'BATH-SETS_ACCS', 12.95),
   I('ANA01093', 'HUSH TUMBLER WHT', 'ANAS001', 'IHUW-05', '9325039010938', 'BATHROOM', 'BATH-SETS_ACCS', 12.95),
   I('ANA01095', 'HUSH TOILET BRUSH WHT', 'ANAS001', 'IHUW-17', '9325039010952', 'BATHROOM', 'BATH-TOILET_BRUSH', 49.95),
-  I('ANA01096', 'HUSH ROLL CANISTER WHT', 'ANAS001', 'IHUW-15', '9325039010969', 'BATHROOM', 'BATH-TOILET_BRUSH', 69.95),
+  I('ANA01096', 'HUSH ROLL CANISTER WHT', 'ANAS001', 'IHUW-15', '9325039010969', 'BATHROOM', 'BATH-TOILET_BRUSH', 69.95, { status: 'NEW' }),
   I('ANA01394', 'HUSH TOILET BRUSH BLACK', 'ANAS001', 'IHUB-17', '9325039013946', 'BATHROOM', 'BATH-TOILET_BRUSH', 49.95, { blocked: true }),
   I('ANA0001', 'TOWEL TO GO BALI ANTHRACITE', 'ANAS001', 'TTG-01', '9325039000011', 'ON_THE_GO', 'OTG-TRAVEL_OUTDOOR', 54.5, { status: 'NEW' }),
 ]

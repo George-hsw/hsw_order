@@ -53,3 +53,13 @@ describe('periodStart', () => {
     expect(periodStart('all', now)).toBeNull()
   })
 })
+
+describe('customer orders in reports', () => {
+  it('count their deposits like quote deposits, and are not counted as quotes or invoices', () => {
+    const { total } = summarise([{ created_by: 'a@x', doc_type: 'Customer Order', total_cents: 9900, status: 'part_paid', created_at: '2026-11-01', payments: [{ amount_cents: 2000 }] }], null, {})
+    expect(total.quotes).toBe(0)
+    expect(total.invoices).toBe(0)
+    expect(total.depositCents).toBe(2000)
+    expect(total.invoicedCents).toBe(0)
+  })
+})

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { BarList, ChartCard, Legend, useEscapeKey } from './Charts'
 import { salesApi } from './lib/sales/api'
 import {
-  FLAGS, FLAG_HELP, FLAG_LABEL, chainAvg, flagCounts, itemFlag, money2, ordinal, topBy, type ItemFlag, type ItemSale, type WeekRef, weekKey,
+  FLAGS, FLAG_HELP, FLAG_LABEL, chainAvg, distinct, divisionLabel, flagCounts, itemFlag, money2, ordinal, topBy, topSellers, type ItemFlag, type ItemSale, type TopFilter, type WeekRef, weekKey,
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 
@@ -22,6 +22,7 @@ export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeI
   const [sort, setSort] = useState<SortKey>('net_sales')
   const [limit, setLimit] = useState(PAGE)
   const [open, setOpen] = useState<string | null>(null)
+  const [topF, setTopF] = useState<TopFilter>({ n: 20, by: 'net_sales', vendor: '', division: '' })
   useEscapeKey(open !== null, () => setOpen(null))
 
   const all = items.data ?? []
@@ -48,7 +49,10 @@ export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeI
   if (items.failed) return <div className="state error" role="alert"><p>Could not load items</p><div className="actions"><button type="button" className="btn" onClick={items.retry}>Try again</button></div></div>
   if (!all.length) return <div className="state"><p>No item results for this store in this week</p><p className="muted">The detailed report may not have been loaded yet.</p></div>
 
-  const top = topBy(all, 'net_sales', 8)
+  const top = topSellers(all, topF)
+  const vendors = distinct(all, 'vendor_no')
+  const divisions = distinct(all, 'division')
+  const byText = (i: ItemSale) => (topF.by === 'qty' ? `${i.qty} units` : money2(i.net_sales))
   const lost = topBy(all, 'potential_loss', 8)
 
   return (
@@ -68,11 +72,30 @@ export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeI
         <p className="muted viz-foot">This looks at one week. Treat “not selling” with care: an item can sit for a week and still be a good line.</p>
       </section>
 
-      <div className="viz-two">
-        <ChartCard title="Top sellers" sub="By sales this week" legend={<Legend items={[{ tone: 'ty', label: 'Sales' }]} />}
-          table={{ head: ['Item', 'Units', 'Sales'], rows: top.map((i) => [i.description, i.qty, money2(i.net_sales)]) }}>
-          <BarList rows={top.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i.net_sales, text: money2(i.net_sales) }))} selected={open} onSelect={setOpen} empty="Nothing sold this week." />
-        </ChartCard>
+      <ChartCard title="Top sellers" sub={`Top ${topF.n} by ${topF.by === 'qty' ? 'units sold' : 'sales'} this week${topF.vendor ? `, vendor ${topF.vendor}` : ''}${topF.division ? `, ${divisionLabel(topF.division).toLowerCase()}` : ''}`}
+        legend={<Legend items={[{ tone: 'ty', label: topF.by === 'qty' ? 'Units sold' : 'Sales' }]} />}
+        table={{ head: ['Rank', 'Item', 'Code', 'Units', 'Sales'], rows: top.map((i, k) => [k + 1, i.description, i.item_code, i.qty, money2(i.net_sales)]) }}>
+        <div className="filters topfilters">
+          <select name="topN" aria-label="How many" value={topF.n} onChange={(e) => setTopF({ ...topF, n: Number(e.target.value) })}>
+            {[10, 20, 50].map((n) => <option key={n} value={n}>Top {n}</option>)}
+          </select>
+          <select name="topBy" aria-label="Rank by" value={topF.by} onChange={(e) => setTopF({ ...topF, by: e.target.value as TopFilter['by'] })}>
+            <option value="net_sales">By sales $</option>
+            <option value="qty">By units sold</option>
+          </select>
+          <select name="topVendor" aria-label="Vendor" value={topF.vendor} onChange={(e) => setTopF({ ...topF, vendor: e.target.value })}>
+            <option value="">Every vendor</option>
+            {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <select name="topDivision" aria-label="Category" value={topF.division} onChange={(e) => setTopF({ ...topF, division: e.target.value })}>
+            <option value="">Every category</option>
+            {divisions.map((d) => <option key={d} value={d}>{divisionLabel(d)}</option>)}
+          </select>
+        </div>
+        <BarList rows={top.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i[topF.by], text: byText(i) }))} selected={open} onSelect={setOpen} empty="Nothing sold this week for this choice." />
+      </ChartCard>
+
+      <div>
         <ChartCard title="Sales lost to no stock" sub="The report’s estimate, biggest first"
           table={{ head: ['Item', 'Stock', 'Lost sales'], rows: lost.map((i) => [i.description, i.inventory, money2(i.potential_loss)]) }}>
           <BarList rows={lost.map((i) => ({ key: i.item_code, label: i.description, sub: i.item_code, value: i.potential_loss, text: money2(i.potential_loss) }))} selected={open} onSelect={setOpen} empty="No lost sales reported this week." />

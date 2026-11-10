@@ -20,6 +20,7 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
   const M = 15
   const R = W - M
   const isInvoice = q.docType === 'Tax Invoice'
+  const isOrder = q.docType === 'Customer Order'
   const store = c.store
   const text = (t: string, x: number, y: number, o: TextOpts = {}) => {
     doc.setFont('helvetica', o.bold ? 'bold' : 'normal').setFontSize(o.size ?? 9).setTextColor(...(o.color ?? INK))
@@ -39,7 +40,7 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
   }
 
   // Grey title
-  text(`Howards Storage World ${isInvoice ? 'tax invoice' : 'quote'} #${c.docNumber}`, M, y, { bold: true, size: 11, color: GREY })
+  text(`Howards Storage World ${isInvoice ? 'tax invoice' : isOrder ? 'customer order' : 'quote'} #${c.docNumber}`, M, y, { bold: true, size: 11, color: GREY })
   y += 8
 
   // Company block
@@ -77,8 +78,8 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
 
   // Facts grid
   const facts: [string, string, string, string][] = [
-    [isInvoice ? 'Invoice:' : 'Quote:', `#${c.docNumber}`, 'Date:', dateAU(c.date)],
-    ['Served by:', q.servedBy.trim() || '-', isInvoice ? 'Due date:' : 'Valid until:', dateAU(c.secondDate)],
+    [isInvoice ? 'Invoice:' : isOrder ? 'Order:' : 'Quote:', `#${c.docNumber}`, 'Date:', dateAU(c.date)],
+    ['Served by:', q.servedBy.trim() || '-', isInvoice ? 'Due date:' : isOrder ? 'Expected by:' : 'Valid until:', dateAU(c.secondDate)],
   ]
   facts.forEach(([l1, v1, l2, v2], i) => {
     const fy = y + i * 5.2
@@ -150,7 +151,11 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
     y += 3
   }
   if (q.notes.trim()) block('Notes', [q.notes.trim()])
-  block(isInvoice ? 'How to pay' : 'How to accept this quote', [
+  if (isOrder) block('Your order', [
+    'We will contact you when your order arrives. Please bring this order number when you collect it.',
+    `Order number: ${c.docNumber}`,
+  ])
+  else block(isInvoice ? 'How to pay' : 'How to accept this quote', [
     isInvoice ? s.howToPay : s.howToAccept,
     isInvoice ? `Account name: ${s.bankName}    BSB: ${s.bsb}    Account: ${s.account}    Reference: ${c.docNumber}` : `Quote number: ${c.docNumber}`,
   ])

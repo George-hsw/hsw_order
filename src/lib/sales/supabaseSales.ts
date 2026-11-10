@@ -1,4 +1,5 @@
 import { supabase, type StoreRow } from '../supabase'
+import { RATE_WEEKS, ratesFrom } from '../insights'
 import type { ItemInfo, SalesApi, UploadRecord } from './api'
 import { dailyRows, detailedRows, indexStores, weeklyRows } from './import'
 import type { ChainWeek, ItemSale, ItemWeek, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'
@@ -82,6 +83,14 @@ export const supabaseSalesApi: SalesApi = {
     const { data, error } = await db().from('sales_item_week').select('fy,week,qty,net_sales,store_rank,group_qty,stores_stocking,potential_loss').eq('store_id', storeId).eq('item_code', itemCode).order('fy', { ascending: false }).order('week', { ascending: false }).limit(26)
     fail(error)
     return ((data ?? []) as ItemWeek[]).map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), potential_loss: Number(r.potential_loss) }))
+  },
+  async itemRates(storeId) {
+    const weeks = (await supabaseSalesApi.weeks()).slice(0, RATE_WEEKS) // newest first
+    if (!weeks.length) return { weeks: 0, perWeek: new Map() }
+    const oldest = weeks[weeks.length - 1]
+    const rows = await pages<{ item_code: string; qty: number; wk: number }>((from, to) => db().from('sales_item_week').select('item_code,qty,wk')
+      .eq('store_id', storeId).gte('wk', oldest.fy * 100 + oldest.week).order('wk').order('item_code').range(from, to))
+    return ratesFrom(rows.map((r) => ({ ...r, qty: Number(r.qty) })))
   },
   async lookupItem(storeId, query): Promise<ItemInfo | null> {
     const q = query.trim()

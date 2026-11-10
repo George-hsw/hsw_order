@@ -2,6 +2,8 @@
 
 One app for Howards Storage World stores: **Quote** (quotes, tax invoices, deposits and payments, PDFs and email), **Order** and **Orders** (the weekly stock order, replacing `Ordering feed.xlsx`), **Sales** (the weekly Power BI reports), **Analytics** (admin) and **Stores** (admin: stores, people and what each can do). It was two apps, HSW Quote and HSW Orders; it is now one site, one sign-in and one Supabase project (the Orders one; the old Quote project was never in production and is retired). Same look and feel throughout: `DESIGN.md` rules.
 
+After sign-in everyone lands on **Home**: one tile for each area they can open (Quote, Order, Sales, and Admin for the admin). Inside an area the top bar and the phone bottom bar show only that area's tabs and a Home button. The areas and their tabs are one list in `src/lib/sections.ts`, so a new area (for example Operations) is one more entry.
+
 ## How it works
 1. Each night NAV's items and each store's stock are copied into Supabase.
 2. A store **chooses a vendor** (a NAV purchase order is made for one vendor). The screen lists the vendor's whole range for that store: in stock, on order, sold last week, MOQ. Staff type a quantity beside each item, or scan to jump to one. It saves as they go.
@@ -15,6 +17,12 @@ Sales history, forecasting and Power BI are not part of this app. Last week's sa
 The **Quote** tab: New (scan or search items, build a Quote or Tax Invoice, PDF, email), Documents, and Reports. Money rules match the old workbook: prices include GST, GST = total / 11, line = qty x price x (1 - disc%), numbers `Q-<STORE>-<n>` and `INV-<STORE>-<n>`, quotes valid 30 days, invoices due in 7 days. Managers and the admin record deposits and payments (`record-payment`), which email the store's managers; `send-document` emails the PDF. Prices come from `public/items.json`, a copy that ships with the site. The quote being built is one live draft per person (`src/lib/draftSync.ts`).
 
 Who can do what is the same everywhere: the admin sees every store and manages people; a manager or Store person has full access inside their own store; One person can be in several stores. Row Level Security enforces it, not the screens (`001_stores_people.sql`, `014_quote_documents.sql`).
+
+## Store tools
+- **Price check**: scan or search any item for its price, stock here and recent sales, and print a price label through the device's print dialog.
+- **Order insights**: each item shows how fast it sells at the store (last 13 weeks loaded), weeks of stock, a Low stock warning and a suggested quantity against the store's cover target (migration 015). Nothing is filled in automatically.
+- **Customer orders**: a document type under Quote with deposits and progress (to order, ordered, arrived, collected) (migration 016); the Order tab and Home remind the store until it is ordered.
+- **The notification bell** (top corner): worked out from live data each time, so a notice goes when its problem is fixed. Customers waiting, overdue invoices, orders copied but not marked ordered, items running low (`low_stock_by_vendor`), new items, stale stock, and for the admin failed syncs, late Sales reports and unusual activity. Each has an Open button to the right screen and a Hide (a day, a week for information, remembered per person in `notice_dismissals`, migration 017). In-app only: it is not a phone push notification.
 
 ## Run it
 ```

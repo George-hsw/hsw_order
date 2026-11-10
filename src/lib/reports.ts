@@ -1,7 +1,7 @@
 // Per-person summary for the Reports tab. Pure, so it is easy to test.
 export interface ReportDoc {
   created_by: string | null
-  doc_type: 'Quote' | 'Tax Invoice'
+  doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order'
   total_cents: number
   status: 'open' | 'part_paid' | 'paid' | 'void'
   created_at: string
@@ -32,9 +32,9 @@ export function summarise(docs: ReportDoc[], since: Date | null, names: Record<s
     if (d.status === 'void') continue
     const key = (d.created_by ?? '').toLowerCase()
     const row = by.get(key) ?? blank(key, names[key] ?? (key || 'Unknown'))
-    if (d.doc_type === 'Quote') {
-      row.quotes += 1
-      row.depositCents += d.payments.reduce((a, p) => a + p.amount_cents, 0)
+    if (d.doc_type !== 'Tax Invoice') {
+      if (d.doc_type === 'Quote') row.quotes += 1
+      row.depositCents += d.payments.reduce((a, p) => a + p.amount_cents, 0) // deposits on quotes and customer orders
     }
     else {
       const received = d.payments.reduce((a, p) => a + p.amount_cents, 0)

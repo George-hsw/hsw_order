@@ -5,19 +5,22 @@ import Scanner from './Scanner'
 import StatusChip from './StatusChip'
 import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
+import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
+import { salesApi } from './lib/sales/api'
+import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
 import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, moqNote, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
 import { DEMO, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
-interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; jump?: { storeId: string; vendor: string; item: string } | null }
+interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; jump?: { storeId: string; vendor: string; item: string; show?: 'low' | 'new' } | null }
 
 const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
 type CatLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; vendors: VendorOption[]; syncedAt?: string }
 type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; order: OrderRow | null } // null: nothing saved yet, so no order exists
 interface Sheet { product: Product; base: number; focusQty: boolean; conflict?: OrderLine | null }
-type Show = 'all' | 'ordered' | 'not'
+type Show = 'all' | 'ordered' | 'not' | 'low' | 'new'
 
 /**
  * An order is for one vendor, like the NAV purchase order it becomes. Choose the vendor and the whole range the store
@@ -40,7 +43,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const [attempt, setAttempt] = useState(0)
   const [orderAttempt, setOrderAttempt] = useState(0)
   const [find, setFind] = useState(jump && stores.some((x) => x.id === jump.storeId) ? jump.item : '')
-  const [show, setShow] = useState<Show>('all')
+  const [show, setShow] = useState<Show>(jump?.show ?? 'all')
   const [below, setBelow] = useState('') // show only items with less than this much in stock ('' = no limit)
   const [sortBy, setSortBy] = useState<SortBy>('code')
   const [limit, setLimit] = useState(PAGE)
@@ -49,6 +52,10 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [copyOpen, setCopyOpen] = useState(false)
   const [pending, setPending] = useState(0)
+  const [rates, setRates] = useState<Rates | null>(null) // weekly sales per item at this store, from the loaded Sales weeks
+  const [target, setTarget] = useState(DEFAULT_COVER) // weeks of stock this store aims to hold
+  const [needs, setNeeds] = useState<CustomerOrderNeed[]>([]) // customer orders still to order
+  const [needsAttempt, setNeedsAttempt] = useState(0)
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
   const refreshDrafts = useCallback(() => { api.drafts(storeId).then(setDrafts).catch(() => { /* the list is a convenience */ }) }, [storeId])
@@ -75,6 +82,32 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     return () => { live = false }
   }, [storeId, vendor, email, orderAttempt])
 
+  // How fast each item sells here, and the store's cover target. Both are extras: if they fail, ordering still works.
+  useEffect(() => {
+    if (!storeId) return
+    let live = true
+    setRates(null)
+    salesApi.itemRates(storeId).then((r) => live && setRates(r)).catch((e) => { trackError('item rates', e) })
+    api.coverTarget(storeId).then((w) => live && setTarget(w)).catch(() => live && setTarget(DEFAULT_COVER))
+    return () => { live = false }
+  }, [storeId])
+
+  // Customer orders waiting to be ordered: warned about on the vendor that supplies them.
+  useEffect(() => {
+    if (!storeId) return
+    let live = true
+    api.customerOrders([storeId]).then((n) => live && setNeeds(n)).catch((e) => { trackError('customer orders', e); if (live) setNeeds([]) })
+    return () => { live = false }
+  }, [storeId, needsAttempt])
+  const markOrdered = async (n: CustomerOrderNeed) => {
+    try {
+      await api.setFulfilment(n.id, 'ordered')
+      track('customer_order_step', { to: 'ordered' }, storeId)
+      toast.success(`${n.doc_number} for ${n.customer_name} marked as ordered.`)
+      setNeedsAttempt((a) => a + 1)
+    } catch (e) { trackError('customer order', e); toast.error('Could not update the customer order. Try again.') }
+  }
+
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
   useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
@@ -99,16 +132,32 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const draftOf = useMemo(() => new Map(drafts.map((d) => [d.vendor_no, d])), [drafts])
   const range = vendor ? rangeList : []
   const lineOf = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
+  const enough = !!rates && rates.weeks >= MIN_WEEKS
+  const insightOf = useMemo(() => {
+    const m = new Map<string, StockInsight>()
+    if (enough) for (const p of range) m.set(p.item.code, stockInsight(p.stock, rates!.perWeek.get(p.item.code) ?? 0, target, p.stock?.moq ?? 1, lineOf.get(p.item.code)?.qty ?? 0))
+    return m
+  }, [range, rates, enough, target, lineOf])
+  const waiting = useMemo(() => needsByItem(needs, storeId), [needs, storeId])
+  const vendorNeeds = useMemo(() => needs.filter((n) => n.lines.some((l) => l.vendor === vendor || range.some((p) => p.item.code === l.code))), [needs, vendor, range])
+  const isNew = (p: Product) => p.item.status.trim().toUpperCase() === 'NEW'
+  // Items that cannot be ordered (blocked, excluded, PO-blocked) are not flagged low: the same rule as the bell.
+  const orderable = (p: Product) => !p.item.blocked && !p.item.exclude_from_replen && !p.stock?.po_blocked
+  const isLow = (p: Product) => orderable(p) && !!insightOf.get(p.item.code)?.low
+  const lowCount = useMemo(() => range.filter(isLow).length, [range, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
+  const newCount = useMemo(() => range.filter(isNew).length, [range]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => {
     const hit = find.trim() ? new Set(searchItems(range.map((p) => p.item), find, 100000).map((i) => i.code)) : null
     const shown = range.filter((p) => {
       if (hit && !hit.has(p.item.code)) return false
       const on = lineOf.has(p.item.code)
+      if (show === 'low') return isLow(p)
+      if (show === 'new') return isNew(p)
       return show === 'all' || (show === 'ordered' ? on : !on)
     })
     return sortProducts(stockBelow(shown, below.trim() === '' ? null : parseQty(below)), sortBy)
-  }, [range, find, show, below, sortBy, lineOf])
+  }, [range, find, show, below, sortBy, lineOf, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
   const filtered = find.trim() !== '' || show !== 'all' || below.trim() !== ''
   const orderedCount = useMemo(() => range.filter((p) => lineOf.has(p.item.code)).length, [range, lineOf])
 
@@ -216,6 +265,12 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const editedAfterCopy = !!order?.copied_at && lines.some((l) => l.updated_at > order.copied_at!)
   const storeName = stores.find((s) => s.id === storeId)?.name ?? ''
   const holds = drafts.filter((d) => d.lines > 0 && d.vendor_no !== vendor)
+  const changeTarget = (w: number) => {
+    setTarget(w)
+    api.setCoverTarget(storeId, w, email)
+      .then(() => toast.success(`${storeName} now aims to hold ${w} ${w === 1 ? 'week' : 'weeks'} of stock.`))
+      .catch((e) => { trackError('cover target', e); toast.error('That did not save. The target applies on this screen only until it does.') })
+  }
 
   if (!stores.length) return <div className="state"><p>No stores yet</p><p className="muted">Add a store on the Stores tab first.</p></div>
 
@@ -262,6 +317,27 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
             <p>{vendors.length === 0 ? 'No items for this store yet' : 'Choose a vendor to start an order'}</p>
             <p className="muted">{vendors.length === 0 ? 'Stock appears here after the nightly sync from NAV.' : 'A purchase order is made for one vendor. Pick one above and its whole range for this store is listed.'}</p>
           </div>
+          {needs.length > 0 && (
+            <section className="block">
+              <h2>Customer orders to order</h2>
+              <ul className="people">
+                {needs.map((n) => (
+                  <li key={n.id}>
+                    <div className="who-line">
+                      <b>{n.doc_number}</b>
+                      <span className="muted">{n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}</span>
+                    </div>
+                    <div className="person-actions">
+                      {[...new Set(n.lines.map((l) => l.vendor).filter((v): v is string => !!v && vendors.some((x) => x.vendor === v)))].map((v) => (
+                        <button key={v} type="button" className="btn" onClick={() => chooseVendor(v)}>Open {v}</button>
+                      ))}
+                      <button type="button" className="btn" onClick={() => void markOrdered(n)}>Mark ordered</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {drafts.some((d) => d.lines > 0) && (
             <section className="block">
               <h2>Orders in progress</h2>
@@ -290,6 +366,19 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
 
       {cat && ready && (
         <>
+          {vendorNeeds.length > 0 && (
+            <div className="note bad custneeds" role="status">
+              <p><b>{vendorNeeds.length === 1 ? 'A customer is' : `${vendorNeeds.length} customers are`} waiting on {vendor} items.</b> Add them to this order, then mark the customer order as ordered.</p>
+              <ul>
+                {vendorNeeds.map((n) => (
+                  <li key={n.id}>
+                    <span>{n.doc_number}, {n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}</span>
+                    <button type="button" className="btn" onClick={() => void markOrdered(n)}>Mark ordered</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {order?.status === 'copied' && !editedAfterCopy && <p className="note">This order has been copied for NAV. Enter the NAV order number when it is done.</p>}
           {editedAfterCopy && <p className="note bad">Lines changed after this order was copied. Copy it again before you use it in NAV.</p>}
 
@@ -315,16 +404,29 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                     <button type="button" aria-pressed={show === 'all'} onClick={() => setShow('all')}>All ({range.length})</button>
                     <button type="button" aria-pressed={show === 'ordered'} onClick={() => setShow('ordered')}>On order ({orderedCount})</button>
                     <button type="button" aria-pressed={show === 'not'} onClick={() => setShow('not')}>Not ordered ({range.length - orderedCount})</button>
+                    {enough && <button type="button" aria-pressed={show === 'low'} onClick={() => setShow('low')}>Low stock ({lowCount})</button>}
+                    {newCount > 0 && <button type="button" aria-pressed={show === 'new'} onClick={() => setShow('new')}>New ({newCount})</button>}
                   </div>
                   <label className="inline">In stock below
                     <input className="qty" name="below" inputMode="numeric" autoComplete="off" placeholder="any" value={below} onChange={(e) => setBelow(e.target.value)} />
                   </label>
+                  {enough && (
+                    <label className="inline">Hold
+                      <select name="cover" value={target} onChange={(e) => changeTarget(Number(e.target.value))} aria-describedby="cover-help">
+                        {COVER_CHOICES.map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
+                      </select>
+                    </label>
+                  )}
                   <label className="inline">Sort by
                     <select name="sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
                       {(Object.keys(SORT_LABEL) as SortBy[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
                     </select>
                   </label>
                 </div>
+                {enough
+                  ? <p className="muted listcount" id="cover-help">Low stock and suggested quantities use this store’s sales over the last {rates!.weeks} weeks loaded, against a target of {target} {target === 1 ? 'week' : 'weeks'} of stock (in stock, on order and on its way). Suggestions are never filled in for you.</p>
+                  : rates && <p className="muted listcount">Low stock warnings and suggested quantities start once {MIN_WEEKS} weeks of item sales are loaded in Sales ({rates.weeks} so far).</p>}
+                {newCount > 0 && show !== 'new' && <p className="note">{newCount} new {newCount === 1 ? 'item is' : 'items are'} in the {vendor} range. <button type="button" className="quiet" onClick={() => setShow('new')}>Show {newCount === 1 ? 'it' : 'them'}</button></p>}
                 {(filtered || sortBy !== 'code') && range.length > 0 && (
                   <p className="muted listcount">
                     Showing {rows.length} of {range.length} items.{' '}
@@ -346,11 +448,16 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                         {rows.slice(0, limit).map((p) => {
                           const l = lineOf.get(p.item.code)
                           const warnings = itemWarnings(p.item, p.stock, l?.qty ?? 0)
+                          const ins = insightOf.get(p.item.code)
                           return (
                             <tr key={p.item.code} className={l ? 'ordering' : undefined}>
                               <td data-label="Item" className="num">{p.item.code}</td>
                               <td data-label="Description" className="desc">
                                 {p.item.description}
+                                {isNew(p) && <small className="chk ok">New item</small>}
+                                {(waiting.get(p.item.code) ?? []).map((w) => <small key={w.id} className="chk error">Customer order: {w.qty} for {w.customer_name} ({w.doc_number})</small>)}
+                                {ins && ins.rate > 0 && <small className="muted">Sells about {perWeekText(ins.rate)} a week, {coverText(ins.cover)}{l ? ' counting this order' : ''}</small>}
+                                {ins?.low && orderable(p) && <small className="chk warn">Low stock: suggested {ins.suggest} to hold {target} {target === 1 ? 'week' : 'weeks'}</small>}
                                 {warnings.map((w) => <small key={w.text} className={'chk ' + w.level}>{w.text}</small>)}
                               </td>
                               <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}</td>

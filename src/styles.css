@@ -671,3 +671,83 @@ button, a, select, summary, label { touch-action: manipulation; }
 
 /* The Quote tab's New, Documents and Reports switch sits above the screen it controls. */
 .quote-views { margin-bottom: var(--space-md); }
+
+/* ---------- Home: the first screen after sign-in, one tile for each area ---------- */
+.logobtn { display: inline-flex; padding: 0; border: 0; background: none; border-radius: var(--radius-pill); cursor: pointer; }
+.logobtn:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.bar .who { margin-inline-start: auto; }
+.hometiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-md); margin-top: var(--space-md); }
+.hometile { align-content: start; min-height: 8rem; padding: var(--space-md); }
+.hometile.last { border-color: var(--color-accent-edge); }
+@media (max-width: 44rem) {
+  /* Home has no tab bar, so the page does not leave room for one. */
+  :root:has(.homepage) { --tabbar: 0px; }
+}
+@media (max-width: 44rem) {
+  .logobtn { min-height: var(--hit); align-items: center; }
+}
+
+/* Top sellers: how many, ranked by what, and for which vendor or category. */
+.topfilters { margin-bottom: var(--space-sm); }
+.topfilters select { width: auto; min-width: 0; }
+@media (max-width: 44rem) { .topfilters select { flex: 1 1 calc(50% - var(--space-xs)); } }
+
+/* ---------- Price check ---------- */
+.pricehits { list-style: none; margin: var(--space-sm) 0 0; padding: 0; display: grid; gap: var(--space-3xs); }
+.pricehits li { border-top: var(--rule-hair) solid var(--color-rule); }
+.pricehits .linkish { display: grid; width: 100%; text-align: left; padding: var(--space-xs) 0; min-height: var(--hit); }
+.pricehits small { color: var(--color-ink-2); }
+.bigprice { display: grid; gap: var(--space-3xs); margin: var(--space-sm) 0 var(--space-md); }
+.bigprice b { font-family: var(--font-display); font-size: var(--text-display); font-weight: 600; line-height: 1.05; }
+.pricesub { margin: var(--space-md) 0 var(--space-xs); font-size: var(--text-md); }
+.printlabel { display: none; }
+
+/* Printing a price label: only the label goes to the printer. */
+@media print {
+  body * { visibility: hidden; }
+  .printlabel, .printlabel * { visibility: visible; }
+  .printlabel { display: block; position: absolute; inset: 0 auto auto 0; width: 90mm; padding: 4mm; border: 0.3mm solid var(--color-ink); color: var(--color-ink); background: var(--color-paper-2); }
+  .printlabel p { margin: 0 0 2mm; }
+  .pl-name { font-weight: 600; font-size: 12pt; }
+  .pl-price { font-family: var(--font-display); font-size: 30pt; font-weight: 600; line-height: 1.05; }
+  .pl-code, .pl-store { font-size: 9pt; color: var(--color-ink-2); }
+}
+
+/* Customer orders waiting on the vendor on screen. */
+.custneeds ul { list-style: none; margin: var(--space-xs) 0 0; padding: 0; display: grid; gap: var(--space-xs); }
+.custneeds li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-xs); }
+.custneeds li span { flex: 1 1 16rem; min-width: 0; }
+
+/* ---------- The notification bell ---------- */
+.who { position: relative; }
+.bellbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: var(--hit); min-height: var(--hit); padding: 0; }
+.bellcount { position: absolute; top: 2px; right: 0; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--space-3xs); border-radius: var(--radius-pill); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 700; line-height: 1.25rem; text-align: center; font-variant-numeric: tabular-nums; }
+.bellcount.urgent { background: var(--color-error); }
+.noticescrim { position: fixed; inset: 0; background: transparent; }
+.noticepanel { position: absolute; top: calc(100% + var(--space-xs)); right: 0; width: 26rem; max-height: min(34rem, calc(100dvh - 9rem - var(--tabbar))); overflow-y: auto; text-align: left; padding: var(--space-md); background: var(--color-paper-2); border-radius: var(--radius-card); box-shadow: 0 0 0 1px var(--color-ink), var(--shadow-lift); }
+.noticepanel:focus { outline: none; } /* the panel only takes focus so a screen reader starts reading it; its buttons keep their rings */
+.noticehead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+.noticehead h2 { margin: 0; font-size: var(--text-md); }
+.noticelist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-sm); }
+.notice { display: grid; gap: var(--space-xs); padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md); border: var(--rule-hair) solid var(--color-rule); border-left-width: 4px; border-radius: var(--radius-card); }
+.notice.bad { border-left-color: var(--color-error); }
+.notice.warn { border-left-color: var(--color-warn); }
+.notice.info { border-left-color: var(--color-accent-edge); }
+.notice b { display: block; }
+.notice p { margin: var(--space-3xs) 0 0; }
+.noticeacts { display: flex; gap: var(--space-xs); }
+.noticeacts button { min-width: var(--hit); }
+.noticefoot { margin: var(--space-sm) 0 0; font-size: var(--text-sm); }
+@media (max-width: 44rem) {
+  /* On a phone the panel spans the screen under the top bar. */
+  .noticepanel { position: fixed; top: 4rem; right: var(--space-md); left: var(--space-md); width: auto; }
+}
+
+/* Audit fixes: five filter buttons wrap on a phone; the price card facts use two columns and never leave an empty cell */
+.facts dd { overflow-wrap: anywhere; }
+@media (max-width: 44rem) {
+  .filters .segmented { flex-wrap: wrap; border-radius: var(--radius-card); }
+  .filters .segmented button { flex: 1 1 auto; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}

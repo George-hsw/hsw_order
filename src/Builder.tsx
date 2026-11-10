@@ -98,7 +98,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   const itemIndex = useMemo(() => indexItems(priceList?.items ?? []), [priceList])
   const barcodeIndex = useMemo(() => indexBarcodes(priceList?.items ?? []), [priceList])
   // Payments recorded in the database feed the printed Paid / Balance due lines.
-  const paidCents = savedType === quote.docType || (savedType === 'Quote' && quote.docType === 'Tax Invoice') ? paidOf({ payments }) : 0
+  const paidCents = savedType === quote.docType || (savedType !== null && savedType !== 'Tax Invoice' && quote.docType === 'Tax Invoice') ? paidOf({ payments }) : 0
   const quoteEff = useMemo(() => (paidCents > 0 ? { ...quote, paid: String(paidCents / 100) } : quote), [quote, paidCents])
   const c = useMemo(
     () => compute(quoteEff, itemIndex, stores, settings, priceList?.items.length ?? 0),
@@ -106,6 +106,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   )
   const matches = useMemo(() => searchItems(priceList?.items ?? [], find), [priceList, find])
   const isInvoice = quote.docType === 'Tax Invoice'
+  const isOrder = quote.docType === 'Customer Order'
   // the valid-until and due dates show their real default, so there is nothing to guess at
   const addIso = (n: number) => { const d = parseDate(quote.date) ?? new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA') }
   const validDefault = addIso(settings.validDays)
@@ -121,7 +122,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   const changeType = (t: QuoteInput['docType']) => {
     set('docType', t)
     if (savedType && t !== savedType) {
-      convertFrom.current = savedType === 'Quote' && t === 'Tax Invoice' ? (docIdRef.current ?? docId) : null
+      convertFrom.current = (savedType === 'Quote' || savedType === 'Customer Order') && t === 'Tax Invoice' ? (docIdRef.current ?? docId) : null
       setDocId(null)
     } else {
       convertFrom.current = null
@@ -183,7 +184,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     }
     const q = docId
       ? supabase.from('documents').update(row).eq('id', docId).select('id').single()
-      : supabase.from('documents').insert(convertFrom.current ? ({ ...row, from_quote: convertFrom.current } as typeof row) : row).select('id').single()
+      : supabase.from('documents').insert({ ...row, ...(isOrder ? { fulfilment: 'to_order' } : {}), ...(convertFrom.current ? { from_quote: convertFrom.current } : {}) } as typeof row).select('id').single()
     const { data, error } = await q
     if (error) {
       toast.error(error.code === '23505' ? `${c.docNumber} already exists for this store, so use a different number.` : error.message)
@@ -252,8 +253,8 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     return true
   }
   const firstName = firstNameOf(quote.customer.name)
-  const docWord = isInvoice ? 'tax invoice' : 'quote'
-  const emailSubject = `${isInvoice ? 'Tax invoice' : 'Quote'} ${c.docNumber} from Howards Storage World${selRow ? ` ${selRow.name}` : ''}`
+  const docWord = isInvoice ? 'tax invoice' : isOrder ? 'customer order' : 'quote'
+  const emailSubject = `${isInvoice ? 'Tax invoice' : isOrder ? 'Customer order' : 'Quote'} ${c.docNumber} from Howards Storage World${selRow ? ` ${selRow.name}` : ''}`
   const emailBody = [
     `Hi ${firstName},`,
     '',
@@ -262,7 +263,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     `Total (incl GST): ${money(c.totalCents)}`,
     ...(isInvoice
       ? [c.balanceCents > 0 ? `Balance due: ${money(c.balanceCents)} by ${dateAU(c.secondDate)}` : 'Paid in full']
-      : [`Valid until: ${dateAU(c.secondDate)}`]),
+      : [`${isOrder ? 'Expected by' : 'Valid until'}: ${dateAU(c.secondDate)}`]),
     '',
     selRow?.phone
       ? `If you have any questions, reply to this email or call us on ${selRow.phone}.`
@@ -299,10 +300,10 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
 
       {locked && (
         <div className="note">
-          {savedType === 'Quote'
-            ? <p>A deposit of {money(paidCents)} is recorded on this quote, so the quote can no longer be edited. You can still download the PDF.</p>
+          {savedType !== 'Tax Invoice'
+            ? <p>A deposit of {money(paidCents)} is recorded on this {savedType === 'Customer Order' ? 'customer order' : 'quote'}, so it can no longer be edited. You can still download the PDF.</p>
             : <p>This invoice has payments recorded, so it can no longer be edited. You can still download the PDF.</p>}
-          {savedType === 'Quote' && <div className="actions"><button type="button" className="btn" onClick={() => changeType('Tax Invoice')}>Make this a tax invoice</button></div>}
+          {savedType !== 'Tax Invoice' && <div className="actions"><button type="button" className="btn" onClick={() => changeType('Tax Invoice')}>Make this a tax invoice</button></div>}
         </div>
       )}
 
@@ -314,7 +315,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
               <div className="grid">
                 <label>Document type
                   <select name="docType" value={quote.docType} onChange={(e) => changeType(e.target.value as QuoteInput['docType'])}>
-                    <option>Quote</option><option>Tax Invoice</option>
+                    <option>Quote</option><option>Customer Order</option><option>Tax Invoice</option>
                   </select>
                 </label>
                 <label>Store
@@ -331,7 +332,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                   <input name="date" type="date" value={quote.date} onChange={(e) => set('date', e.target.value)} />
                 </label>
                 {!isInvoice && (
-                  <label>Valid until
+                  <label>{isOrder ? 'Expected by' : 'Valid until'}
                     <input name="validUntil" type="date" value={quote.validUntil || validDefault} onChange={(e) => set('validUntil', e.target.value)} />
                   </label>
                 )}
@@ -457,7 +458,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
               )}
             </dl>
             <dl className="ledger-meta">
-              <dt><label htmlFor="ledger-date">{isInvoice ? 'Due date' : 'Valid until'}</label></dt>
+              <dt><label htmlFor="ledger-date">{isInvoice ? 'Due date' : isOrder ? 'Expected by' : 'Valid until'}</label></dt>
               <dd>
                 <input id="ledger-date" type="date" disabled={locked}
                   value={isInvoice ? quote.dueDate || dueDefault : quote.validUntil || validDefault}

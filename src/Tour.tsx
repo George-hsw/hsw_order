@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { areaOf, type Tab } from './lib/sections'
 
 interface Props {
   isAdmin: boolean
@@ -7,13 +8,13 @@ interface Props {
 }
 
 type Scene = 'welcome' | 'build' | 'scan' | 'phone' | 'send' | 'docs' | 'sales' | 'pay' | 'stores' | 'done'
-interface Step { title: string; body: string; scene: Scene; tab?: 'quote' | 'order' | 'orders' | 'sales' | 'analytics' | 'stores' }
+interface Step { title: string; body: string; scene: Scene; tab?: Tab }
 
 /** What each person is shown, in order. The steps they cannot use are left out. */
 function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Step[] {
   const steps: Step[] = [
-    { scene: 'welcome', title: 'Welcome to HSW', body: 'Make quotes and invoices, order stock by scanning shelf items, and see how your store is selling. Use Next to move on, or Skip any time.' },
-    { scene: 'build', tab: 'quote', title: 'Quotes and invoices', body: 'Under Quote, choose New, then the store and the customer, then add items by scanning or searching. The total, GST and due date are worked out for you.' },
+    { scene: 'welcome', title: 'Welcome to HSW', body: 'Home lists what you can open: quotes, stock orders and sales. Press Home or the logo any time to come back. Use Next to move on, or Skip any time.' },
+    { scene: 'build', tab: 'new', title: 'Quotes and invoices', body: 'Under Quote, choose New, then the store and the customer, then add items by scanning or searching. The total, GST and due date are worked out for you.' },
     { scene: 'send', title: 'Send it to the customer', body: 'Download the PDF, or choose Open in email. A quote can be turned into an invoice, and Documents lists everything made so far.' },
     { scene: 'scan', tab: 'order', title: 'Choose a vendor', body: 'A purchase order is made for one vendor. Pick the vendor and the whole range your store orders from them is listed, with stock, what is on order and the MOQ.' },
     { scene: 'build', title: 'Type a quantity, or scan', body: 'Type how many to order beside each item, or tap Scan to jump to one. It saves as you go, and a repeat scan never doubles a line.' },
@@ -21,7 +22,10 @@ function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Ste
     { scene: 'send', title: 'Copy into NAV', body: 'When the order looks right, choose Copy for NAV and paste it into the NAV purchase order for that vendor. Then record the NAV order number.' },
     { scene: 'docs', tab: 'orders', title: 'Find past orders in Orders', body: 'Each order shows its status and NAV number. Open one to see its lines, or copy it for NAV again.' },
   ]
-  if (manager) steps.push({ scene: 'pay', tab: 'quote', title: 'Payments and reports', body: 'Record a deposit or payment on an invoice and the store managers are told. Under Quote, Reports shows each person’s quotes and invoices.' })
+  steps.push({ scene: 'docs', title: 'The bell', body: 'The bell at the top lists what needs attention: customers waiting on an order, items running low, overdue invoices. Press Open to go straight to it, or Hide to put it away for a day.' })
+  steps.push({ scene: 'docs', tab: 'new', title: 'Customer orders', body: 'For something a customer wants that is not in stock, make a Customer Order under Quote and take a deposit. The Order tab and Home remind you until it is marked ordered.' })
+  steps.push({ scene: 'scan', tab: 'price', title: 'Check a price', body: 'Price check: scan a barcode, or type an item number or part of the name, to see the price, the stock here and recent sales. Print a price label to any printer on the same Wi-Fi.' })
+  if (manager) steps.push({ scene: 'pay', tab: 'new', title: 'Payments and reports', body: 'Record a deposit or payment on an invoice and the store managers are told. Under Quote, Reports shows each person’s quotes and invoices.' })
   steps.push({ scene: 'sales', tab: 'sales', title: 'See how your store is selling', body: 'Sales shows each week against the same week last year, day by day, and where your store ranks. Items lists what to act on: out of stock, not selling, below or above the chain average. Open an item and press Order this item to jump straight to it.' })
   steps.push({ scene: 'sales', tab: 'order', title: 'Sales on every item', body: 'Open Details on any item in the Order tab to see how it sold at your store in recent weeks, its rank, and the sales lost while it was out of stock. Item sales are before GST and leave out Elfa.' })
   if (isAdmin) steps.push({ scene: 'send', tab: 'sales', title: 'Load the weekly reports', body: 'In Sales, open Upload and add the three Power BI files. Each is checked against its own totals before anything is saved, and a store sees only its own figures.' })
@@ -157,7 +161,7 @@ export default function Tour({ isAdmin, manager, onClose }: Props) {
 
   // Ring the tab this step is about.
   useEffect(() => {
-    const el = step.tab ? document.querySelector<HTMLElement>(`nav .tab[data-tour="${step.tab}"]`) : null
+    const el = step.tab ? document.querySelector<HTMLElement>(`nav .tab[data-tour="${step.tab}"], .hometile[data-tour="${areaOf(step.tab).id}"]`) : null
     el?.classList.add('tour-hit')
     return () => el?.classList.remove('tour-hit')
   }, [step.tab])

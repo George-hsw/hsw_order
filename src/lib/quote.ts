@@ -1,7 +1,7 @@
 // Pure quote logic. Mirrors the formulas in HSW_Quote_Invoice_Builder.xlsx
 // (NEW QUOTE + PRINT QUOTE sheets). Money is held in integer cents.
 
-export type DocType = 'Quote' | 'Tax Invoice'
+export type DocType = 'Quote' | 'Tax Invoice' | 'Customer Order'
 
 export interface Item {
   code: string
@@ -172,7 +172,8 @@ export function compute(
   const storeCode = store ? store.code.trim().toUpperCase() : ''
   const isInvoice = q.docType === 'Tax Invoice'
   const number = q.number.trim()
-  const docNumber = !number || !storeCode ? '' : `${isInvoice ? 'INV' : 'Q'}-${storeCode}-${number}`
+  const prefix = isInvoice ? 'INV' : q.docType === 'Customer Order' ? 'CO' : 'Q'
+  const docNumber = !number || !storeCode ? '' : `${prefix}-${storeCode}-${number}`
   const date = parseDate(q.date) ?? startOfToday()
 
   const lines: ResolvedLine[] = []
@@ -237,7 +238,7 @@ export function compute(
   if (!q.customer.name.trim()) problems.push('Enter the customer name')
   if (!q.customer.phone.trim()) problems.push('Enter the customer phone number')
   if (!EMAIL_RE.test(q.customer.email.trim())) problems.push(q.customer.email.trim() ? 'The customer email is not valid' : 'Enter the customer email')
-  if (!isInvoice && validOverride && secondDate < date) problems.push('Valid until is before the quote date')
+  if (!isInvoice && validOverride && secondDate < date) problems.push(q.docType === 'Customer Order' ? 'Expected by is before the order date' : 'Valid until is before the quote date')
   if (isInvoice && dueOverride && secondDate < date) problems.push('The due date is before the invoice date')
   if (lines.length === 0) problems.push('Add at least one item')
   else if (lines.some((l) => l.state === 'error')) problems.push('Fix the red item checks')

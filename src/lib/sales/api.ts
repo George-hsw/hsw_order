@@ -1,3 +1,4 @@
+import type { Rates } from '../insights'
 import { DEMO, supabase, type StoreRow } from '../supabase'
 import type { ChainWeek, ItemSale, ItemWeek, RankRow, StoreDay, StoreWeek, WeekDates, WeekRef } from './model'
 import type { DailyResult, DetailedResult, ReportKind, WeeklyResult } from './parse'
@@ -23,6 +24,8 @@ export interface SalesApi {
   items(storeId: string, w: WeekRef): Promise<ItemSale[]>
   /** One item at one store, week by week, for the item popup in the Order tab. */
   itemHistory(storeId: string, itemCode: string): Promise<ItemWeek[]>
+  /** Units a week for every item at one store, over the latest weeks of item sales loaded (up to 13). */
+  itemRates(storeId: string): Promise<Rates>
   /** Finds an item by item number or barcode (leading zeros do not matter), with this store's stock. Null when there is no such item. */
   lookupItem(storeId: string, query: string): Promise<ItemInfo | null>
   /** Admin only: every store's week. */
@@ -36,7 +39,7 @@ export interface SalesApi {
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: SalesApi = {
   weeks: async () => notConnected(), history: async () => notConnected(), days: async () => notConnected(), ranks: async () => notConnected(), chain: async () => notConnected(),
-  items: async () => notConnected(), itemHistory: async () => notConnected(), lookupItem: async () => notConnected(), league: async () => notConnected(), uploads: async () => notConnected(), importWeekly: async () => notConnected(),
+  items: async () => notConnected(), itemHistory: async () => notConnected(), itemRates: async () => notConnected(), lookupItem: async () => notConnected(), league: async () => notConnected(), uploads: async () => notConnected(), importWeekly: async () => notConnected(),
   importDetailed: async () => notConnected(), importDaily: async () => notConnected(),
 }
 

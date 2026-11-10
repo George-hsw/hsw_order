@@ -1,5 +1,5 @@
 // Made-up sales for `npm run demo`: 23 stores, 10 weeks, a few dozen items. Nothing here is real HSW data.
-import { demoStores } from '../demo'
+import { demoItems, demoStores } from '../demo'
 import type { SalesApi, UploadRecord } from './api'
 import { avgSale, memberShare, weekKey, type ChainWeek, type ItemSale, type RankMetric, type RankRow, type StoreDay, type StoreWeek, type WeekDates, type WeekRef } from './model'
 
@@ -118,6 +118,8 @@ export const demoSalesApi: SalesApi = {
   chain: (w) => wait(chain(w)),
   items: (storeId, w) => wait(items(storeId, w)),
   itemHistory: (storeId, code) => wait(Array.from({ length: WEEKS }, (_, i) => WEEKS - i).flatMap((week) => { const it = items(storeId, { fy: FY, week }).find((x) => x.item_code === code); return it && (it.qty > 0 || it.potential_loss > 0) ? [{ fy: FY, week, qty: it.qty, net_sales: it.net_sales, store_rank: it.store_rank, group_qty: it.group_qty, stores_stocking: it.stores_stocking, potential_loss: it.potential_loss }] : [] })),
+  // Made-up steady rates for the demo order items, so the Order tab shows its insights.
+  itemRates: (storeId) => wait({ weeks: WEEKS, perWeek: new Map(demoItems().map((it, i) => [it.code, ((i * 7 + storeId.length * 3) % 9) / 2])) }),
   lookupItem: (storeId, query) => {
     const q = query.trim().toLowerCase()
     const it = items(storeId, { fy: FY, week: WEEKS }).find((x) => x.item_code.toLowerCase() === q || x.description.toLowerCase().includes(q))
