@@ -861,3 +861,37 @@ button, a, select, summary, label { touch-action: manipulation; }
   table.book.range tbody tr:hover td { background: var(--color-paper); }
 }
 .suggest .quiet { justify-self: start; }
+
+/* ---------- The vendor page: two tabs and a prepared order ---------- */
+.vendortabs { margin-bottom: var(--space-sm); }
+.prepared { display: grid; gap: var(--space-sm); }
+.prephead { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-md); flex-wrap: wrap; }
+.prephead h3 { margin: 0; font-size: var(--text-lg); }
+.prephead p { margin: var(--space-3xs) 0 0; max-width: 46rem; }
+.prepsum { margin: 0; }
+table.book.prep td { vertical-align: top; }
+table.book.prep td.desc small { display: block; }
+table.book.prep input.qty { width: 5rem; min-width: 0; text-align: right; }
+table.book.prep tr.off td { opacity: 0.55; }
+table.book.prep .why { min-height: 32px; padding: 0; }
+.tick { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: var(--hit); font-weight: 400; cursor: pointer; }
+.tick input { width: 1.125rem; height: 1.125rem; min-height: 0; margin: 0; accent-color: var(--color-accent-edge); }
+.needs .who-line { flex-wrap: wrap; }
+@media (max-width: 44rem) {
+  table.book.prep td[data-label="Item"] { grid-column: span 6; order: 1; }
+  table.book.prep td[data-label="Description"] { grid-column: span 6; order: 2; font-weight: 600; }
+  table.book.prep td[data-label="Description"]::before { display: none; }
+  table.book.prep td[data-label="In stock"] { grid-column: span 2; order: 3; }
+  table.book.prep td[data-label="MOQ"] { grid-column: span 2; order: 4; }
+  table.book.prep td[data-label="Suggested"] { grid-column: span 2; order: 5; }
+  table.book.prep td[data-label="Order qty"] { grid-column: span 4; order: 6; }
+  table.book.prep td[data-label="Cost"] { grid-column: span 2; order: 7; }
+  table.book.prep input.qty { width: 100%; text-align: left; }
+  .prephead .actions { width: 100%; }
+  .prephead .actions .btn { flex: 1; }
+}
+.needs ul.people > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-xs) var(--space-md); }
+.needs .who-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-sm); }
+.state.compact { padding: var(--space-sm) var(--space-lg); background: none; border-top: 0; }
+.state.compact p:first-child { font-size: var(--text-md); }
+@media (max-width: 44rem) { table.book.prep td[data-label="Item"]::before { display: none; } .needs ul.people > li .person-actions { width: 100%; } .needs ul.people > li .person-actions .btn { width: 100%; } }

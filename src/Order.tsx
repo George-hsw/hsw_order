@@ -3,10 +3,11 @@ import CopyDialog from './CopyDialog'
 import ItemSheet from './ItemSheet'
 import Scanner from './Scanner'
 import StatusChip from './StatusChip'
-import SuggestedOrder, { type SuggestedLine } from './SuggestedOrder'
+import Loading from './Loading'
+import PreparedOrder, { type PrepLine } from './PreparedOrder'
 import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
-import { suggestLine, type Suggestion } from './lib/suggest'
+import { suggestLine, type OrderNeed, type Suggestion } from './lib/suggest'
 import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
 import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
@@ -59,7 +60,9 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   const [needs, setNeeds] = useState<CustomerOrderNeed[]>([]) // customer orders still to order
   const [needsAttempt, setNeedsAttempt] = useState(0)
   const [filling, setFilling] = useState(false) // the suggested quantities are being filled in or taken out
-  const [filled, setFilled] = useState<{ code: string; qty: number }[]>([]) // what the last Fill put in, so it can be undone
+  const [filled, setFilled] = useState<{ code: string; qty: number }[]>([]) // what the last Add put in, so it can be undone
+  const [pane, setPane] = useState<'suggested' | 'items' | null>(null) // null: choose by what there is to show
+  const [needList, setNeedList] = useState<OrderNeed[] | null>(null) // what each vendor needs ordering, shown before a vendor is chosen
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
   const refreshDrafts = useCallback(() => { api.drafts(storeId).then(setDrafts).catch(() => { /* the list is a convenience */ }) }, [storeId])
@@ -111,6 +114,16 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
       setNeedsAttempt((a) => a + 1)
     } catch (e) { trackError('customer order', e); toast.error('Could not update the customer order. Try again.') }
   }
+
+  useEffect(() => { setPane(null) }, [vendor])
+  // Which vendors need ordering at this store, for the list shown before one is chosen.
+  useEffect(() => {
+    if (!storeId || vendor) return
+    let live = true
+    setNeedList(null)
+    api.orderNeeds([storeId]).then((n) => live && setNeedList(n)).catch((e) => { trackError('order needs', e); if (live) setNeedList([]) })
+    return () => { live = false }
+  }, [storeId, vendor, attempt])
 
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
@@ -166,9 +179,12 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
     }
     return m
   }, [range, rates, enough, target, lineOf, waiting]) // eslint-disable-line react-hooks/exhaustive-deps
-  const sugLine = (p: Product, s: Suggestion): SuggestedLine => ({ code: p.item.code, description: p.item.description, qty: s.qty, cost: p.stock?.store_cost ?? 0, why: s.why, hold: s.hold !== null })
-  const sugLines = useMemo(() => range.flatMap((p) => { const s = suggestions.get(p.item.code); return s && s.fill && !lineOf.has(p.item.code) ? [sugLine(p, s)] : [] }), [range, suggestions, lineOf]) // eslint-disable-line react-hooks/exhaustive-deps
-  const sugHeld = useMemo(() => range.flatMap((p) => { const s = suggestions.get(p.item.code); return s && s.hold && !lineOf.has(p.item.code) ? [sugLine(p, s)] : [] }), [range, suggestions, lineOf]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The prepared order: every item the rules say to order that is not already in the order, the ones to decide last.
+  const prepLines = useMemo<PrepLine[]>(() => range.flatMap((p) => {
+    const sg = suggestions.get(p.item.code)
+    return sg && sg.qty > 0 && !lineOf.has(p.item.code) ? [{ code: p.item.code, description: p.item.description, qty: sg.qty, cost: p.stock?.store_cost ?? 0, why: sg.why, brief: sg.brief, hold: sg.hold !== null, stock: p.stock?.inventory ?? 0, moq: p.stock?.moq ?? 1 }] : []
+  }).sort((x, y) => Number(x.hold) - Number(y.hold) || y.qty * y.cost - x.qty * x.cost), [range, suggestions, lineOf])
+  const activePane = !enough ? 'items' : pane ?? (show !== 'all' || find.trim() ? 'items' : prepLines.length > 0 ? 'suggested' : 'items')
   const stillFilled = filled.filter((f) => lineOf.get(f.code)?.qty === f.qty) // quantities the person has since changed are theirs, and are left alone
 
   const rows = useMemo(() => {
@@ -218,8 +234,9 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
   }
 
   /** Puts the suggested quantities into the order as ordinary lines. Only items with no quantity yet; every one can be changed afterwards. */
-  const fillSuggested = async () => {
-    const todo = range.filter((p) => { const s = suggestions.get(p.item.code); return !!s && s.fill && !lineOf.has(p.item.code) })
+  const fillSuggested = async (entries: { code: string; qty: number }[]) => {
+    const want = new Map(entries.map((e) => [e.code, e.qty]))
+    const todo = range.filter((p) => want.has(p.item.code) && !lineOf.has(p.item.code))
     if (!todo.length || !ready || filling) return
     setFilling(true)
     const done: { code: string; qty: number }[] = []
@@ -233,17 +250,18 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
       }
       let latest: OrderLine[] | null = null
       for (const p of todo) {
-        const qty = suggestions.get(p.item.code)!.qty
+        const qty = want.get(p.item.code)!
         try { latest = await api.saveLine(od.id, email, { item: p.item, qty, unitCost: p.stock?.store_cost ?? 0, vendorNo: vendor }, 0); done.push({ code: p.item.code, qty }) } catch (e) { if (!(e instanceof ConflictError)) throw e }
       }
       if (latest) setLines(latest)
       setFilled(done)
       onSaved()
       track('suggested_fill', { lines: done.length }, storeId)
-      toast.success(`Filled ${done.length} suggested ${done.length === 1 ? 'quantity' : 'quantities'}. Change any of them below.`)
+      toast.success(`Added ${done.length} ${done.length === 1 ? 'line' : 'lines'} to the order. Change any quantity in All items.`)
+      setPane('items'); setShow('ordered')
     } catch (e) {
       trackError('suggested fill', e)
-      toast.error('Could not fill all of the suggested quantities. Check your connection and try again.')
+      toast.error('Could not add all of the lines. Check your connection and try again.')
       if (done.length) setFilled(done)
       if (od) api.orderLines(od.id).then(setLines).catch(() => { /* live updates will catch up */ })
     } finally { setFilling(false) }
@@ -386,7 +404,30 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
 
       {cat && !vendor && (
         <>
-          <div className="state">
+          {vendors.length > 0 && (
+            <section className="block needs">
+              <h2>Needs ordering</h2>
+              {needList === null ? <Loading rows={3} /> : (() => {
+                const list = [...needList].filter((n) => vendors.some((v) => v.vendor === n.vendor_no)).sort((a, b) => b.cost - a.cost)
+                return list.length === 0 ? <p className="muted">Nothing needs ordering right now. Choose a vendor above to order anything yourself.</p> : (
+                  <ul className="people">
+                    {list.map((n) => (
+                      <li key={n.vendor_no}>
+                        <div className="who-line">
+                          <b>{n.vendor_no}</b>
+                          <span className="muted">{n.items} {n.items === 1 ? 'item' : 'items'}, {n.units.toLocaleString('en-AU')} units, about {money(n.cost)}</span>
+                          {n.customers > 0 && <span className="chip bad">{n.customers} for waiting customers</span>}
+                          {n.held > 0 && <span className="chip warn">{n.held} for you to decide</span>}
+                        </div>
+                        <div className="person-actions"><button type="button" className="btn primary" onClick={() => chooseVendor(n.vendor_no)}>Review the order</button></div>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              })()}
+            </section>
+          )}
+          <div className={vendors.length > 0 && needList && needList.length > 0 ? 'state compact' : 'state'}>
             <p>{vendors.length === 0 ? 'No items for this store yet' : 'Choose a vendor to start an order'}</p>
             <p className="muted">{vendors.length === 0 ? 'Stock appears here after the nightly sync from NAV.' : 'A purchase order is made for one vendor. Pick one above and its whole range for this store is listed.'}</p>
           </div>
@@ -459,8 +500,15 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
             <div className="sheet">
               <section className="block">
                 <h2>{vendor} <small>{range.length} items · {orderedCount} on order{pending > 0 ? ' · Saving…' : ''}</small></h2>
-                {enough && range.length > 0 && <SuggestedOrder vendor={vendor} weeks={target} lines={sugLines} held={sugHeld} busy={filling} filled={stillFilled.length} onFill={() => void fillSuggested()} onUndo={() => void undoFilled()} />}
+                {enough && range.length > 0 && (
+                  <div className="segmented vendortabs" role="group" aria-label="What to show">
+                    <button type="button" aria-pressed={activePane === 'suggested'} onClick={() => setPane('suggested')}>Suggested order ({prepLines.filter((l) => !l.hold).length})</button>
+                    <button type="button" aria-pressed={activePane === 'items'} onClick={() => setPane('items')}>All items ({range.length})</button>
+                  </div>
+                )}
+                {enough && range.length > 0 && activePane === 'suggested' && <PreparedOrder vendor={vendor} weeks={target} lines={prepLines} loading={rates === null} busy={filling} added={stillFilled.length} onAdd={(e) => void fillSuggested(e)} onUndo={() => void undoFilled()} />}
 
+                {activePane === 'items' && (<>
                 <div className="orderbar">
                   <div className="findrow">
                     <input type="search" name="find" aria-label={`Find an item from ${vendor}`} placeholder="Search this vendor, or scan…" value={find} enterKeyHint="search"
@@ -553,6 +601,7 @@ export default function Order({ email, multi, stores, names, onSaved, jump }: Pr
                     )}
                   </div>
                 )}
+                </>)}
               </section>
             </div>
 

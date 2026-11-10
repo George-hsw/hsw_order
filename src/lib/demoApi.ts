@@ -2,6 +2,7 @@ import { codeLines, type CustomerOrderNeed, type Fulfilment } from './customerOr
 import { DEFAULT_COVER, stockInsight } from './insights'
 import { salesApi } from './sales/api'
 import type { Counted } from './notifications'
+import { suggestLine, type OrderNeed } from './suggest'
 import type { OrderData, OrdersApi } from './api'
 import { ConflictError } from './api'
 import { demoDocs, demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
@@ -112,6 +113,29 @@ export const demoApi: OrdersApi = {
     return wait(out)
   },
   async setFulfilment(docId, to) { fulfilled.set(docId, to); await wait(null) },
+  // The same rules the database runs, over the demo data.
+  async orderNeeds(storeIds) {
+    const items = demoItems()
+    const out: OrderNeed[] = []
+    for (const store_id of storeIds) {
+      const rates = await salesApi.itemRates(store_id)
+      const waiting = new Map<string, number>()
+      for (const n of await demoApi.customerOrders([store_id])) for (const l of n.lines) waiting.set(l.code, (waiting.get(l.code) ?? 0) + l.qty)
+      const per = new Map<string, OrderNeed>()
+      for (const s of demoStock(store_id)) {
+        const it = items.find((i) => i.code === s.item_code)
+        const series = rates.series?.get(s.item_code); const wait = waiting.get(s.item_code) ?? 0
+        if (!it || it.blocked || it.exclude_from_replen || s.po_blocked || !s.vendor_no || (!series && !wait)) continue
+        const g = suggestLine({ series: series ?? Array(rates.weeks).fill(0), storeUnits: rates.storeUnits ?? [], inventory: s.inventory, onOrder: s.qty_on_po, transferIn: s.transfer_in ?? 0, inOrder: 0, waiting: wait, moq: s.moq, weeks: covers.get(store_id) ?? DEFAULT_COVER })
+        if (g.qty <= 0) continue
+        const n = per.get(s.vendor_no) ?? { store_id, vendor_no: s.vendor_no, items: 0, units: 0, cost: 0, held: 0, customers: 0 }
+        if (g.hold) n.held++; else { n.items++; n.units += g.qty; n.cost += g.qty * s.store_cost; if (wait > 0) n.customers++ }
+        per.set(s.vendor_no, n)
+      }
+      out.push(...per.values())
+    }
+    return wait(out)
+  },
   async lowStock(storeIds) {
     const items = demoItems()
     const out: Counted[] = []

@@ -121,3 +121,28 @@ describe('hiding', () => {
     expect(badge([])).toEqual({ count: 0, urgent: false })
   })
 })
+
+describe('what needs ordering', () => {
+  const need = (vendor: string, items: number, cost: number, customers = 0, held = 0) => ({ store_id: 's1', vendor_no: vendor, items, units: items * 2, cost, held, customers })
+  it('is one notice for each vendor, biggest first, and a customer waiting makes it urgent', () => {
+    const n = buildNotices(base({ orderNeeds: [need('V1', 3, 120), need('V2', 5, 900), need('V3', 1, 40, 1)] }))
+    expect(n.map((x) => x.key)).toEqual(['need:s1:V3', 'need:s1:V2', 'need:s1:V1']) // urgent first, then by cost
+    expect(n[0]).toMatchObject({ level: 'bad', title: '1 item to order from V3', go: { view: 'order', vendor: 'V3', storeId: 's1' } })
+    expect(n[1].detail).toContain('$900.00')
+    expect(n[0].detail).toContain('1 item for waiting customers')
+  })
+  it('replaces the low-stock lines when it is there, and the low-stock lines are used when it is not', () => {
+    const low = [{ store_id: 's1', vendor_no: 'V1', items: 4 }]
+    expect(buildNotices(base({ lowStock: low, orderNeeds: [need('V1', 2, 50)] })).map((x) => x.key)).toEqual(['need:s1:V1'])
+    expect(buildNotices(base({ lowStock: low, orderNeeds: null })).map((x) => x.key)).toEqual(['low:s1:V1'])
+  })
+  it('keeps the list short: the biggest few vendors, then one line for the rest', () => {
+    const many = Array.from({ length: 6 }, (_, k) => need('V' + k, 6 - k, (6 - k) * 100))
+    const n = buildNotices(base({ orderNeeds: many })).filter((x) => x.key.startsWith('need:'))
+    expect(n.map((x) => x.title)).toEqual(['6 items to order from V0', '5 items to order from V1', '4 items to order from V2', '3 items to order from V3', '2 more vendors need ordering'])
+    expect(n.at(-1)?.detail).toContain('3 items in all')
+  })
+  it('says nothing for a vendor with only items for the person to decide', () => {
+    expect(buildNotices(base({ orderNeeds: [need('V1', 0, 0, 0, 2)] }))).toEqual([])
+  })
+})

@@ -5,6 +5,7 @@ import type { CustomerOrderNeed } from './customerOrders'
 import { money } from './order'
 import type { Tab } from './sections'
 import type { Finding } from './analytics/model'
+import type { OrderNeed } from './suggest'
 
 export type Level = 'bad' | 'warn' | 'info'
 /** Where a notice's button goes. `vendor` and `show` open the Order tab on that vendor, filtered. */
@@ -30,6 +31,7 @@ export interface NoticeInput {
   stores: StoreRef[] // the stores the person can use
   customerOrders: CustomerOrderNeed[]
   lowStock: Counted[]
+  orderNeeds?: OrderNeed[] | null // what each vendor needs ordering; when it is there, it replaces the low-stock lines
   newItems: Counted[]
   orders: OrderRef[]
   overdue: OverdueInvoice[]
@@ -93,7 +95,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
 
   // Stock.
   const biggest = (list: Counted[]) => [...list].sort((a, b) => b.items - a.items || a.vendor_no.localeCompare(b.vendor_no) || a.store_id.localeCompare(b.store_id))
-  const low = biggest(i.lowStock)
+  const low = biggest(i.orderNeeds ? [] : i.lowStock)
   for (const l of low.slice(0, LOW_CAP)) {
     out.push({
       key: `low:${l.store_id}:${l.vendor_no}`, level: 'warn', group: 'Stock',
@@ -103,6 +105,19 @@ export function buildNotices(i: NoticeInput): Notice[] {
     })
   }
   if (low.length > LOW_CAP) out.push({ key: 'low:more', level: 'warn', group: 'Stock', title: `${plural(low.length - LOW_CAP, 'more vendor')} with items running low`, detail: `${low.slice(LOW_CAP).reduce((a, l) => a + l.items, 0)} items in all. Choose a vendor on the Order tab and use its Low stock filter.`, go: { view: 'order' } })
+  // What needs ordering, a vendor at a time, biggest first: a customer waiting makes it urgent. The Order page opens on that vendor's prepared order.
+  if (i.orderNeeds) {
+    const needs = [...i.orderNeeds].filter((n) => n.items > 0).sort((a, b) => b.cost - a.cost || a.vendor_no.localeCompare(b.vendor_no) || a.store_id.localeCompare(b.store_id))
+    for (const n of needs.slice(0, LOW_CAP)) {
+      out.push({
+        key: `need:${n.store_id}:${n.vendor_no}`, level: n.customers > 0 ? 'bad' : 'warn', group: 'Stock',
+        title: `${plural(n.items, 'item')} to order from ${n.vendor_no}${at(n.store_id)}`,
+        detail: `About ${money(n.cost)} at cost${n.customers > 0 ? `, ${plural(n.customers, 'item')} for waiting customers` : ''}${n.held > 0 ? `, ${plural(n.held, 'item')} for you to decide` : ''}. A prepared order is ready to review.`,
+        go: { view: 'order', storeId: n.store_id, vendor: n.vendor_no },
+      })
+    }
+    if (needs.length > LOW_CAP) out.push({ key: 'need:more', level: 'warn', group: 'Stock', title: `${plural(needs.length - LOW_CAP, 'more vendor')} need ordering`, detail: `${needs.slice(LOW_CAP).reduce((a, n) => a + n.items, 0)} items in all. Open Order to see them.`, go: { view: 'order' } })
+  }
   // Stock that has not refreshed, or a sync that failed. A person with one or two stores sees each; the admin sees one line for all.
   const staleH = i.staleAfterHours ?? 36
   const lastSync = new Map<string, SyncRef>()

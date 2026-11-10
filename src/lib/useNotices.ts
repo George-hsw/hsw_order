@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { OrderNeed } from './suggest'
 import { api } from './api'
 import { findings, type AppEvent } from './analytics/model'
 import { loadEvents } from './analytics/api'
@@ -49,16 +50,17 @@ export function useNotices({ isAdmin, stores, refreshKey }: { isAdmin: boolean; 
       within(api.dismissals()),
       isAdmin ? within(salesApi.weeks()) : Promise.resolve([]),
       isAdmin ? within(loadEvents(since)) : Promise.resolve({ events: [] as AppEvent[], truncated: false }),
+      few ? within(api.orderNeeds(ids)) : Promise.resolve(null),
     ]).then((r) => {
       if (!live) return
       const val = <T,>(i: number, fallback: T): T => (r[i].status === 'fulfilled' ? (r[i] as PromiseFulfilledResult<T>).value : fallback)
-      const failed = [0, 1, 2, 3, 4, 5, 7, 8].filter((i) => r[i].status === 'rejected').length
+      const failed = [0, 1, 2, 3, 4, 5, 7, 8, 9].filter((i) => r[i].status === 'rejected').length
       const now = new Date()
       const weeks = val<{ week_end: string }[]>(7, [])
       const events = val<{ events: AppEvent[] }>(8, { events: [] }).events
       setAll(buildNotices({
         now, isAdmin, stores: stores.map((s) => ({ id: s.id, name: s.name })),
-        customerOrders: val(0, []), lowStock: val(1, []), newItems: val(2, []),
+        customerOrders: val(0, []), lowStock: val(1, []), orderNeeds: val<OrderNeed[] | null>(9, null), newItems: val(2, []),
         orders: val(3, []), overdue: val(4, []), syncs: val(5, []),
         salesWeekEnds: isAdmin && r[7].status === 'fulfilled' ? weeks.map((w) => w.week_end) : undefined,
         findings: isAdmin ? findings(events, now) : undefined,

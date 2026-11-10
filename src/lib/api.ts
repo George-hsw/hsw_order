@@ -1,4 +1,5 @@
 import type { Counted, OverdueInvoice } from './notifications'
+import type { OrderNeed } from './suggest'
 import type { CustomerOrderNeed, Fulfilment } from './customerOrders'
 import { applyLine, type LineInput, type Product, type VendorOption } from './order'
 import { DEMO, supabase, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type SyncRun } from './supabase'
@@ -48,6 +49,8 @@ export interface OrdersApi {
   setFulfilment(docId: string, to: Fulfilment): Promise<void>
   /** Items running low, counted for each store and vendor (needs 4 weeks of item sales loaded). */
   lowStock(storeIds: string[]): Promise<Counted[]>
+  /** What each vendor needs ordering at these stores, by the suggested-order rules. Only vendors with something to order are listed. */
+  orderNeeds(storeIds: string[]): Promise<OrderNeed[]>
   /** Items NAV marks as new, counted for each store and vendor. */
   newItems(storeIds: string[]): Promise<Counted[]>
   /** Tax invoices past their due date with a balance. */
@@ -64,7 +67,7 @@ const notConnected = (): never => { throw new Error('The back end is not connect
 const offline: OrdersApi = {
   vendors: async () => notConnected(), range: async () => notConnected(), findOrder: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
-  orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(),
+  orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(),
 }
 
 export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline

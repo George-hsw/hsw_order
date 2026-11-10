@@ -34,6 +34,9 @@ export function demandOf(series: number[], storeUnits: number[]): Demand {
   return { rate: (DEMAND.recentWeight * recent + (1 - DEMAND.recentWeight) * long) * trend, recent, long, trend }
 }
 
+/** What one vendor needs ordering at one store, added up (the database computes it with the same rules): the lines to order, their units and cost, and the lines left for the person to decide. */
+export interface OrderNeed { store_id: string; vendor_no: string; items: number; units: number; cost: number; held: number; customers: number }
+
 export type Hold = 'moq' | null
 export interface SuggestIn {
   series: number[] // units sold in each loaded week, oldest first
@@ -52,7 +55,8 @@ export interface Suggestion extends Demand {
   hold: Hold
   have: number
   need: number
-  why: string
+  why: string // the full working
+  brief: string // one short line
 }
 
 /** One item at one store. The quantity is only ever a suggestion: nothing is ordered until the person says so. */
@@ -75,5 +79,6 @@ export function suggestLine(i: SuggestIn): Suggestion {
     qty > 0 ? `Order ${qty}${step > 1 ? ` (MOQ ${step})` : ''}.` : need > 0 ? '' : 'Nothing needed.',
     hold === 'moq' ? `One MOQ lasts about ${Math.round(qty / d.rate)} weeks of sales, so it is your call.` : '',
   ].filter(Boolean).join(' ')
-  return { ...d, qty, fill: qty > 0 && hold === null, hold, have, need: Math.max(0, need), why: working }
+  const brief = d.rate > 0 ? `Sells about ${perWeekText(d.rate)} a week, has ${have}${i.waiting > 0 ? `, ${i.waiting} for customers` : ''}` : i.waiting > 0 ? `${i.waiting} wanted by customers, has ${have}` : `Out of stock, sold ${units} lately`
+  return { ...d, qty, fill: qty > 0 && hold === null, hold, have, need: Math.max(0, need), why: working, brief }
 }

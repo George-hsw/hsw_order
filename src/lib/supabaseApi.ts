@@ -176,6 +176,13 @@ export const supabaseApi: OrdersApi = {
     return items.map((item) => ({ item: { ...item, price: item.price === null ? null : Number(item.price) }, stock: byCode.get(item.code) }))
   },
 
+  async orderNeeds(storeIds) {
+    if (!storeIds.length) return []
+    const { data, error } = await db().rpc('order_needs', { p_stores: storeIds })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { store_id: string; vendor_no: string; items: number; units: number | string; cost: number | string; held: number; customers: number }[])
+      .map((r) => ({ store_id: r.store_id, vendor_no: r.vendor_no, items: Number(r.items), units: Number(r.units), cost: Number(r.cost), held: Number(r.held), customers: Number(r.customers) }))
+  },
   async customerOrders(storeIds): Promise<CustomerOrderNeed[]> {
     if (!storeIds.length) return []
     const { data, error } = await db().from('documents').select('id,store_id,doc_number,customer_name,created_at,payload')
