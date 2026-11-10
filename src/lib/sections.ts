@@ -15,7 +15,7 @@ export const AREAS: Area[] = [
     tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }, { tab: 'tansel', label: 'Tansel' }] },
   { id: 'order', label: 'Order', blurb: 'Order stock for your store, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order' }, { tab: 'orders', label: 'Orders' }] },
-  { id: 'price', label: 'Price check', blurb: 'Scan or search any item for its price, stock here and recent sales. Print a price label.',
+  { id: 'price', label: 'Price check', blurb: 'Scan or search any item for its price and stock here, see how it has sold, and print a price label.',
     tabs: [{ tab: 'price', label: 'Price check' }] },
   { id: 'sales', label: 'Sales', blurb: 'See how your store is selling and what to act on.',
     tabs: [{ tab: 'sales', label: 'Sales' }] },

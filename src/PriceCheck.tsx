@@ -3,9 +3,7 @@ import Scanner from './Scanner'
 import { api } from './lib/api'
 import { trackError, track } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
-import { perWeekText, salesSummary, type SalesSummary } from './lib/insights'
 import { money, type Product } from './lib/order'
-import { salesApi } from './lib/sales/api'
 import { divisionLabel } from './lib/sales/model'
 import type { StoreRow } from './lib/supabase'
 import type { OrderJump } from './Sales'
@@ -18,13 +16,12 @@ const STORE_KEY = 'hsw-orders-store' // the same store the Order tab last used
  * A price label can be printed from the phone or computer through the device's own print dialog (AirPrint, Mopria or a
  * desktop printer), so any printer on the same Wi-Fi works without setting anything up in the app.
  */
-export default function PriceCheck({ stores, multi, onOrder }: { stores: StoreRow[]; multi: boolean; onOrder: (j: OrderJump) => void }) {
+export default function PriceCheck({ stores, multi, onOrder, onSales }: { stores: StoreRow[]; multi: boolean; onOrder: (j: OrderJump) => void; onSales: (storeId: string, code: string) => void }) {
   const [storeId, setStoreId] = useState(() => { try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ } return stores[0]?.id ?? '' })
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'looking' | 'none' | 'error'>('idle')
   const [results, setResults] = useState<Product[]>([])
   const [picked, setPicked] = useState<Product | null>(null)
-  const [sales, setSales] = useState<SalesSummary | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
   const asked = useRef('')
@@ -47,16 +44,6 @@ export default function PriceCheck({ stores, multi, onOrder }: { stores: StoreRo
     } catch (e) { trackError('price check', e); setState('error'); return false }
   }
 
-  // The item's sales at this store, once one is chosen.
-  useEffect(() => {
-    setSales(null)
-    if (!picked) return
-    let live = true
-    Promise.all([salesApi.itemHistory(storeId, picked.item.code), salesApi.weeks()])
-      .then(([h, w]) => live && setSales(salesSummary(h, w)))
-      .catch((e) => trackError('price check sales', e))
-    return () => { live = false }
-  }, [picked, storeId])
 
   const submit = (e: FormEvent) => { e.preventDefault(); void find(text) }
   const openScanner = () => { primeAudio(); setScanMsg(''); (document.activeElement as HTMLElement | null)?.blur?.(); setScanning(true) }
@@ -143,16 +130,8 @@ export default function PriceCheck({ stores, multi, onOrder }: { stores: StoreRo
             <div><dt>Category</dt><dd>{it.division ? divisionLabel(it.division) : '–'}{it.category ? `, ${it.category}` : ''}</dd></div>
           </dl>
 
-          <h3 className="pricesub">Sales at this store</h3>
-          {!sales ? <p className="muted">Loading…</p> : sales.weeks === 0 ? <p className="muted">No weekly sales have been loaded yet.</p> : (
-            <dl className="facts">
-              <div><dt>Last week loaded</dt><dd className="num">{sales.last} units</dd></div>
-              <div><dt>Last {Math.min(4, sales.weeks)} weeks</dt><dd className="num">{sales.four} units</dd></div>
-              <div><dt>Last {sales.weeks} weeks</dt><dd className="num">{sales.thirteen} units, about {perWeekText(sales.thirteen / sales.weeks)} a week</dd></div>
-            </dl>
-          )}
-
           <div className="actions">
+            <button type="button" className="btn" onClick={() => onSales(storeId, it.code)}>How it has sold here</button>
             <button type="button" className="btn" onClick={() => { track('price_label_print', {}, storeId); window.print() }}>Print price label</button>
             {(st?.vendor_no ?? it.vendor_no) && <button type="button" className="btn primary" onClick={() => onOrder({ storeId, vendor: (st?.vendor_no ?? it.vendor_no)!, item: it.code })}>Order this item</button>}
           </div>

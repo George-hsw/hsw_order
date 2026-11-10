@@ -17,6 +17,7 @@
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
     "fflate": "^0.8.3",
+    "gsap": "^3.15.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "react": "^18.3.1",

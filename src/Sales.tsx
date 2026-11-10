@@ -12,23 +12,25 @@ import {
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
+import { reveal } from './lib/motion'
 
 export interface OrderJump { storeId: string; vendor: string; item: string; show?: 'low' | 'new' }
-interface Props { email: string; isAdmin: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder: (j: OrderJump) => void }
+interface Props { email: string; isAdmin: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder: (j: OrderJump) => void; start?: { storeId: string; code: string } | null }
 type Sub = 'store' | 'items' | 'item' | 'all' | 'upload'
 
 const STORE_KEY = 'hsw-orders-store'
 const LAST = 13 // weeks shown in the weekly chart
 
 /** The weeks a store can look at, and what each tab shows. A store sees its own figures and where it ranks; head office sees every store. */
-export default function Sales({ email, isAdmin, stores, allStores, onOrder }: Props) {
-  const [sub, setSub] = useState<Sub>('store')
+export default function Sales({ email, isAdmin, stores, allStores, onOrder, start }: Props) {
+  const [sub, setSub] = useState<Sub>(start ? 'item' : 'store')
   const [storeId, setStoreId] = useState(() => {
+    if (start && stores.some((x) => x.id === start.storeId)) return start.storeId
     try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ }
     return stores[0]?.id ?? ''
   })
   const [week, setWeek] = useState<WeekRef | null>(null)
-  const [itemCode, setItemCode] = useState<string | null>(null) // an item sent here from the Items list
+  const [itemCode, setItemCode] = useState<string | null>(start?.code ?? null) // an item sent here from the Items list or Price check
   const weeks = useLoad(() => salesApi.weeks(), [])
   const history = useLoad(() => salesApi.history(storeId), [storeId], !!storeId)
   const store = stores.find((s) => s.id === storeId)
@@ -111,7 +113,7 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
   const ms = memberShare(cur)
 
   return (
-    <div className="viz-stack">
+    <div className="viz-stack" ref={reveal}>
       <p className="note">
         {weekLabel(week)}{dates?.week_start ? ` (${rangeText(dates.week_start, dates.week_end)})` : ''}: sales {growth === null ? 'have no last-year figure to compare with' : `are ${pctText(growth)} on the same week last year`}
         {sales ? `, ${rankText(sales)} stores for sales` : ''}{bestDay ? `. Best day: ${WEEKDAYS[bestDay.weekday - 1]}.` : '.'}

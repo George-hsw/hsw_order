@@ -46,12 +46,3 @@ export function stockInsight(stock: { inventory: number; qty_on_po: number; tran
 export const perWeekText = (n: number) => (n >= 10 || Number.isInteger(n) ? String(Math.round(n)) : n.toFixed(1))
 export const coverText = (weeks: number | null) => (weeks === null ? 'not selling' : weeks === 0 ? 'no stock left' : weeks >= 52 ? 'over a year of stock' : `${weeks < 10 ? weeks.toFixed(1) : Math.round(weeks)} weeks of stock`)
 
-export interface SalesSummary { weeks: number; last: number; four: number; thirteen: number }
-/** Recent units for one item from its weeks and the weeks of sales loaded (newest first, up to 13). A loaded week with no row sold nothing. */
-export function salesSummary(history: { fy: number; week: number; qty: number }[], loaded: { fy: number; week: number }[]): SalesSummary {
-  const wk = (w: { fy: number; week: number }) => w.fy * 100 + w.week
-  const recent = loaded.slice(0, RATE_WEEKS).map(wk)
-  const qty = new Map(history.map((h) => [wk(h), Number(h.qty) || 0]))
-  const sum = (n: number) => recent.slice(0, n).reduce((a, w) => a + (qty.get(w) ?? 0), 0)
-  return { weeks: recent.length, last: sum(1), four: sum(4), thirteen: sum(RATE_WEEKS) }
-}
