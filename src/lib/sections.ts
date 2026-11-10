@@ -1,5 +1,5 @@
 /** The areas of the app, as shown on Home, and the tabs inside each. Adding an area later is one more entry here. */
-export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'price' | 'sales' | 'analytics' | 'stores'
+export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'price' | 'tansel' | 'sales' | 'analytics' | 'stores'
 export type AreaId = 'quote' | 'order' | 'price' | 'sales' | 'admin'
 
 export interface Area {
@@ -11,8 +11,8 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
-  { id: 'quote', label: 'Quote', blurb: 'Make quotes and tax invoices, and take deposits and payments.',
-    tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }] },
+  { id: 'quote', label: 'Quote', blurb: 'Make quotes and tax invoices, take deposits and payments, and work out Tansel pull-outs for a cabinet.',
+    tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }, { tab: 'tansel', label: 'Tansel' }] },
   { id: 'order', label: 'Order', blurb: 'Order stock for your store, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order' }, { tab: 'orders', label: 'Orders' }] },
   { id: 'price', label: 'Price check', blurb: 'Scan or search any item for its price, stock here and recent sales. Print a price label.',
