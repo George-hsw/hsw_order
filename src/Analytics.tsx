@@ -6,6 +6,7 @@ import {
 } from './lib/analytics/model'
 import { useLoad } from './lib/useLoad'
 import type { AppUser, StoreRow } from './lib/supabase'
+import { reveal } from './lib/motion'
 
 const PERIODS: Period[] = ['1', '7', '30', '90']
 const when = (iso: string) => (iso ? new Date(iso).toLocaleString('en-AU', { timeZone: TZ, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'never')
@@ -55,7 +56,7 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
         <div className="state error" role="alert"><p>Could not load the usage log</p><p className="muted">Has migration 013 been applied? Check your connection and try again.</p>
           <div className="actions"><button type="button" className="btn" onClick={log.retry}>Try again</button></div></div>
       ) : log.loading ? <p className="muted">Loading…</p> : (
-        <div className="viz-stack">
+        <div className="viz-stack" ref={reveal}>
           {log.data?.truncated && <p className="note bad">There is more activity than can be shown, so this is the newest part of the period.</p>}
 
           <section className="sheet viz-card">

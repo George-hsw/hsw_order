@@ -780,3 +780,15 @@ button, a, select, summary, label { touch-action: manipulation; }
   .tcodes > li { grid-template-columns: 3rem minmax(0, 1fr); }
   .tcodes .tprice { grid-column: 2; text-align: left; }
 }
+
+/* ---------- Motion: cards rise into place. Opacity and transform only; nothing moves if reduced motion is asked for ---------- */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .rv { opacity: 0; } /* a card below the fold waits here until src/lib/motion.ts reveals it on scroll */
+  .hometile { animation: rise var(--dur-long) var(--ease-out) both; }
+  .hometile:nth-child(2) { animation-delay: 60ms; } .hometile:nth-child(3) { animation-delay: 120ms; } .hometile:nth-child(4) { animation-delay: 180ms; } .hometile:nth-child(5) { animation-delay: 240ms; }
+  .noticepanel { animation: rise var(--dur-short) var(--ease-out) both; }
+  .notice { animation: rise var(--dur-short) var(--ease-out) both; }
+  .notice:nth-child(2) { animation-delay: 40ms; } .notice:nth-child(3) { animation-delay: 80ms; } .notice:nth-child(4) { animation-delay: 120ms; } .notice:nth-child(n+5) { animation-delay: 160ms; }
+  .tansel-result .note { animation: rise var(--dur-short) var(--ease-out) both; }
+}

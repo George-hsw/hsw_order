@@ -5,6 +5,7 @@ import {
   FLAGS, FLAG_HELP, FLAG_LABEL, chainAvg, distinct, divisionLabel, flagCounts, itemFlag, money2, ordinal, topBy, topSellers, type ItemFlag, type ItemSale, type TopFilter, type WeekRef, weekKey,
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
+import { reveal } from './lib/motion'
 
 type SortKey = 'net_sales' | 'qty' | 'potential_loss' | 'store_rank' | 'inventory'
 const SORT: { value: SortKey; label: string }[] = [
@@ -56,7 +57,7 @@ export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeI
   const lost = topBy(all, 'potential_loss', 8)
 
   return (
-    <div className="viz-stack">
+    <div className="viz-stack" ref={reveal}>
       <section className="sheet viz-card">
         <div className="viz-head"><div><h2>Where to act</h2><p className="muted">Plain rules over this week’s numbers. They point at items to look at; the numbers sit beside them. Press View items to see the list.</p></div></div>
         <div className="flags">

@@ -12,6 +12,7 @@ import {
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
+import { reveal } from './lib/motion'
 
 export interface OrderJump { storeId: string; vendor: string; item: string; show?: 'low' | 'new' }
 interface Props { email: string; isAdmin: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder: (j: OrderJump) => void; start?: { storeId: string; code: string } | null }
@@ -112,7 +113,7 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
   const ms = memberShare(cur)
 
   return (
-    <div className="viz-stack">
+    <div className="viz-stack" ref={reveal}>
       <p className="note">
         {weekLabel(week)}{dates?.week_start ? ` (${rangeText(dates.week_start, dates.week_end)})` : ''}: sales {growth === null ? 'have no last-year figure to compare with' : `are ${pctText(growth)} on the same week last year`}
         {sales ? `, ${rankText(sales)} stores for sales` : ''}{bestDay ? `. Best day: ${WEEKDAYS[bestDay.weekday - 1]}.` : '.'}

@@ -4,6 +4,7 @@ import { salesApi } from './lib/sales/api'
 import { RANK_LABEL, avgSale, change, memberShare, money2, ordinal, pctText, weekKey, type RankMetric, type StoreWeek, type WeekRef } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
+import { reveal } from './lib/motion'
 
 const METRICS: RankMetric[] = ['sales', 'growth', 'sqm', 'avg_sale', 'basket', 'member_share', 'gp']
 const value = (m: RankMetric, w: StoreWeek): number | null => {
@@ -43,7 +44,7 @@ export default function SalesLeague({ week, stores }: { week: WeekRef; stores: S
   const shown = group ? bars.filter((b) => b.r.co_fran === group) : bars
 
   return (
-    <div className="viz-stack">
+    <div className="viz-stack" ref={reveal}>
       <p className="note">{trading.length} stores traded: {money2(total)} this week, <Delta f={change(total, totalLy)} label="on last year" /></p>
       <div className="viz-two wide-left">
         <ChartCard title="Stores ranked" sub={`${RANK_LABEL[metric]}. Press a store to read it.`}
