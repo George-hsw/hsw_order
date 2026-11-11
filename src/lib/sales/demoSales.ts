@@ -117,7 +117,7 @@ export const demoSalesApi: SalesApi = {
   ranks: (storeId, w) => wait(ranks(storeId, w)),
   chain: (w) => wait(chain(w)),
   items: (storeId, w) => wait(items(storeId, w)),
-  itemHistory: (storeId, code) => wait(Array.from({ length: WEEKS }, (_, i) => WEEKS - i).flatMap((week) => { const it = items(storeId, { fy: FY, week }).find((x) => x.item_code === code); return it && (it.qty > 0 || it.potential_loss > 0) ? [{ fy: FY, week, qty: it.qty, net_sales: it.net_sales, store_rank: it.store_rank, group_qty: it.group_qty, stores_stocking: it.stores_stocking, potential_loss: it.potential_loss }] : [] })),
+  itemHistory: (storeId, code) => wait(Array.from({ length: WEEKS }, (_, i) => WEEKS - i).flatMap((week) => { const it = items(storeId, { fy: FY, week }).find((x) => x.item_code === code); return it && (it.qty > 0 || it.potential_loss > 0) ? [{ fy: FY, week, qty: it.qty, net_sales: it.net_sales, store_rank: it.store_rank, business_rank: it.business_rank, group_qty: it.group_qty, stores_stocking: it.stores_stocking, potential_loss: it.potential_loss }] : [] })),
   // Made-up steady rates for the demo order items, so the Order tab shows its insights.
   itemRates: (storeId) => {
     const perWeek = new Map(demoItems().map((it, i) => [it.code, ((i * 7 + storeId.length * 3) % 9) / 2] as [string, number]))

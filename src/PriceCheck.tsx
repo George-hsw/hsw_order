@@ -9,6 +9,8 @@ import type { StoreRow } from './lib/supabase'
 import type { OrderJump } from './Sales'
 
 const STORE_KEY = 'hsw-orders-store' // the same store the Order tab last used
+const LIVE_MIN = 2 // characters before matches start to come up
+const LIVE_DELAY = 220 // ms after the last key
 
 
 /**
@@ -25,25 +27,37 @@ export default function PriceCheck({ stores, multi, onOrder, onSales }: { stores
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
   const asked = useRef('')
+  const typed = useRef('') // what is in the box now: a typed search that comes back after the person has typed more is dropped
+  typed.current = text.trim()
 
   const store = stores.find((s) => s.id === storeId)
 
-  const find = async (q: string, fromScan = false): Promise<boolean> => {
+  /** `live` is a search made while typing: it never opens an item by itself and is not counted as a lookup. */
+  const find = async (q: string, fromScan = false, live = false): Promise<boolean> => {
     const v = q.trim()
     if (!v || !storeId) return false
     asked.current = v
     setState('looking'); setPicked(null)
     try {
       const found = await api.findItems(storeId, v)
-      if (asked.current !== v) return false // a newer search has started
+      if (asked.current !== v || (live && typed.current !== v)) return false // a newer search has started, or the person has typed on
       setResults(found)
       setState(found.length ? 'idle' : 'none')
-      if (found.length === 1 || (fromScan && found.length)) setPicked(found[0])
-      track('price_check', { found: found.length }, storeId)
+      if (!live && (found.length === 1 || (fromScan && found.length))) setPicked(found[0])
+      if (!live) track('price_check', { found: found.length }, storeId)
       return found.length > 0
     } catch (e) { trackError('price check', e); setState('error'); return false }
   }
 
+  // Results come up as the person types: from two characters, a moment after they pause. A search already made for this text (a scan, or Find) is not repeated.
+  useEffect(() => {
+    const v = text.trim()
+    if (!v) { asked.current = ''; setResults([]); setPicked(null); setState('idle'); return }
+    if (v.length < LIVE_MIN) { asked.current = ''; setResults([]); setPicked(null); setState('idle'); return } // too short: the earlier matches no longer fit what is typed
+    if (v === asked.current) return
+    const t = setTimeout(() => void find(v, false, true), LIVE_DELAY)
+    return () => clearTimeout(t)
+  }, [text, storeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = (e: FormEvent) => { e.preventDefault(); void find(text) }
   const openScanner = () => { primeAudio(); setScanMsg(''); (document.activeElement as HTMLElement | null)?.blur?.(); setScanning(true) }
@@ -86,20 +100,24 @@ export default function PriceCheck({ stores, multi, onOrder, onSales }: { stores
             Scan
           </button>
         </form>
-        {state === 'looking' && <p className="muted viz-pick">Looking…</p>}
+        {state === 'looking' && results.length === 0 && <p className="muted viz-pick">Looking…</p>}
+        {state === 'idle' && !p && results.length === 0 && text.trim().length > 0 && text.trim().length < LIVE_MIN && <p className="muted viz-pick">Keep typing: matches appear from {LIVE_MIN} characters.</p>}
         {state === 'none' && <p className="note bad" role="alert">No item matches “{asked.current}”. Check the number or try part of the name.</p>}
         {state === 'error' && <p className="note bad" role="alert">Could not look that up. Check your connection and try again.</p>}
-        {!p && results.length > 1 && (
+        {!p && results.length > 0 && (
+          <>
+          <p className="muted viz-pick" role="status" aria-live="polite">{results.length === 30 ? 'The first 30 matches. Type more to narrow it.' : `${results.length} ${results.length === 1 ? 'match' : 'matches'}`}</p>
           <ul className="pricehits">
             {results.map((r) => (
               <li key={r.item.code}>
                 <button type="button" className="linkish" onClick={() => setPicked(r)}>
                   <b>{r.item.description || r.item.code}</b>
-                  <small>{r.item.code}{r.item.price !== null ? `, ${money(r.item.price)}` : ''}</small>
+                  <small>{r.item.code}{r.item.price !== null ? `, ${money(r.item.price)}` : ''}{r.item.promotion ? ', on promotion' : ''}</small>
                 </button>
               </li>
             ))}
           </ul>
+          </>
         )}
       </section>
 
@@ -117,8 +135,8 @@ export default function PriceCheck({ stores, multi, onOrder, onSales }: { stores
             <b className="num">{price !== null ? money(price) : 'No price'}</b>
             <small className="muted">{price !== null ? 'Price including GST, from NAV' : 'This item has no price in NAV'}</small>
           </div>
-          {(status && status !== 'ACTIVE') || it.blocked ? (
-            <p className="note">{status && status !== 'ACTIVE' && <span className="chip">{status === 'NEW' ? 'New item' : status}</span>} {it.blocked && <span className="chip warn">Blocked in NAV</span>}</p>
+          {(status && status !== 'ACTIVE') || it.blocked || it.promotion ? (
+            <p className="note">{status && status !== 'ACTIVE' && <span className="chip">{status === 'NEW' ? 'New item' : status}</span>} {it.blocked && <span className="chip warn">Blocked in NAV</span>} {it.promotion && <span className="chip paid">On promotion</span>}</p>
           ) : null}
 
           <dl className="facts">

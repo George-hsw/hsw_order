@@ -79,7 +79,7 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
             <p className="muted">No sales recorded for this item in the weeks loaded. The weekly report lists an item only when it sold, was ranked or lost sales.</p>
           ) : (
             <>
-              <p>{weekLabel(sales.data[0])}: sold <b className="num">{sales.data[0].qty}</b> ({money2(sales.data[0].net_sales)}){sales.data[0].store_rank ? `, ${ordinal(sales.data[0].store_rank)} in this store` : ''}.
+              <p>{weekLabel(sales.data[0])}: sold <b className="num">{sales.data[0].qty}</b> ({money2(sales.data[0].net_sales)}){sales.data[0].store_rank ? `, ${ordinal(sales.data[0].store_rank)} in this store` : ''}{sales.data[0].business_rank ? `, ${ordinal(sales.data[0].business_rank)} in the business` : ''}.
                 {sales.data[0].stores_stocking > 0 && <> The average store that stocks it sold {(sales.data[0].group_qty / sales.data[0].stores_stocking).toFixed(1)}.</>}
                 {sales.data[0].potential_loss > 0 && <> Estimated sales lost while out of stock: {money2(sales.data[0].potential_loss)}.</>}</p>
               <table className="salesmini">

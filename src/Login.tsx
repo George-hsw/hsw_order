@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useToast } from './Toast'
 import { supabase } from './lib/supabase'
+import { IDLE_NOTICE_KEY } from './lib/idle'
 
 const SUPPORT = 'support@hsw.com.au'
 
@@ -10,6 +11,8 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [idleOut] = useState(() => { try { return sessionStorage.getItem(IDLE_NOTICE_KEY) === '1' } catch { return false } }) // signed out for being left alone
+  useEffect(() => { try { sessionStorage.removeItem(IDLE_NOTICE_KEY) } catch { /* ignore */ } }, []) // shown once
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +30,7 @@ export default function Login() {
       </div>
       <main className="login">
         <h2>Sign in</h2>
+        {idleOut && <p className="note" role="status">You were signed out after 2 hours without activity, to keep your account safe. Sign in again to carry on.</p>}
         <p className="muted">Use your email and password.</p>
         <form onSubmit={signIn}>
           <label>Email

@@ -75,7 +75,7 @@ describe('weeks', () => {
 
 import { itemTrend, type ItemWeek } from './model'
 describe('one item over the weeks', () => {
-  const w = (week: number, qty: number, extra: Partial<ItemWeek> = {}): ItemWeek => ({ fy: 2027, week, qty, net_sales: qty * 10, store_rank: 5, group_qty: qty * 2, stores_stocking: 4, potential_loss: 0, ...extra })
+  const w = (week: number, qty: number, extra: Partial<ItemWeek> = {}): ItemWeek => ({ fy: 2027, week, qty, net_sales: qty * 10, store_rank: 5, business_rank: 40, group_qty: qty * 2, stores_stocking: 4, potential_loss: 0, ...extra })
   it('sorts the weeks, totals them and sets the average store beside each', () => {
     const t = itemTrend([w(3, 6), w(1, 2), w(2, 4)])
     expect(t.weeks.map((x) => x.week)).toEqual([1, 2, 3])

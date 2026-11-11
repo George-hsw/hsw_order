@@ -91,6 +91,7 @@ export interface ItemRow {
   base_uom: string | null
   blocked: boolean
   exclude_from_replen: boolean
+  promotion?: string | null // NAV's Shelf No.: when there is a value, the supplier has the item on promotion
 }
 
 /** What one store holds of one item, as at the last sync. Synced from NAV (Replen. Qty.). */
@@ -145,6 +146,9 @@ export interface OrderLine {
 export const isoDate = (d: Date) => d.toLocaleDateString('en-CA')
 
 /** An order with its line totals, for lists and reports. */
+/** An item a store has chosen not to order. */
+export interface BlockedItem { item_code: string; description: string; vendor_no: string | null; reason: string; blocked_by: string | null; blocked_at: string }
+
 export interface OrderSummary extends OrderRow { lines: number; units: number; cost: number }
 
 /** One nightly sync of one store's data from NAV. */

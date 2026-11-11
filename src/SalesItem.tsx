@@ -48,7 +48,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
   const flag: ItemFlag | null = useMemo(() => {
     if (!item || !newest) return null
     const sale: ItemSale = { item_code: item.code, description: item.description, vendor_no: item.vendor_no, division: item.division, qty: newest.qty, net_sales: newest.net_sales, store_rank: newest.store_rank,
-      group_qty: newest.group_qty, group_net: 0, stores_stocking: newest.stores_stocking, business_rank: 0, potential_sales: 0, potential_loss: newest.potential_loss, inventory: item.inventory, moq: item.moq }
+      group_qty: newest.group_qty, group_net: 0, stores_stocking: newest.stores_stocking, business_rank: newest.business_rank, potential_sales: 0, potential_loss: newest.potential_loss, inventory: item.inventory, moq: item.moq }
     return itemFlag(sale)
   }, [item, newest])
 
@@ -100,7 +100,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
                 <StatTile label="Last four weeks" value={`${units(weeks.slice(-4).reduce((a, w) => a + w.qty, 0))} units`} delta={trend.growth4} deltaLabel="on the four weeks before" />
                 <StatTile label="All weeks loaded" value={`${trend.total_qty} units`} ly={`${money2(trend.total_sales)} in ${weeks.length} ${weeks.length === 1 ? 'week' : 'weeks'}`} />
                 <StatTile label="Stock now" value={String(item.inventory)} ly={item.moq > 1 ? `Order in multiples of ${item.moq}` : undefined} />
-                <StatTile label="Rank in store" value={trend.last?.store_rank ? ordinal(trend.last.store_rank) : 'not ranked'} ly={trend.last ? weekLabel(trend.last) : undefined} />
+                <StatTile label="Rank" value={trend.last?.store_rank ? `${ordinal(trend.last.store_rank)} in store` : 'not ranked'} ly={trend.last?.business_rank ? `${ordinal(trend.last.business_rank)} in the business, ${weekLabel(trend.last)}` : trend.last ? weekLabel(trend.last) : undefined} />
                 <StatTile label="Sales lost to no stock" value={money2(trend.total_lost)} ly="The report’s estimate" />
               </div>
 
@@ -108,7 +108,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
 
               <ChartCard title="Units sold each week" sub="This store beside the average store that stocks the item"
                 legend={<Legend items={[{ tone: 'ty', label: 'This store' }, { tone: 'ly', label: 'Average store that stocks it' }]} />}
-                table={{ head: ['Week', 'Units', 'Average store', 'Sales', 'Rank in store', 'Lost sales'], rows: weeks.slice().reverse().map((w) => [weekLabel(w), w.qty, units(w.chain_avg), money2(w.net_sales), w.store_rank ? ordinal(w.store_rank) : '–', w.potential_loss ? money2(w.potential_loss) : '–']) }}>
+                table={{ head: ['Week', 'Units', 'Average store', 'Sales', 'Rank in store', 'Rank in business', 'Lost sales'], rows: weeks.slice().reverse().map((w) => [weekLabel(w), w.qty, units(w.chain_avg), money2(w.net_sales), w.store_rank ? ordinal(w.store_rank) : '–', w.business_rank ? ordinal(w.business_rank) : '–', w.potential_loss ? money2(w.potential_loss) : '–']) }}>
                 <ColumnChart label="Units sold each week, this store and the average store" cats={cats} fmt={units}
                   series={[{ name: 'This store', tone: 'ty', values: weeks.map((w) => w.qty) }, { name: 'Average store', tone: 'ly', values: weeks.map((w) => w.chain_avg) }]} />
               </ChartCard>
@@ -128,12 +128,12 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
                 <div className="viz-head"><div><h2>Week by week</h2><p className="muted">Only weeks where the item sold, was ranked or lost sales are listed. Item sales are before GST and leave out Elfa.</p></div></div>
                 <div className="tablewrap">
                   <table className="viz-table cells">
-                    <thead><tr><th>Week</th><th className="r">Units</th><th className="r">Average store</th><th className="r">Sales</th><th className="r">Rank in store</th><th className="r">Lost sales</th></tr></thead>
+                    <thead><tr><th>Week</th><th className="r">Units</th><th className="r">Average store</th><th className="r">Sales</th><th className="r">Rank in store</th><th className="r">Rank in business</th><th className="r">Lost sales</th></tr></thead>
                     <tbody>{weeks.slice().reverse().map((w) => (
                       <tr key={w.fy * 100 + w.week}>
                         <td className="full" data-label="Week">{weekLabel(w)}</td>
                         <td className="r s2" data-label="Units">{w.qty}</td><td className="r s2" data-label="Average store">{units(w.chain_avg)}</td><td className="r s2" data-label="Sales">{money2(w.net_sales)}</td>
-                        <td className="r s3" data-label="Rank in store">{w.store_rank ? ordinal(w.store_rank) : '–'}</td><td className="r s3" data-label="Lost sales">{w.potential_loss ? money2(w.potential_loss) : '–'}</td>
+                        <td className="r s3" data-label="Rank in store">{w.store_rank ? ordinal(w.store_rank) : '–'}</td><td className="r s3" data-label="Rank in business">{w.business_rank ? ordinal(w.business_rank) : '–'}</td><td className="r s3" data-label="Lost sales">{w.potential_loss ? money2(w.potential_loss) : '–'}</td>
                       </tr>))}</tbody>
                   </table>
                 </div>

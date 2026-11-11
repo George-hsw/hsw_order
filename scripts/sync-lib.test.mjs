@@ -23,6 +23,16 @@ describe('items', () => {
     expect(itemFingerprint(a)).toBe(itemFingerprint({ ...a, _moq: 6 }))
     expect(itemFingerprint(a)).not.toBe(itemFingerprint({ ...a, blocked: true }))
   })
+  it('an item is on promotion when its Shelf No. has a value', () => {
+    expect(toItem({ No: 'A', Shelf_No: ' KITCHEN ' }, ITEM_FIELDS).promotion).toBe('KITCHEN')
+    expect(toItem({ No: 'A', Shelf_No: '   ' }, ITEM_FIELDS).promotion).toBeNull()
+    expect(toItem({ No: 'A' }, ITEM_FIELDS).promotion).toBeNull()
+  })
+  it('a promotion changes the fingerprint only when there is one, so items without one keep their old fingerprint', () => {
+    const a = toItem({ No: 'A', Description: 'x' }, ITEM_FIELDS)
+    expect(itemFingerprint(a)).toBe(itemFingerprint({ ...a, promotion: null }))
+    expect(itemFingerprint(a)).not.toBe(itemFingerprint({ ...a, promotion: 'KITCHEN' }))
+  })
 })
 
 describe('stock', () => {

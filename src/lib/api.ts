@@ -2,7 +2,7 @@ import type { Counted, OverdueInvoice } from './notifications'
 import type { OrderNeed } from './suggest'
 import type { CustomerOrderNeed, Fulfilment } from './customerOrders'
 import { applyLine, type LineInput, type Product, type VendorOption } from './order'
-import { DEMO, supabase, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type SyncRun } from './supabase'
+import { DEMO, supabase, type BlockedItem, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type SyncRun } from './supabase'
 import { demoApi } from './demoApi'
 import { supabaseApi } from './supabaseApi'
 
@@ -61,13 +61,17 @@ export interface OrdersApi {
   /** Weeks of stock the store aims to hold (its preference, or the default). */
   coverTarget(storeId: string): Promise<number>
   setCoverTarget(storeId: string, weeks: number, email: string): Promise<void>
+  /** Items this store has chosen not to order (its manager's preference). */
+  blockedItems(storeId: string): Promise<BlockedItem[]>
+  /** Block or unblock an item at one store. Only the store's manager (or the admin) may; the database enforces it. */
+  setBlocked(storeId: string, itemCode: string, blocked: boolean, email: string, reason?: string): Promise<void>
 }
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: OrdersApi = {
   vendors: async () => notConnected(), range: async () => notConnected(), findOrder: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
-  orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(),
+  orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(), blockedItems: async () => notConnected(), setBlocked: async () => notConnected(),
 }
 
 export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline

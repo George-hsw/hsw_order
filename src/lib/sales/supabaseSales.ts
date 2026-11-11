@@ -90,7 +90,7 @@ export const supabaseSalesApi: SalesApi = {
     return rows.map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), group_net: Number(r.group_net), potential_sales: Number(r.potential_sales), potential_loss: Number(r.potential_loss), inventory: Number(r.inventory), moq: Number(r.moq) }))
   },
   async itemHistory(storeId, itemCode) {
-    const { data, error } = await db().from('sales_item_week').select('fy,week,qty,net_sales,store_rank,group_qty,stores_stocking,potential_loss').eq('store_id', storeId).eq('item_code', itemCode).order('fy', { ascending: false }).order('week', { ascending: false }).limit(26)
+    const { data, error } = await db().from('sales_item_week').select('fy,week,qty,net_sales,store_rank,business_rank,group_qty,stores_stocking,potential_loss').eq('store_id', storeId).eq('item_code', itemCode).order('fy', { ascending: false }).order('week', { ascending: false }).limit(26)
     fail(error)
     return ((data ?? []) as ItemWeek[]).map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), potential_loss: Number(r.potential_loss) }))
   },

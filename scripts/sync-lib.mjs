@@ -21,6 +21,7 @@ export const ITEM_FIELDS = {
   division: 'Division_Code', category: 'Item_Category_Code', status: 'Status_Code', price: 'Unit_Price_Including_VAT',
   sales_uom: 'Sales_Unit_of_Measure', base_uom: 'Base_Unit_of_Measure', exclude_from_replen: 'Exclude_from_Replenishment',
   blocked: null, // the Power_BI_Retail_Items service has no Blocked field
+  promotion: 'Shelf_No', // NAV's Shelf No. (field 12): any value there means the supplier has the item on promotion. Rename it with DYN_ITEMS_FIELD_MAP if the service calls it something else. Needs migration 023 (items.promotion) applied first, or the items upsert fails
   moq: 'Minimum_Order_Quantity', store_cost: 'Store_Cost', // item-level: the same for every store
 }
 export const STOCK_FIELDS = {
@@ -48,6 +49,7 @@ export function toItem(row, F) {
     base_uom: str(row[F.base_uom]),
     blocked: bool(row[F.blocked]),
     exclude_from_replen: bool(row[F.exclude_from_replen]),
+    ...(F.promotion ? { promotion: str(row[F.promotion]) } : {}), // sent whenever a field is named (null turns it off); migration 023 must be applied first
     // Kept apart from the stored columns: applied to every store's stock row that has none of its own.
     _moq: F.moq ? num(row[F.moq], null) : null,
     _store_cost: F.store_cost ? num(row[F.store_cost], null) : null,
@@ -55,7 +57,7 @@ export function toItem(row, F) {
 }
 
 export const itemFingerprint = (i) =>
-  hash([i.code, i.description, i.vendor_no, i.vendor_item_no, i.barcode, i.division, i.category, i.status, i.price, i.sales_uom, i.base_uom, i.blocked, i.exclude_from_replen])
+  hash([i.code, i.description, i.vendor_no, i.vendor_item_no, i.barcode, i.division, i.category, i.status, i.price, i.sales_uom, i.base_uom, i.blocked, i.exclude_from_replen, ...(i.promotion ? [i.promotion] : [])]) // a promotion only changes the hash when there is one, so naming the field does not rewrite every item
 
 /** One OData row -> a stock row for a store (the store is worked out from the location code by the caller). */
 export function toStock(row, F, itemsByCode) {

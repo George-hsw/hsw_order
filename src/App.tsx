@@ -20,6 +20,7 @@ import { AREAS, areaOf, isAreaId, visibleTabs, type AreaId, type Tab } from './l
 import { demoMembers, demoStores, demoUsers } from './lib/demo'
 import { ADMIN_EMAIL, DEMO, supabase, type AppUser, type DocRow, type Member, type StoreRow } from './lib/supabase'
 import type { Line } from './lib/quote'
+import { useIdleSignOut } from './lib/useIdleSignOut'
 
 // The quote screens carry the PDF library, so they load only when someone opens the Quote tab.
 const Builder = lazy(() => import('./Builder'))
@@ -55,6 +56,7 @@ export default function App() {
 
 function Shell({ session }: { session: Session }) {
   const toast = useToast()
+  useIdleSignOut(!DEMO, (m) => toast.info(`This device has been idle. You will be signed out in about ${m} ${m === 1 ? 'minute' : 'minutes'}. Tap or press anything to stay signed in.`))
   const email = (session.user.email ?? '').toLowerCase()
   const isAdmin = email === ADMIN_EMAIL
   const [view, setView] = useState<View>('home') // always Home after sign-in
@@ -173,7 +175,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'new' ? <Suspense fallback={<Loading />}><Builder key={builderKey} seed={seed} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
           : view === 'docs' ? <Suspense fallback={<Loading />}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
           : view === 'reports' && sees ? <Suspense fallback={<Loading />}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
-          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} onSaved={() => setRefresh((r) => r + 1)} />
+          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onOrder={(j) => { setJump(j); setView('order') }} onSales={(storeId, code) => { setSalesStart({ storeId, code }); setView('sales') }} />
           : view === 'tansel' ? <Suspense fallback={<Loading />}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>

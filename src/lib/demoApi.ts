@@ -23,6 +23,7 @@ const lines = new Map<string, OrderLine[]>([
 ])
 const subs = new Map<string, Set<(l: OrderLine[]) => void>>()
 const covers = new Map<string, number>()
+const blocked = new Map<string, Map<string, { reason: string; by: string; at: string }>>() // per store, this session only
 const hiddenNotices = new Map<string, string>() // notices hidden this session in the demo
 const fulfilled = new Map<string, Fulfilment>() // demo customer orders moved on this session
 const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ?? ''
@@ -125,7 +126,7 @@ export const demoApi: OrdersApi = {
       for (const s of demoStock(store_id)) {
         const it = items.find((i) => i.code === s.item_code)
         const series = rates.series?.get(s.item_code); const wait = waiting.get(s.item_code) ?? 0
-        if (!it || it.blocked || it.exclude_from_replen || s.po_blocked || !s.vendor_no || (!series && !wait)) continue
+        if (!it || it.blocked || blocked.get(store_id)?.has(s.item_code) || it.exclude_from_replen || s.po_blocked || !s.vendor_no || (!series && !wait)) continue
         const g = suggestLine({ series: series ?? Array(rates.weeks).fill(0), storeUnits: rates.storeUnits ?? [], inventory: s.inventory, onOrder: s.qty_on_po, transferIn: s.transfer_in ?? 0, inOrder: 0, waiting: wait, moq: s.moq, weeks: covers.get(store_id) ?? DEFAULT_COVER })
         if (g.qty <= 0) continue
         const n = per.get(s.vendor_no) ?? { store_id, vendor_no: s.vendor_no, items: 0, units: 0, cost: 0, held: 0, customers: 0 }
@@ -144,7 +145,7 @@ export const demoApi: OrdersApi = {
       const per = new Map<string, number>()
       for (const s of demoStock(store_id)) {
         const it = items.find((i) => i.code === s.item_code)
-        if (!it || it.blocked || it.exclude_from_replen || s.po_blocked || !s.vendor_no) continue
+        if (!it || it.blocked || blocked.get(store_id)?.has(s.item_code) || it.exclude_from_replen || s.po_blocked || !s.vendor_no) continue
         if (stockInsight(s, rates.perWeek.get(s.item_code) ?? 0, covers.get(store_id) ?? DEFAULT_COVER, s.moq).low) per.set(s.vendor_no, (per.get(s.vendor_no) ?? 0) + 1)
       }
       for (const [vendor_no, n] of per) out.push({ store_id, vendor_no, items: n })
@@ -156,7 +157,7 @@ export const demoApi: OrdersApi = {
     const out: Counted[] = []
     for (const store_id of storeIds) {
       const per = new Map<string, number>()
-      for (const s of demoStock(store_id)) if (items.some((i) => i.code === s.item_code) && s.vendor_no) per.set(s.vendor_no, (per.get(s.vendor_no) ?? 0) + 1)
+      for (const s of demoStock(store_id)) if (items.some((i) => i.code === s.item_code) && s.vendor_no && !blocked.get(store_id)?.has(s.item_code)) per.set(s.vendor_no, (per.get(s.vendor_no) ?? 0) + 1)
       for (const [vendor_no, n] of per) out.push({ store_id, vendor_no, items: n })
     }
     return wait(out)
@@ -170,6 +171,16 @@ export const demoApi: OrdersApi = {
   async dismiss(keys, until) { for (const k of keys) hiddenNotices.set(k, until); await wait(null) },
   coverTarget: (storeId) => wait(covers.get(storeId) ?? DEFAULT_COVER),
   async setCoverTarget(storeId, weeks) { covers.set(storeId, weeks); await wait(null) },
+  async blockedItems(storeId) {
+    const names = new Map(demoItems().map((i) => [i.code, i]))
+    return wait([...(blocked.get(storeId) ?? [])].map(([code, b]) => ({ item_code: code, description: names.get(code)?.description ?? code, vendor_no: names.get(code)?.vendor_no ?? null, reason: b.reason, blocked_by: b.by, blocked_at: b.at })))
+  },
+  async setBlocked(storeId, itemCode, on, email, reason = '') {
+    const m = blocked.get(storeId) ?? new Map()
+    if (on) m.set(itemCode, { reason, by: email, at: new Date().toISOString() }); else m.delete(itemCode)
+    blocked.set(storeId, m)
+    await wait(null)
+  },
 
   async syncRuns() {
     const runs: SyncRun[] = demoStores().map((s, i) => ({

@@ -35,7 +35,7 @@ async function readAll<T>(build: (from: number, to: number, count: boolean) => P
 const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
 
 const HIDDEN_KEY = 'hsw-hidden-notices'
-const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen'
+const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen,promotion'
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
 // A vendor's range changes only when the nightly sync runs, so switching back to a vendor within a few minutes reuses what was loaded.
@@ -267,5 +267,23 @@ export const supabaseApi: OrdersApi = {
   async setCoverTarget(storeId, weeks, email) {
     const { error } = await db().from('store_prefs').upsert({ store_id: storeId, cover_weeks: weeks, updated_by: email, updated_at: new Date().toISOString() }, { onConflict: 'store_id' })
     if (error) throw new Error(error.message)
+  },
+
+  async blockedItems(storeId) {
+    const { data, error } = await db().from('store_blocked_items').select('item_code,reason,blocked_by,blocked_at,items(description,vendor_no)').eq('store_id', storeId).order('blocked_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    type Row = { item_code: string; reason: string; blocked_by: string | null; blocked_at: string; items: { description: string; vendor_no: string | null } | { description: string; vendor_no: string | null }[] | null }
+    return ((data ?? []) as unknown as Row[]).map((r) => { const it = Array.isArray(r.items) ? r.items[0] : r.items; return { item_code: r.item_code, description: it?.description ?? r.item_code, vendor_no: it?.vendor_no ?? null, reason: r.reason, blocked_by: r.blocked_by, blocked_at: r.blocked_at } })
+  },
+
+  async setBlocked(storeId, itemCode, blocked, email, reason = '') {
+    if (blocked) {
+      const { error } = await db().from('store_blocked_items').insert({ store_id: storeId, item_code: itemCode, reason: reason.trim().slice(0, 200) }) // blocked_by is filled in by the database from the login
+      if (error && error.code !== '23505') throw new Error(error.message) // 23505: already blocked, which is what was asked
+    } else {
+      const { error } = await db().from('store_blocked_items').delete().eq('store_id', storeId).eq('item_code', itemCode)
+      if (error) throw new Error(error.message)
+    }
+    rangeCache.clear() // what the order screens list has changed
   },
 }

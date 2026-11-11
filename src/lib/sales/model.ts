@@ -164,7 +164,7 @@ export const distinct = (items: ItemSale[], key: 'vendor_no' | 'division'): stri
 // ---------- weeks ----------
 
 /** One item at one store in one week: what the report recorded. A week with no row means nothing sold, was ranked or lost. */
-export interface ItemWeek extends WeekRef { qty: number; net_sales: number; store_rank: number; group_qty: number; stores_stocking: number; potential_loss: number }
+export interface ItemWeek extends WeekRef { qty: number; net_sales: number; store_rank: number; business_rank: number; group_qty: number; stores_stocking: number; potential_loss: number }
 
 /** Distinct weeks in the rows, newest first. */
 export function weeksOf(rows: WeekRef[]): WeekRef[] {
@@ -175,7 +175,7 @@ export function weeksOf(rows: WeekRef[]): WeekRef[] {
 
 // ---------- one item over the weeks ----------
 
-export interface ItemTrendWeek extends WeekRef { qty: number; net_sales: number; chain_avg: number; store_rank: number; potential_loss: number }
+export interface ItemTrendWeek extends WeekRef { qty: number; net_sales: number; chain_avg: number; store_rank: number; business_rank: number; potential_loss: number }
 export interface ItemTrend {
   weeks: ItemTrendWeek[] // oldest first, only weeks the report recorded the item in
   total_qty: number
@@ -192,7 +192,7 @@ export interface ItemTrend {
 /** Weekly figures for one item, with the average store that stocks it beside it, and how the item is trending. Pure: no network. */
 export function itemTrend(history: ItemWeek[]): ItemTrend {
   const weeks: ItemTrendWeek[] = [...history].sort((a, b) => weekKey(a) - weekKey(b)).map((h) => ({
-    fy: h.fy, week: h.week, qty: h.qty, net_sales: h.net_sales, chain_avg: h.stores_stocking > 0 ? h.group_qty / h.stores_stocking : 0, store_rank: h.store_rank, potential_loss: h.potential_loss,
+    fy: h.fy, week: h.week, qty: h.qty, net_sales: h.net_sales, chain_avg: h.stores_stocking > 0 ? h.group_qty / h.stores_stocking : 0, store_rank: h.store_rank, business_rank: h.business_rank, potential_loss: h.potential_loss,
   }))
   const sum = (xs: ItemTrendWeek[], f: (w: ItemTrendWeek) => number) => xs.reduce((a, w) => a + f(w), 0)
   const recent = weeks.slice(-4), before = weeks.slice(-8, -4)

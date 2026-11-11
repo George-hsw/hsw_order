@@ -147,7 +147,7 @@ export function findings(events: AppEvent[], now = new Date(), windowHours = 24)
     const devices = new Set(sessions.map((e) => e.device_id).filter(Boolean))
     if (devices.size >= MANY_DEVICES) out.push({ severity: 'high', who: email, title: `Signed in on ${devices.size} different devices`, detail: `In the last ${windowHours} hours: ${[...new Set(sessions.map((e) => e.device).filter(Boolean))].join(', ')}.`, at: sessions[sessions.length - 1].at })
     const night = sessions.filter((e) => { const h = hourOf(e.at); return h >= NIGHT[0] && h < NIGHT[1] })
-    if (night.length) out.push({ severity: 'low', who: email, title: 'Signed in overnight', detail: `${night.length} sign-in${night.length === 1 ? '' : 's'} between midnight and 5am Sydney time.`, at: night[night.length - 1].at })
+    if (night.length) out.push({ severity: 'medium', who: email, title: 'Signed in overnight', detail: `${night.length} sign-in${night.length === 1 ? '' : 's'} between midnight and 5am Sydney time.`, at: night[night.length - 1].at })
     const hours = new Map<string, number>()
     for (const e of sessions) { const k = e.at.slice(0, 13); hours.set(k, (hours.get(k) ?? 0) + 1) }
     const burst = Math.max(0, ...hours.values())

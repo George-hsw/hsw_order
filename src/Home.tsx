@@ -1,3 +1,6 @@
+import { useConfirm } from './Confirm'
+import { useToast } from './Toast'
+import { DEMO, supabase } from './lib/supabase'
 import { visibleAreas, type AreaId } from './lib/sections'
 
 // One simple line drawing for each area, in the same stroke as the other icons (24 x 24, currentColor).
@@ -11,6 +14,14 @@ const ICON: Record<AreaId, string> = {
 
 /** What opens after sign-in: one tile for each area the person can use. The one they used last is marked. */
 export default function Home({ isAdmin, last, onPick }: { isAdmin: boolean; last: AreaId | null; onPick: (id: AreaId) => void }) {
+  const [ask, dialog] = useConfirm()
+  const toast = useToast()
+  const signOutEverywhere = async () => {
+    if (DEMO || !supabase) return toast.info('Demo mode: there is no sign-in.')
+    if (!(await ask({ title: 'Sign out of every device?', body: 'This phone, this computer and any other device you are signed in on will be signed out. You will need your password to sign in again.', confirmLabel: 'Sign out everywhere', danger: true }))) return
+    const { error } = await supabase.auth.signOut({ scope: 'global' })
+    if (error) toast.error('Could not sign you out of the other devices. Try again.')
+  }
   return (
     <div className="homepage">
       <div className="pagehead">
@@ -31,6 +42,12 @@ export default function Home({ isAdmin, last, onPick }: { isAdmin: boolean; last
           </button>
         ))}
       </div>
+      <details className="storedetails security">
+        <summary>Account security</summary>
+        <p className="muted">Lost a phone, or shared your login by mistake? Sign out of every device at once. Devices are also signed out by themselves after 2 hours without use.</p>
+        <div className="actions"><button type="button" className="btn" onClick={() => void signOutEverywhere()}>Sign out of every device</button></div>
+      </details>
+      {dialog}
     </div>
   )
 }

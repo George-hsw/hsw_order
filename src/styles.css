@@ -922,3 +922,68 @@ table.book.prep .why { min-height: 32px; padding: 0; }
   .movflag-figs > div { animation: rise var(--dur-short) var(--ease-out) backwards; }
   .movflag-figs > div:nth-child(2) { animation-delay: 50ms; } .movflag-figs > div:nth-child(3) { animation-delay: 100ms; }
 }
+
+/* Order table: stock colour, the 13-week sales chart, GP and a promotion tag. */
+.cover { display: inline-flex; align-items: center; gap: var(--space-2xs); padding: 1px var(--space-xs); border-radius: var(--radius-pill); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
+.cover::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.cover.short { background: var(--color-error-soft); color: var(--color-error); }
+.cover.even { background: var(--color-warn-soft); color: var(--color-warn); }
+.cover.covered { background: var(--color-success-soft); color: var(--color-success); }
+table.book.range td .cover { display: flex; width: fit-content; margin-top: var(--space-3xs); margin-left: auto; }
+.coverkey { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-sm); margin: 0; font-size: var(--text-sm); }
+.coverkey .cover { margin-left: var(--space-2xs); }
+.salesline { display: grid; gap: var(--space-3xs); margin-top: var(--space-3xs); justify-items: start; }
+.salesline small { font-size: var(--text-sm); font-weight: 400; white-space: nowrap; }
+.spark { display: block; overflow: visible; }
+.spark .bar { fill: var(--color-ink-2); opacity: 0.45; }
+.spark .bar.last { fill: var(--color-accent); opacity: 1; }
+.chk.promo { color: var(--color-link); font-weight: 600; }
+
+/* Store preferences on the Order screen. */
+.prefs { margin: 0 0 var(--space-lg); }
+.prefs summary .chip { margin-left: var(--space-xs); }
+.prefsbody { display: grid; gap: var(--space-sm); padding-top: var(--space-sm); }
+.prefsbody h3, .prefsbody p { margin: 0; }
+.prefsadd { display: grid; gap: var(--space-xs); }
+.prefsadd .findrow { align-items: end; flex-wrap: wrap; }
+.blockedlist, .prefshits { list-style: none; margin: 0; padding: 0; display: grid; }
+.blockedlist li, .prefshits li { border-top: var(--rule-hair) solid var(--color-rule); }
+.prefsbody .hit { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) 0; min-height: var(--hit); }
+.prefsbody .hit > span:first-child { flex: 1; min-width: 0; display: grid; }
+.prefsbody .hit small { color: var(--color-ink-2); overflow-wrap: anywhere; }
+@media (max-width: 44rem) {
+  .prefsadd .findrow label.inline { justify-content: space-between; }
+  table.book.range td[data-label="GP"] { grid-column: span 3; order: 6; }
+  table.book.range td[data-label="Cost"] { grid-column: span 3; order: 7; }
+  table.book.range td[data-label="Order qty"] { grid-column: 1 / -1; order: 8; }
+  table.book.range td.rowactions { order: 9; }
+  table.book.range td .cover { margin-left: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes spark-grow { from { transform: scaleY(0); } }
+  .spark .bar { transform-box: fill-box; transform-origin: 50% 100%; animation: spark-grow var(--dur-long) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 24ms); }
+  .blockedlist li, .prefshits li { animation: rise var(--dur-short) var(--ease-out) backwards; }
+  .prefsbody { animation: rise var(--dur-short) var(--ease-out) backwards; }
+  .cover { animation: pop var(--dur-short) var(--ease-out) backwards; }
+}
+@media (min-width: 44.01rem) { table.book.range th, table.book.range td { padding-inline: var(--space-xs); } table.book.range .rowactions .btn { padding-inline: var(--space-sm); } }
+
+/* Short tags and cover words: the explanation is in data-tip and shows on hover, on keyboard focus, or when tapped, so rows stay clean. */
+.tags { display: flex; flex-wrap: wrap; gap: var(--space-3xs) var(--space-2xs); margin-top: var(--space-3xs); }
+.tag { position: relative; display: inline-flex; align-items: center; padding: 1px var(--space-xs); border-radius: var(--radius-pill); background: var(--color-paper-3); color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
+.tag.ok { background: var(--color-success-soft); color: var(--color-success); }
+.tag.warn { background: var(--color-warn-soft); color: var(--color-warn); }
+.tag.error { background: var(--color-error-soft); color: var(--color-error); }
+.tag.promo { background: var(--color-accent-soft); color: var(--color-link); }
+.salesline, .cover { position: relative; }
+[data-tip] { cursor: help; }
+[data-tip]:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+[data-tip]::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + var(--space-2xs)); z-index: var(--z-dropdown); width: max-content; max-width: min(18rem, 70vw); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-card); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 400; line-height: 1.4; white-space: normal; text-align: left; box-shadow: var(--shadow-lift); display: none; pointer-events: none; }
+[data-tip]:hover::after, [data-tip]:focus::after { display: block; } /* not merely hidden: a hidden tooltip would still add scroll space to the table */
+.cover[data-tip]::after { left: auto; right: 0; }
+@media (max-width: 44rem) { .cover[data-tip]::after { left: 0; right: auto; } }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes tip-in { from { opacity: 0; transform: translateY(-3px); } }
+  [data-tip]:hover::after, [data-tip]:focus::after { animation: tip-in var(--dur-micro) var(--ease-out) 120ms backwards; }
+}
+@media (max-width: 44rem) { .tag[data-tip]::after, .salesline[data-tip]::after { max-width: 11.5rem; } } /* the description sits on the right of the card on a phone: keep the explanation inside it */
