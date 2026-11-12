@@ -903,7 +903,8 @@ table.book.prep .why { min-height: 32px; padding: 0; }
 .movflag-btn[aria-expanded="true"] { background: var(--color-paper-2); }
 .movflag-i { flex: none; }
 .movflag-panel { display: grid; gap: var(--space-sm); margin-top: var(--space-xs); padding: var(--space-md); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); background: var(--color-paper-2); box-shadow: var(--shadow-card); text-align: left; font-weight: 400; }
-.movflag.float .movflag-panel { position: absolute; bottom: calc(100% + var(--space-xs)); left: 0; width: min(22rem, calc(100vw - 2 * var(--space-md))); margin-top: 0; box-shadow: var(--shadow-lift); z-index: var(--z-sticky); }
+.movflag.float { position: static; } /* so the panel is placed against the fixed bar, across its width, rather than against the small flag */
+.movflag.float .movflag-panel { position: absolute; bottom: calc(100% + var(--space-xs)); left: var(--space-md); right: var(--space-md); max-width: 28rem; margin-top: 0; box-shadow: var(--shadow-lift); z-index: var(--z-sticky); }
 .movflag-panel p { margin: 0; }
 .movflag-title { font-weight: 600; color: var(--color-ink); }
 .movflag-meter { height: 8px; border-radius: 4px; overflow: hidden; background: var(--color-paper-3); }
@@ -955,8 +956,8 @@ table.book.range td .cover { display: flex; width: fit-content; margin-top: var(
   .prefsadd .findrow label.inline { justify-content: space-between; }
   table.book.range td[data-label="GP"] { grid-column: span 3; order: 6; }
   table.book.range td[data-label="Cost"] { grid-column: span 3; order: 7; }
-  table.book.range td[data-label="Order qty"] { grid-column: 1 / -1; order: 8; }
-  table.book.range td.rowactions { order: 9; }
+  table.book.range td[data-label="Order qty"] { grid-column: span 4; order: 8; }
+  table.book.range td.rowactions { grid-column: span 2; order: 8; align-items: center; } /* the quantity and Details share a row on a phone */
   table.book.range td .cover { margin-left: 0; }
 }
 @media (prefers-reduced-motion: no-preference) {

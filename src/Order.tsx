@@ -20,7 +20,7 @@ import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
 import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, moqNote, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
-import { DEMO, type BlockedItem, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
+import { ADMIN_EMAIL, DEMO, type BlockedItem, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
 interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; canManage?: (storeId: string) => boolean; jump?: { storeId: string; vendor: string; item: string; show?: 'low' | 'new' } | null }
 
@@ -167,7 +167,9 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
   const draftOf = useMemo(() => new Map(drafts.map((d) => [d.vendor_no, d])), [drafts])
   const blockedCodes = useMemo(() => new Set((blocked ?? []).map((b) => b.item_code)), [blocked])
   // A blocked item is left out of everything the store orders from, unless it is already on this order or was jumped to: then it stays, marked, so it can be taken off.
-  const range = useMemo(() => (vendor ? rangeList.filter((p) => !blockedCodes.has(p.item.code) || lines.some((l) => l.item_code === p.item.code) || jump?.item === p.item.code) : []), [vendor, rangeList, blockedCodes, lines, jump?.item])
+  // The admin sees every item, blocked ones marked: it is still never suggested, so Needs ordering and the bell stay the same.
+  const seesBlocked = email.toLowerCase() === ADMIN_EMAIL
+  const range = useMemo(() => (vendor ? rangeList.filter((p) => !blockedCodes.has(p.item.code) || seesBlocked || lines.some((l) => l.item_code === p.item.code) || jump?.item === p.item.code) : []), [vendor, rangeList, blockedCodes, lines, jump?.item, seesBlocked])
   const lineOf = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
   const enough = !!rates && rates.weeks >= MIN_WEEKS
   const insightOf = useMemo(() => {
@@ -427,7 +429,6 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
 
       {cat && !vendor && (
         <>
-          <StorePrefs key={storeId} storeId={storeId} storeName={stores.find((x) => x.id === storeId)?.name ?? 'this store'} email={email} canManage={!!canManage?.(storeId)} blocked={blocked} failed={blockedFailed} onChange={() => { setBlockedAttempt((a) => a + 1); onSaved() }} />
           {vendors.length > 0 && (
             <section className="block needs">
               <h2>Needs ordering</h2>
@@ -494,6 +495,7 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
               </ul>
             </section>
           )}
+          {canManage?.(storeId) && <StorePrefs key={storeId} storeId={storeId} storeName={stores.find((x) => x.id === storeId)?.name ?? 'this store'} email={email} canManage={!!canManage?.(storeId)} blocked={blocked} failed={blockedFailed} onChange={() => { setBlockedAttempt((a) => a + 1); onSaved() }} />}
         </>
       )}
 

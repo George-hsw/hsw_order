@@ -7,6 +7,7 @@ import { money, type Product } from './lib/order'
 import { divisionLabel } from './lib/sales/model'
 import type { StoreRow } from './lib/supabase'
 import type { OrderJump } from './Sales'
+import type { Line } from './lib/quote'
 
 const STORE_KEY = 'hsw-orders-store' // the same store the Order tab last used
 const LIVE_MIN = 2 // characters before matches start to come up
@@ -18,7 +19,7 @@ const LIVE_DELAY = 220 // ms after the last key
  * A price label can be printed from the phone or computer through the device's own print dialog (AirPrint, Mopria or a
  * desktop printer), so any printer on the same Wi-Fi works without setting anything up in the app.
  */
-export default function PriceCheck({ stores, multi, onOrder, onSales }: { stores: StoreRow[]; multi: boolean; onOrder: (j: OrderJump) => void; onSales: (storeId: string, code: string) => void }) {
+export default function PriceCheck({ stores, multi, onOrder, onQuote, onSales }: { stores: StoreRow[]; multi: boolean; onOrder: (j: OrderJump) => void; onQuote: (lines: Line[]) => void; onSales: (storeId: string, code: string) => void }) {
   const [storeId, setStoreId] = useState(() => { try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ } return stores[0]?.id ?? '' })
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'looking' | 'none' | 'error'>('idle')
@@ -150,6 +151,7 @@ export default function PriceCheck({ stores, multi, onOrder, onSales }: { stores
 
           <div className="actions">
             <button type="button" className="btn" onClick={() => onSales(storeId, it.code)}>How it has sold here</button>
+            <button type="button" className="btn" onClick={() => { track('price_check_quote', {}, storeId); onQuote([{ code: it.code, qty: '1', ownDescription: '', ownPrice: '', discPct: '' }]) }}>Start a quote</button>
             <button type="button" className="btn" onClick={() => { track('price_label_print', {}, storeId); window.print() }}>Print price label</button>
             {(st?.vendor_no ?? it.vendor_no) && <button type="button" className="btn primary" onClick={() => onOrder({ storeId, vendor: (st?.vendor_no ?? it.vendor_no)!, item: it.code })}>Order this item</button>}
           </div>
