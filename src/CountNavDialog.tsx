@@ -11,7 +11,6 @@ import type { CountLine, CountRow } from './lib/supabase'
 interface Props {
   count: CountRow
   lines: CountLine[]
-  locationCode: string // the store's NAV location code
   onChanged: (c: CountRow) => void // a journal was recorded (the count may now be posted)
   onClose: () => void
 }
@@ -19,7 +18,7 @@ interface Props {
 const SIDES: Side[] = ['positive', 'negative']
 
 /** Copy for NAV, for a stock take: a Positive adjustment tab and a Negative adjustment tab, because NAV takes them as two item journal entry types. */
-export default function CountNavDialog({ count, lines, locationCode, onChanged, onClose }: Props) {
+export default function CountNavDialog({ count, lines, onChanged, onClose }: Props) {
   const toast = useToast()
   const split = useMemo(() => splitAdjustments(lines), [lines])
   const [tab, setTab] = useState<Side>(() => sidesToPost(count, split)[0] ?? 'positive')
@@ -41,7 +40,7 @@ export default function CountNavDialog({ count, lines, locationCode, onChanged, 
   }
 
   const copy = async () => {
-    if (!(await copyText(navAdjustText(lines, tab, locationCode)))) return toast.error('Could not copy. Select the lines and copy them by hand.')
+    if (!(await copyText(navAdjustText(lines, tab)))) return toast.error('Could not copy. Select the lines and copy them by hand.')
     setCopied((c) => (c.includes(tab) ? c : [...c, tab]))
     toast.success(`Copied ${mine.length} ${mine.length === 1 ? 'line' : 'lines'}. Paste them into a NAV item journal as ${tab === 'positive' ? 'Positive Adjmt.' : 'Negative Adjmt.'} entries.`)
   }

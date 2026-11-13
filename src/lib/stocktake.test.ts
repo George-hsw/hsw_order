@@ -55,13 +55,13 @@ describe('copy for NAV', () => {
   const lines = [line('0042', 9, 12, 10, { uom: 'EACH', description: 'Tab\there' }), line('A1', 5, 2), line('C3', 4, 4)]
   const when = new Date(2026, 10, 13)
   it('writes tab-separated item journal lines for one side only, quantity as a positive size', () => {
-    const neg = navAdjustText(lines, 'negative', 'ART', when)
-    expect(neg).toBe('13/11/2026\tNegative Adjmt.\t\t0042\tTab here\tART\t3\tEACH')
-    expect(navAdjustText(lines, 'positive', 'ART', when)).toBe('13/11/2026\tPositive Adjmt.\t\tA1\tItem A1\tART\t3\tEACH')
+    const neg = navAdjustText(lines, 'negative', when)
+    expect(neg).toBe('13/11/2026\t\t0042\tTab here\tEA\t3\t40')
+    expect(navAdjustText(lines, 'positive', when)).toBe('13/11/2026\t\tA1\tItem A1\tEA\t3\t40')
   })
   it('can include a header row, and is empty when a side has nothing', () => {
-    expect(navAdjustText(lines, 'positive', 'ART', when, true).split('\n')[0]).toContain('Posting Date\tEntry Type')
-    expect(navAdjustText([line('C3', 4, 4)], 'negative', 'ART', when)).toBe('')
+    expect(navAdjustText(lines, 'positive', when, true).split('\n')[0]).toBe('Posting Date\tBarcode\tItem No.\tDescription\tUnit of Measure\tQuantity\tReason Code')
+    expect(navAdjustText([line('C3', 4, 4)], 'negative', when)).toBe('')
   })
   it('lists only the sides still to be entered in NAV', () => {
     const split = splitAdjustments(lines)

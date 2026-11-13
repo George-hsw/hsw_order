@@ -247,7 +247,7 @@ export default function StockCount({ count, store, canManage, onChange, onLeave 
         <CountFinish count={count} lines={lines} canManage={canManage} onRecount={recount} onBack={() => setFinishing(false)}
           onSaved={(c) => { onChange(c); setFinishing(false); setNavOpen(true) }} />
       )}
-      {navOpen && <CountNavDialog count={count} lines={lines} locationCode={store.code} onChanged={onChange} onClose={() => { setNavOpen(false); onLeave() }} />}
+      {navOpen && <CountNavDialog count={count} lines={lines} onChanged={onChange} onClose={() => { setNavOpen(false); onLeave() }} />}
     </div>
   )
 }

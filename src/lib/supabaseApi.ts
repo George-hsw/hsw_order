@@ -1,6 +1,7 @@
 import { codeLines, type CustomerOrderNeed } from './customerOrders'
 import type { Counted, OverdueInvoice } from './notifications'
 import { DEFAULT_COVER } from './insights'
+import { persistGet, persistSet } from './persist'
 import { ConflictError, CountConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
 import { supabase, type CountLine, type CountRow, type CountSummary, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun, type UncountedItem } from './supabase'
@@ -18,7 +19,7 @@ type Page = { data: unknown; error: { message: string } | null; count?: number |
  * Reads every row of a query. The first page also asks for the total, then every remaining page is requested at once, so a
  * 4,400-row list takes about two round trips instead of five in a row. The query must be ordered so pages never overlap.
  */
-async function readAll<T>(build: (from: number, to: number, count: boolean) => PromiseLike<Page>): Promise<T[]> {
+export async function readAll<T>(build: (from: number, to: number, count: boolean) => PromiseLike<Page>): Promise<T[]> {
   const first = await build(0, PAGE - 1, true)
   if (first.error) throw new Error(first.error.message)
   const rows = (first.data ?? []) as T[]
@@ -32,14 +33,16 @@ async function readAll<T>(build: (from: number, to: number, count: boolean) => P
   }
   return rows
 }
-const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
+export const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
 
 const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen,promotion'
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
-// A vendor's range changes only when the nightly sync runs, so switching back to a vendor within a few minutes reuses what was loaded.
-const rangeCache = new Map<string, { at: number; products: Product[] }>()
+// A vendor's range changes only when the nightly sync runs. So it is kept in memory for a few minutes, and on the device for as long as the store's last
+// sync is the one it was read after: opening a vendor again, or reopening the app, then needs no round trip for it at all.
+const rangeCache = new Map<string, { at: number; sync?: string; products: Product[] }>()
+const lastSync = new Map<string, string>() // each store's latest sync time, learned when the vendor list loads
 const RANGE_TTL = 10 * 60 * 1000
 
 const linesOf = async (orderId: string): Promise<OrderLine[]> =>
@@ -61,19 +64,27 @@ export const supabaseApi: OrdersApi = {
     ])
     if (vendorRes.error) throw new Error(vendorRes.error.message)
     const options = ((vendorRes.data ?? []) as { vendor_no: string; items: number | string }[]).map((r) => ({ vendor: r.vendor_no, items: Number(r.items) }))
-    return { options, syncedAt: (syncRes.data?.[0] as { finished_at: string } | undefined)?.finished_at }
+    const syncedAt = (syncRes.data?.[0] as { finished_at: string } | undefined)?.finished_at
+    if (syncedAt) lastSync.set(storeId, syncedAt)
+    return { options, syncedAt }
   },
 
   async range(storeId, vendor): Promise<Product[]> {
     const key = storeId + '|' + vendor
+    const sync = lastSync.get(storeId)
     const hit = rangeCache.get(key)
-    if (hit && Date.now() - hit.at < RANGE_TTL) return hit.products
+    if (hit && (Date.now() - hit.at < RANGE_TTL || (sync && hit.sync === sync))) return hit.products
+    if (sync) {
+      const saved = await persistGet<Product[]>('range|' + key, sync)
+      if (saved) { rangeCache.set(key, { at: Date.now(), sync, products: saved }); return saved }
+    }
     type Row = StockRow & { items: ItemRow }
     const rows = await readAll<Row>((from, to, count) =>
       db().from('store_stock').select(STOCK_COLUMNS + ',items!inner(' + ITEM_COLUMNS + ')', countOpt(count))
         .eq('store_id', storeId).eq('vendor_no', vendor).order('item_code').range(from, to))
     const products = rows.map(({ items, ...stock }) => ({ item: items, stock }))
-    rangeCache.set(key, { at: Date.now(), products })
+    rangeCache.set(key, { at: Date.now(), sync, products })
+    if (sync) void persistSet('range|' + key, sync, products)
     return products
   },
 

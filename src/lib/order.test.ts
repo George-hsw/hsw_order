@@ -74,14 +74,14 @@ describe('vendor groups and Copy for NAV', () => {
     expect(g[0].lines.map((l) => l.item_code)).toEqual(['A0', 'A1'])
     expect(g[0].totals.units).toBe(6)
   })
-  it('writes tab-separated item and quantity, keeping leading zeros as text', () => {
+  it('writes just No. and Quantity, tab-separated, keeping leading zeros as text', () => {
     const g = groupByVendor([mk('00123', 'V1', 4)])[0]
-    expect(navText(g)).toBe('Item\t00123\t\t\t00123\t\t\t4')
-    expect(navText(g, true)).toBe('Type\tNo.\tVendor Item No.\tVariant Code\tDescription\tUnit of Measure Code\tInventory\tQuantity\nItem\t00123\t\t\t00123\t\t\t4')
+    expect(navText(g)).toBe('00123\t4')
+    expect(navText(g, true)).toBe('No.\tQuantity\n00123\t4')
   })
-  it('matches a line typed by hand: type, no., vendor item no., blank variant, description, unit, blank inventory, quantity', () => {
-    const l: OrderLine = { ...mk('EIC16047', 'MYHO001', 24), vendor_item_no: 'RB16047', uom: 'EA', description: 'TOOTHBRSH HLDR MRBL-LOOK BK' }
-    expect(navText(groupByVendor([l])[0]).split('\t')).toEqual(['Item', 'EIC16047', 'RB16047', '', 'TOOTHBRSH HLDR MRBL-LOOK BK', 'EA', '', '24'])
+  it('writes one row per item, in item order', () => {
+    const g = groupByVendor([mk('B2', 'V1', 2), mk('A1', 'V1', 24)])[0]
+    expect(navText(g).split('\n')).toEqual(['A1\t24', 'B2\t2'])
   })
 })
 

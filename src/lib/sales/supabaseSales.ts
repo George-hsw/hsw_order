@@ -1,5 +1,7 @@
 import { supabase, type StoreRow } from '../supabase'
-import { RATE_WEEKS, ratesFrom } from '../insights'
+import { RATE_WEEKS, ratesFrom, type Rates } from '../insights'
+import { persistGet, persistSet } from '../persist'
+import { countOpt, readAll } from '../supabaseApi'
 import type { ItemInfo, SalesApi, SavedSource, UploadRecord } from './api'
 import { dailyRows, dedupeItems, detailedRows, indexStores, weeklyRows } from './import'
 import type { ChainWeek, ItemSale, ItemWeek, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'
@@ -9,6 +11,9 @@ const db = () => {
   return supabase
 }
 const PAGE = 1000
+/** Each store's weekly rates, kept for an hour in memory and for a day on the device, and only while the same weeks are loaded. A newer week makes them stale at once. */
+const ratesCache = new Map<string, { at: number; tag: string; rates: Rates }>()
+const RATES_TTL = 60 * 60 * 1000
 const KEEP_WEEKS = 60 // item rows are kept for each week, for more than a year, so an item's sales build up week by week
 /** Throws the database's own error. A gateway or timeout error can come back with an empty message, so every part it gave is shown. */
 const fail = (e: { message: string; details?: string | null; hint?: string | null; code?: string | null } | null) => {
@@ -97,10 +102,19 @@ export const supabaseSalesApi: SalesApi = {
   async itemRates(storeId) {
     const weeks = (await supabaseSalesApi.weeks()).slice(0, RATE_WEEKS) // newest first
     if (!weeks.length) return { weeks: 0, perWeek: new Map() }
+    const tag = weeks.map((w) => w.fy * 100 + w.week).join(',')
+    const hit = ratesCache.get(storeId)
+    if (hit && hit.tag === tag && Date.now() - hit.at < RATES_TTL) return hit.rates
+    const saved = await persistGet<Rates>('rates|' + storeId, tag)
+    if (saved) { ratesCache.set(storeId, { at: Date.now(), tag, rates: saved }); return saved }
     const oldest = weeks[weeks.length - 1]
-    const rows = await pages<{ item_code: string; qty: number; wk: number }>((from, to) => db().from('sales_item_week').select('item_code,qty,wk')
+    // The first page also asks for the total and every other page is then read at once, instead of one page after another.
+    const rows = await readAll<{ item_code: string; qty: number; wk: number }>((from, to, count) => db().from('sales_item_week').select('item_code,qty,wk', countOpt(count))
       .eq('store_id', storeId).gte('wk', oldest.fy * 100 + oldest.week).order('wk').order('item_code').range(from, to))
-    return ratesFrom(rows.map((r) => ({ ...r, qty: Number(r.qty) })))
+    const rates = ratesFrom(rows.map((r) => ({ ...r, qty: Number(r.qty) })))
+    ratesCache.set(storeId, { at: Date.now(), tag, rates })
+    void persistSet('rates|' + storeId, tag, rates)
+    return rates
   },
   async lookupItem(storeId, query): Promise<ItemInfo | null> {
     const q = query.trim()

@@ -30,6 +30,10 @@ type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; o
 interface Sheet { product: Product; base: number; focusQty: boolean; conflict?: OrderLine | null }
 type Show = 'all' | 'ordered' | 'not' | 'low' | 'new' | 'promo'
 
+// The last vendor list and needs-ordering list for each person and store: opening Order again shows them at once, then refreshes them.
+const vendorMemo = new Map<string, { vendors: VendorOption[]; syncedAt?: string; drafts: OrderSummary[] }>()
+const needMemo = new Map<string, OrderNeed[]>()
+
 /**
  * An order is for one vendor, like the NAV purchase order it becomes. Choose the vendor and the whole range the store
  * orders from them is listed: type a quantity beside each item, or scan to jump to one. Each vendor's order saves as you go,
@@ -79,12 +83,14 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
   useEffect(() => {
     if (!storeId) return
     let live = true
-    setCatLoad({ phase: 'loading' })
+    const memoKey = email + '|' + storeId
+    const memo = vendorMemo.get(memoKey)
+    if (memo) { setDrafts(memo.drafts); setCatLoad({ phase: 'ready', vendors: memo.vendors, syncedAt: memo.syncedAt }) } else setCatLoad({ phase: 'loading' })
     Promise.all([api.vendors(storeId), api.drafts(storeId)])
-      .then(([v, d]) => { if (!live) return; setDrafts(d); setCatLoad({ phase: 'ready', vendors: v.options, syncedAt: v.syncedAt }) })
-      .catch(() => live && setCatLoad({ phase: 'error' }))
+      .then(([v, d]) => { vendorMemo.set(memoKey, { vendors: v.options, syncedAt: v.syncedAt, drafts: d }); if (!live) return; setDrafts(d); setCatLoad({ phase: 'ready', vendors: v.options, syncedAt: v.syncedAt }) })
+      .catch(() => live && !memo && setCatLoad({ phase: 'error' }))
     return () => { live = false }
-  }, [storeId, attempt])
+  }, [storeId, attempt, email])
 
   // The chosen vendor's order if one was already started, and its items. Opening a vendor creates nothing: the order starts when the first quantity is saved.
   useEffect(() => {
@@ -137,10 +143,12 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
   useEffect(() => {
     if (!storeId || vendor) return
     let live = true
-    setNeedList(null)
-    api.orderNeeds([storeId]).then((n) => live && setNeedList(n)).catch((e) => { trackError('order needs', e); if (live) setNeedList([]) })
+    const memoKey = email + '|' + storeId
+    const memo = needMemo.get(memoKey)
+    setNeedList(memo ?? null)
+    api.orderNeeds([storeId]).then((n) => { needMemo.set(memoKey, n); if (live) setNeedList(n) }).catch((e) => { trackError('order needs', e); if (live && !memo) setNeedList([]) })
     return () => { live = false }
-  }, [storeId, vendor, attempt, blockedAttempt])
+  }, [storeId, vendor, attempt, blockedAttempt, email])
 
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])

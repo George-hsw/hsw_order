@@ -143,7 +143,7 @@ function CountDetail({ count, store, who, onClose, onChanged }: { count: CountSu
           <button type="button" className="btn" onClick={onClose}>Close</button>
           {lines.data && differences.length > 0 && <button type="button" className="btn primary" onClick={() => setNav(true)}>Copy for NAV</button>}
         </div>
-        {nav && lines.data && <CountNavDialog count={current} lines={lines.data} locationCode={store?.code ?? ''} onChanged={(c) => { setCurrent({ ...current, ...c }); onChanged() }} onClose={() => setNav(false)} />}
+        {nav && lines.data && <CountNavDialog count={current} lines={lines.data} onChanged={(c) => { setCurrent({ ...current, ...c }); onChanged() }} onClose={() => setNav(false)} />}
       </div>
     </Modal>
   )

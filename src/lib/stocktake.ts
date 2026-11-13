@@ -76,21 +76,23 @@ export function byImpact(lines: CountLine[]): CountLine[] {
   return [...lines].sort((a, b) => adjustValue(b) - adjustValue(a) || Math.abs(variance(b)) - Math.abs(variance(a)) || a.item_code.localeCompare(b.item_code))
 }
 
-export const NAV_ENTRY: Record<Side, string> = { positive: 'Positive Adjmt.', negative: 'Negative Adjmt.' }
-const JOURNAL_HEADER = ['Posting Date', 'Entry Type', 'Document No.', 'Item No.', 'Description', 'Location Code', 'Quantity', 'Unit of Measure Code']
+const JOURNAL_HEADER = ['Posting Date', 'Barcode', 'Item No.', 'Description', 'Unit of Measure', 'Quantity', 'Reason Code']
+const NAV_UOM = 'EA'
+const NAV_REASON = '40' // the reason code for a stock take adjustment
 const clean = (s: string) => [...s].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('') // no tabs or line breaks inside a cell
 const ausDate = (d: Date) => d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 /**
- * Tab-separated item journal lines for one side, ready to paste into a NAV item journal. The quantity is always the positive size of the
- * difference: the entry type says whether NAV adds or removes it. Item numbers stay text so leading zeros survive.
+ * Tab-separated item journal lines for one side, in the journal's column order: today's date, (barcode left for NAV), item number, description,
+ * EA, quantity and reason code 40. The quantity is always the positive size of the difference: the positive and negative sides are
+ * pasted into their own journals. Item numbers stay text so leading zeros survive.
  */
-export function navAdjustText(lines: CountLine[], side: Side, locationCode: string, date = new Date(), withHeader = false): string {
+export function navAdjustText(lines: CountLine[], side: Side, date = new Date(), withHeader = false): string {
   const when = ausDate(date)
   const rows = lines
     .filter((l) => sideOf(l) === side)
     .sort((a, b) => a.item_code.localeCompare(b.item_code))
-    .map((l) => [when, NAV_ENTRY[side], '', l.item_code, clean(l.description), locationCode, fmtQty(Math.abs(variance(l))), l.uom ?? ''].join('\t'))
+    .map((l) => [when, '', l.item_code, clean(l.description), NAV_UOM, fmtQty(Math.abs(variance(l))), NAV_REASON].join('\t'))
   return [...(withHeader ? [JOURNAL_HEADER.join('\t')] : []), ...rows].join('\n')
 }
 

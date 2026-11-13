@@ -157,32 +157,15 @@ export function groupByVendor(lines: OrderLine[]): VendorGroup[] {
 // ---------- Copy for NAV ----------
 
 /**
- * Copy for NAV: one paste of purchase lines into the NAV lines grid, in the grid's column order. Filled: Type, No., Vendor Item No.,
- * Description, Unit of Measure Code and Quantity. Left empty: Variant and Inventory (a calculated field). Every cost column is left
- * to NAV, which fills them from the item and vendor, so costs come out excluding VAT exactly as for a line typed by hand.
- * The cells between No. and Quantity hold real values on purpose: an empty Description was validated by NAV, which then asked whether
- * to switch to another item that also has a blank description.
+ * Copy for NAV: the two columns NAV needs to start a purchase line, No. then Quantity, in the order the NAV lines grid shows them.
+ * Everything else (inventory, MOQ, description, vendor item number, costs, location) NAV fills in from the item and the vendor.
  */
-export const NAV_COLUMNS: { header: string; value?: (l: OrderLine) => string }[] = [
-  { header: 'Type', value: () => 'Item' },
-  { header: 'No.', value: (l) => l.item_code },
-  { header: 'Vendor Item No.', value: (l) => l.vendor_item_no ?? '' },
-  { header: 'Variant Code' },
-  { header: 'Description', value: (l) => [...l.description].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('') }, // no tabs or line breaks inside a cell
-  { header: 'Unit of Measure Code', value: (l) => l.uom ?? '' },
-  { header: 'Inventory' },
-  { header: 'Quantity', value: (l) => String(l.qty) },
-  { header: 'Qty. to Receive' }, { header: 'Qty. To Invoice' }, { header: 'Description 2' }, { header: 'Location Code' },
-  { header: 'Direct Unit Cost Excl. VAT' }, { header: 'Line Amount Excl. VAT' }, { header: 'Vendor Invoice Cost' }, { header: 'Vendor Invoice Qty' },
-  { header: 'MOQ' }, { header: 'Department Code' }, { header: 'Area Code' },
-]
-const NAV_WIDTH = NAV_COLUMNS.reduce((n, c, i) => (c.value ? i + 1 : n), 0)
+const clean = (s: string) => [...s].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('') // no tabs or line breaks inside a cell
 
-/** Tab-separated purchase lines, one per item, ready to paste into the NAV lines grid. Item numbers stay text so leading zeros survive. */
+/** Tab-separated purchase lines, one per item (No. and Quantity), ready to paste into the NAV lines grid. Item numbers stay text so leading zeros survive. */
 export function navText(group: VendorGroup, withHeader = false): string {
-  const cols = NAV_COLUMNS.slice(0, NAV_WIDTH)
-  const rows = group.lines.map((l) => cols.map((c) => c.value?.(l) ?? '').join('\t'))
-  return [...(withHeader ? [cols.map((c) => c.header).join('\t')] : []), ...rows].join('\n')
+  const rows = group.lines.map((l) => clean(l.item_code) + '\t' + String(l.qty))
+  return [...(withHeader ? ['No.\tQuantity'] : []), ...rows].join('\n')
 }
 
 // ---------- Stock freshness ----------
