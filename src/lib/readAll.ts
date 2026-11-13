@@ -1,6 +1,7 @@
 // Reading every row of a query, a page at a time. No imports on purpose: both the orders and the sales code use it, and a shared file that imports nothing cannot create a loop.
 
 const PAGE = 1000 // Supabase returns at most 1,000 rows a request
+const AT_ONCE = 5 // pages requested together
 
 type Page = { data: unknown; error: { message: string } | null; count?: number | null }
 
@@ -15,10 +16,14 @@ export async function readAll<T>(build: (from: number, to: number, count: boolea
   const total = first.count ?? rows.length
   if (rows.length < PAGE || total <= PAGE) return rows
   const starts = Array.from({ length: Math.ceil((total - PAGE) / PAGE) }, (_, i) => PAGE * (i + 1))
-  const rest = await Promise.all(starts.map((from) => build(from, from + PAGE - 1, false)))
-  for (const r of rest) {
-    if (r.error) throw new Error(r.error.message)
-    rows.push(...((r.data ?? []) as T[]))
+  // A few pages at a time, not all at once: a long list (a store's 13 weeks of item sales is dozens of pages) would otherwise start dozens of
+  // heavy queries together, and the database can time them out.
+  for (let i = 0; i < starts.length; i += AT_ONCE) {
+    const batch = await Promise.all(starts.slice(i, i + AT_ONCE).map((from) => build(from, from + PAGE - 1, false)))
+    for (const r of batch) {
+      if (r.error) throw new Error(r.error.message)
+      rows.push(...((r.data ?? []) as T[]))
+    }
   }
   return rows
 }
