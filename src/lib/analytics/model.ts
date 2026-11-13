@@ -1,4 +1,5 @@
 // What the admin's Analytics tab shows, worked out from the usage log. No network here, so every rule is unit-tested.
+import { distanceKm, placeOfDetail, type Place } from './place'
 
 export interface AppEvent {
   id: number
@@ -12,10 +13,10 @@ export interface AppEvent {
   device_id: string
 }
 
-export const KINDS = { session: 'session_start', tab: 'tab_view', started: 'order_started', copied: 'order_copied', ordered: 'order_ordered', deleted: 'order_deleted', sales: 'sales_view', upload: 'upload', error: 'error' } as const
+export const KINDS = { session: 'session_start', tab: 'tab_view', started: 'order_started', copied: 'order_copied', ordered: 'order_ordered', deleted: 'order_deleted', sales: 'sales_view', upload: 'upload', error: 'error', place: 'sign_in_location' } as const
 export const KIND_LABEL: Record<string, string> = {
   session_start: 'Signed in', tab_view: 'Opened a tab', order_started: 'Started an order', order_copied: 'Copied an order for NAV', order_ordered: 'Marked ordered in NAV',
-  order_deleted: 'Deleted an order', sales_view: 'Looked at sales', upload: 'Uploaded sales reports', error: 'Hit an error',
+  order_deleted: 'Deleted an order', sales_view: 'Looked at sales', upload: 'Uploaded sales reports', error: 'Hit an error', sign_in_location: 'Shared where they signed in',
 }
 
 export const TZ = 'Australia/Sydney'
@@ -84,22 +85,23 @@ export function byStore(events: AppEvent[]): StoreUse[] {
 }
 
 export interface Person { email: string; name: string; active: boolean }
-export interface UserRow { email: string; name: string; sessions: number; events: number; orders: number; errors: number; last_seen: string; device: string; tabs: string }
+export interface UserRow { email: string; name: string; sessions: number; events: number; orders: number; errors: number; last_seen: string; device: string; tabs: string; place: (Place & { at: string }) | null }
 export function userRows(events: AppEvent[], people: Person[]): UserRow[] {
   const names = new Map(people.map((p) => [p.email.toLowerCase(), p.name]))
-  const m = new Map<string, { sessions: Set<string>; events: number; orders: number; errors: number; last: string; device: string; tabs: Map<string, number> }>()
+  const m = new Map<string, { sessions: Set<string>; events: number; orders: number; errors: number; last: string; device: string; tabs: Map<string, number>; place: (Place & { at: string }) | null }>()
   for (const e of events) {
-    const r = m.get(e.email) ?? { sessions: new Set<string>(), events: 0, orders: 0, errors: 0, last: '', device: '', tabs: new Map<string, number>() }
+    const r = m.get(e.email) ?? { sessions: new Set<string>(), events: 0, orders: 0, errors: 0, last: '', device: '', tabs: new Map<string, number>(), place: null }
     r.events++
     if (e.session_id) r.sessions.add(e.session_id)
     if (e.kind === KINDS.copied || e.kind === KINDS.ordered) r.orders++
     if (e.kind === KINDS.error) r.errors++
     if (e.kind === KINDS.tab && typeof e.detail.tab === 'string') r.tabs.set(e.detail.tab, (r.tabs.get(e.detail.tab) ?? 0) + 1)
     if (e.at >= r.last) { r.last = e.at; if (e.device) r.device = e.device }
+    if (e.kind === KINDS.place) { const p = placeOfDetail(e.detail); if (p && (!r.place || e.at >= r.place.at)) r.place = { ...p, at: e.at } }
     m.set(e.email, r)
   }
   return [...m].map(([email, r]) => ({
-    email, name: names.get(email) ?? email, sessions: r.sessions.size, events: r.events, orders: r.orders, errors: r.errors, last_seen: r.last, device: r.device,
+    email, name: names.get(email) ?? email, sessions: r.sessions.size, events: r.events, orders: r.orders, errors: r.errors, last_seen: r.last, device: r.device, place: r.place,
     tabs: [...r.tabs].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([t]) => t).join(', '),
   })).sort((a, b) => (a.last_seen < b.last_seen ? 1 : -1))
 }
@@ -119,6 +121,7 @@ export const MANY_DEVICES = 3
 export const BURST = 8
 export const ERROR_SPIKE = 5
 export const DELETE_SPIKE = 5
+export const FAR_KM = 50 // a shared sign-in place this far from the person's previous one is worth a look
 
 /**
  * Plain, visible rules over the log. They point at things worth a look; none of them is proof of anything. `events` should reach back
@@ -138,6 +141,17 @@ export function findings(events: AppEvent[], now = new Date(), windowHours = 24)
     if (e.kind === KINDS.session && !set.has(e.device_id) && set.size > 0 && e.at >= from) out.push({ severity: 'medium', who: e.email, title: 'Signed in on a new device', detail: `${e.device || 'Unknown device'}. Earlier sign-ins were on ${set.size} other device${set.size === 1 ? '' : 's'}.`, at: e.at })
     set.add(e.device_id)
     known.set(e.email, set)
+  }
+
+  // A sign-in place far from the last one this person shared.
+  const lastPlace = new Map<string, { lat: number; lng: number }>()
+  for (const e of sorted) {
+    if (e.kind !== KINDS.place) continue
+    const p = placeOfDetail(e.detail)
+    if (!p || p.status !== 'shared') continue
+    const prev = lastPlace.get(e.email)
+    if (prev && e.at >= from) { const km = distanceKm(prev, p); if (km >= FAR_KM) out.push({ severity: 'medium', who: e.email, title: 'Signed in far from usual', detail: `About ${Math.round(km)} km from the last place they shared.`, at: e.at }) }
+    lastPlace.set(e.email, p)
   }
 
   const perUser = new Map<string, AppEvent[]>()

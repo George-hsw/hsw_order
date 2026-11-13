@@ -5,12 +5,20 @@ import { loadEvents, pruneEvents } from './lib/analytics/api'
 import {
   KIND_LABEL, PERIOD_LABEL, TZ, byHour, byStore, daily, findings, periodStart, quietPeople, summarise, topErrors, userRows, type Finding, type Period,
 } from './lib/analytics/model'
+import { NO_PLACE_LABEL, mapLink, type Place } from './lib/analytics/place'
 import { useLoad } from './lib/useLoad'
 import type { AppUser, StoreRow } from './lib/supabase'
 import { reveal } from './lib/motion'
 
 const PERIODS: Period[] = ['1', '7', '30', '90']
 const when = (iso: string) => (iso ? new Date(iso).toLocaleString('en-AU', { timeZone: TZ, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'never')
+
+/** What the People table shows for where someone last signed in: the place with a map link, or why there is none. */
+const placeCell = (p: (Place & { at: string }) | null) => {
+  if (!p) return '–'
+  if (p.status !== 'shared') return <span className="muted">{NO_PLACE_LABEL[p.status]}</span>
+  return <><a href={mapLink(p)} target="_blank" rel="noreferrer">View on map</a><small className="sub">{p.lat.toFixed(4)}, {p.lng.toFixed(4)}, about {p.acc} m, {when(p.at)}</small></>
+}
 const SEV: Record<Finding['severity'], { chip: string; label: string }> = { high: { chip: 'bad', label: 'Look now' }, medium: { chip: 'warn', label: 'Worth a look' }, low: { chip: '', label: 'For information' } }
 
 /** Admin only: who is using the app, what they do, what breaks, and anything unusual. Built from the usage log (migration 013). */
@@ -106,15 +114,16 @@ export default function Analytics({ stores, people }: { stores: StoreRow[]; peop
             {!users.length ? <p className="viz-empty">Nobody used the app in this period.</p> : (
               <div className="tablewrap">
                 <table className="viz-table cells">
-                  <thead><tr><th>Person</th><th className="r">Sign-ins</th><th className="r">Orders</th><th className="r">Errors</th><th>Last seen</th><th>Device</th></tr></thead>
+                  <thead><tr><th>Person</th><th className="r">Sign-ins</th><th className="r">Orders</th><th className="r">Errors</th><th>Last seen</th><th>Device</th><th>Where they signed in</th></tr></thead>
                   <tbody>{users.map((u) => (
                     <tr key={u.email}>
                       <td className="full" data-label="Person"><b>{u.name}</b>{u.name !== u.email && <small className="sub">{u.email}</small>}</td>
-                      <td className="r s2" data-label="Sign-ins">{u.sessions}</td><td className="r s2" data-label="Orders">{u.orders}</td><td className="r s2" data-label="Errors">{u.errors || '–'}</td><td className="s3" data-label="Last seen">{when(u.last_seen)}</td><td className="s3" data-label="Device">{u.device || '–'}</td>
+                      <td className="r s2" data-label="Sign-ins">{u.sessions}</td><td className="r s2" data-label="Orders">{u.orders}</td><td className="r s2" data-label="Errors">{u.errors || '–'}</td><td className="s3" data-label="Last seen">{when(u.last_seen)}</td><td className="s3" data-label="Device">{u.device || '–'}</td><td className="full" data-label="Where they signed in">{placeCell(u.place)}</td>
                     </tr>))}</tbody>
                 </table>
               </div>
             )}
+            {users.length > 0 && <p className="muted">Where they signed in is what each person chose to share from their own device when they signed in. “Chose not to share” means they said no. It is cleared with the rest of the usage log after six months.</p>}
             {quiet.length > 0 && <p className="viz-pick">Active accounts with no activity in the last {reach} days: {quiet.map((p) => p.name).join(', ')}.</p>}
           </section>
 

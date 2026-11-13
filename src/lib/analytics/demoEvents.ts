@@ -3,6 +3,8 @@ import { demoStores } from '../demo'
 import { KINDS, type AppEvent } from './model'
 
 const people = ['priya@hsw.com.au', 'sam@hsw.com.au', 'lee@hsw.com.au', 'artarmon@hsw.com.au', 'aspley@hsw.com.au', 'kotara@hsw.com.au']
+// Where each demo person usually signs in (their store), so the Where they signed in column has something to show.
+const homes: [number, number][] = [[-33.8097, 151.1855], [-33.8097, 151.1855], [-27.3659, 153.017], [-33.8097, 151.1855], [-27.3659, 153.017], [-32.9283, 151.7817]]
 const devices: [string, string][] = [['Chrome on Windows', 'dev-a'], ['Safari on iPhone or iPad', 'dev-b'], ['Chrome on Android', 'dev-c'], ['Edge on Windows', 'dev-d']]
 
 function rng(seed: number) {
@@ -26,6 +28,8 @@ export function demoEvents(): AppEvent[] {
       const start = now - d * 864e5 - r() * 8 * 36e5
       const sid = `s-${d}-${pi}`
       add(start, email, KINDS.session, sid, dev, null)
+      if (pi === 5) add(start + 2e3, email, KINDS.place, sid, dev, null, { status: 'declined' }) // one store chose not to share
+      else add(start + 2e3, email, KINDS.place, sid, dev, null, { status: 'shared', lat: Math.round((homes[pi][0] + (r() - 0.5) * 0.002) * 1e4) / 1e4, lng: Math.round((homes[pi][1] + (r() - 0.5) * 0.002) * 1e4) / 1e4, acc: 15 + Math.round(r() * 40) })
       add(start + 6e4, email, KINDS.tab, sid, dev, null, { tab: 'order' })
       add(start + 12e4, email, KINDS.started, sid, dev, store, { vendor: 'ANAS001' })
       if (r() < 0.6) add(start + 6e5, email, KINDS.copied, sid, dev, store)
@@ -38,6 +42,7 @@ export function demoEvents(): AppEvent[] {
   // A few unusual things for the demo to flag.
   const t = now - 3 * 36e5
   add(t, 'lee@hsw.com.au', KINDS.session, 'odd-1', devices[3], null)
+  add(t + 2e3, 'lee@hsw.com.au', KINDS.place, 'odd-1', devices[3], null, { status: 'shared', lat: -31.9505, lng: 115.8605, acc: 35 }) // Perth, far from Lee's usual Aspley
   add(t + 6e4, 'lee@hsw.com.au', KINDS.session, 'odd-2', ['Firefox on Linux', 'dev-x'], null)
   add(t + 12e4, 'lee@hsw.com.au', KINDS.session, 'odd-3', ['Safari on Mac', 'dev-y'], null)
   for (let i = 0; i < 6; i++) add(t + i * 6e4, 'sam@hsw.com.au', KINDS.error, 'odd-4', devices[0], null, { message: 'Could not update the order', where: 'order' })

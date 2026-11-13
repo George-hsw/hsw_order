@@ -329,6 +329,7 @@ tr.inactive { opacity: 0.6; }
 .modal.confirm { z-index: calc(var(--z-modal) + 1); }
 .confirm .modalbox { max-width: 420px; }
 .confirm-body p { margin: 0; color: var(--color-ink-2); }
+.confirm-body p + p { margin-top: var(--space-xs); }
 .btn.danger-fill { background: var(--color-error); border-color: var(--color-error); color: var(--color-paper); }
 
 @media (max-width: 44rem) { .desktop-only { display: none; } }

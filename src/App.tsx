@@ -13,6 +13,8 @@ import StockTake from './StockTake'
 import Sales, { type OrderJump } from './Sales'
 import Stores from './Stores'
 import Users from './Users'
+import { useConfirm } from './Confirm'
+import { recordSignInPlace } from './lib/analytics/location'
 import Tour from './Tour'
 import { useToast } from './Toast'
 import { api } from './lib/api'
@@ -87,6 +89,17 @@ function Shell({ session }: { session: Session }) {
     if (!DEMO && supabase) void supabase.auth.updateUser({ data: { tour_seen: true } })
   }, [tourKey])
   const closeTour = () => { setTour(false); if (!seenOnAccount) markSeen() }
+
+  // Where they signed in: once per sign-in, after the tour so the two never stack. The person is told what is recorded and can say no.
+  const [askPlace, placeDialog] = useConfirm()
+  useEffect(() => {
+    if (tour) return
+    void recordSignInPlace(() => askPlace({
+      title: 'Share where you are signing in?',
+      body: <><p>HSW notes the place you sign in from, so your admin can spot a sign-in that is not you. It is recorded once each time you sign in, with the time, and only admins can see it.</p><p>Your phone or browser will ask you to allow it next. You can say no and carry on as normal.</p></>,
+      confirmLabel: 'Share my location', cancelLabel: 'Not now',
+    }), email)
+  }, [tour, email, askPlace])
   useEffect(() => { if (seenOnDevice && !seenOnAccount) markSeen() }, [seenOnDevice, seenOnAccount, markSeen])
 
   // Usage log for the admin's Analytics tab: one sign-in per browser session, each tab opened, and any error that reaches the screen.
@@ -202,6 +215,7 @@ function Shell({ session }: { session: Session }) {
           : null}
         </div>
       </main>
+      {placeDialog}
       {tour && works && allStores && people && <Tour isAdmin={isAdmin} manager={active.length > 0 || isAdmin} onShow={(t) => { if (t === 'home') { if (view !== 'home') goHome() } else if (view !== t) goTab(t) }} onClose={closeTour} />}
     </>
   )

@@ -81,3 +81,33 @@ describe('unusual activity', () => {
     expect(topErrors(e)).toMatchObject([{ message: 'A', count: 2, people: 2 }, { message: 'B', count: 1 }])
   })
 })
+
+describe('where people signed in', () => {
+  const at = (h: number) => `2026-11-05T${String(h).padStart(2, '0')}:00:00Z`
+  const place = (h: number, lat: number, lng: number, email = 'a@hsw.com.au') => ev({ kind: 'sign_in_location', at: at(h), email, detail: { status: 'shared', lat, lng, acc: 20 } })
+  const SYD = [-33.8097, 151.1855], MEL = [-37.8136, 144.9631]
+
+  it('shows each person’s newest shared place, or that they chose not to share', () => {
+    const rows = userRows([place(1, SYD[0], SYD[1]), place(3, MEL[0], MEL[1]), ev({ kind: 'sign_in_location', email: 'b@hsw.com.au', detail: { status: 'declined' } })], [{ email: 'a@hsw.com.au', name: 'A', active: true }, { email: 'b@hsw.com.au', name: 'B', active: true }])
+    expect(rows.find((r) => r.email === 'a@hsw.com.au')?.place).toMatchObject({ status: 'shared', lat: MEL[0], lng: MEL[1] })
+    expect(rows.find((r) => r.email === 'b@hsw.com.au')?.place).toMatchObject({ status: 'declined' })
+    expect(userRows([ev({})], [])[0].place).toBeNull()
+  })
+
+  it('flags a sign-in about 716 km from the last place shared', () => {
+    const f = findings([place(0, SYD[0], SYD[1]), place(2, MEL[0], MEL[1])], NOW)
+    expect(f).toHaveLength(1)
+    expect(f[0]).toMatchObject({ severity: 'medium', title: 'Signed in far from usual', who: 'a@hsw.com.au' })
+    expect(f[0].detail).toContain('716 km')
+  })
+
+  it('says nothing for the same place, a first sign-in, or a no', () => {
+    expect(findings([place(0, SYD[0], SYD[1]), place(2, -33.8101, 151.1859)], NOW)).toEqual([])
+    expect(findings([place(2, SYD[0], SYD[1])], NOW)).toEqual([])
+    expect(findings([place(0, SYD[0], SYD[1]), ev({ kind: 'sign_in_location', at: at(2), detail: { status: 'declined' } })], NOW)).toEqual([])
+  })
+
+  it('compares each person with their own earlier place, not with someone else’s', () => {
+    expect(findings([place(0, SYD[0], SYD[1], 'a@hsw.com.au'), place(2, MEL[0], MEL[1], 'b@hsw.com.au')], NOW)).toEqual([])
+  })
+})
