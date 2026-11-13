@@ -11,8 +11,8 @@ describe('sections', () => {
     for (const [tab, area] of cases) expect(areaOf(tab).id).toBe(area)
   })
   it('only the admin sees the Admin area', () => {
-    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'price', 'sales'])
-    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'price', 'sales', 'admin'])
+    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'stocktake', 'price', 'sales'])
+    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'stocktake', 'price', 'sales', 'admin'])
   })
   it('Reports needs someone who works in a store', () => {
     const quote = AREAS[0]

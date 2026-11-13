@@ -4,10 +4,11 @@ import { salesApi } from './sales/api'
 import type { Counted } from './notifications'
 import { suggestLine, type OrderNeed } from './suggest'
 import type { OrderData, OrdersApi } from './api'
-import { ConflictError } from './api'
+import { ConflictError, CountConflictError } from './api'
 import { demoDocs, demoItems, demoLines, demoOrder, demoStock, demoStores } from './demo'
 import { applyLine, findByScan, rangeFor, searchItems, totals, vendorOptions } from './order'
-import type { OrderLine, OrderRow, OrderSummary, SyncRun } from './supabase'
+import { countTotals, sidesToPost, splitAdjustments } from './stocktake'
+import type { CountLine, CountRow, CountSummary, OrderLine, OrderRow, OrderSummary, SyncRun } from './supabase'
 
 // In-memory stand-in for the back end. Resets when the page reloads.
 const hoursAgo = (n: number) => new Date(Date.now() - n * 36e5).toISOString()
@@ -22,6 +23,16 @@ const lines = new Map<string, OrderLine[]>([
   ['o3', demoLines().slice(0, 1).map((l) => ({ ...l, id: 'q0', order_id: 'o3' }))],
 ])
 const subs = new Map<string, Set<(l: OrderLine[]) => void>>()
+const counts: CountRow[] = [
+  { id: 'k1', store_id: 'demo-0', kind: 'rolling', name: '', scope_type: 'vendor', scope_value: 'ANAS001', status: 'saved', nav_pos_ref: null, nav_neg_ref: null, created_by: 'priya@hsw.com.au', created_at: hoursAgo(50), saved_at: hoursAgo(49), posted_at: null },
+]
+const cLines = new Map<string, CountLine[]>([
+  ['k1', [
+    { id: 'k1a', count_id: 'k1', item_code: 'ANA01091', counted: 4, system_qty: 6, unit_cost: 9.78, description: 'HUSH SOAP DISPENSER WHT', division: 'BATHROOM', category: 'BATH-SETS_ACCS', vendor_no: 'ANAS001', vendor_item_no: 'IHUW-06', uom: 'EACH', revision: 1, updated_by: 'priya@hsw.com.au', updated_at: hoursAgo(49) },
+    { id: 'k1b', count_id: 'k1', item_code: 'ANA01093', counted: 7, system_qty: 6, unit_cost: 5.12, description: 'HUSH TUMBLER WHT', division: 'BATHROOM', category: 'BATH-SETS_ACCS', vendor_no: 'ANAS001', vendor_item_no: 'IHUW-04', uom: 'EACH', revision: 1, updated_by: 'priya@hsw.com.au', updated_at: hoursAgo(49) },
+  ]],
+])
+const cSubs = new Map<string, Set<(l: CountLine[]) => void>>()
 const covers = new Map<string, number>()
 const blocked = new Map<string, Map<string, { reason: string; by: string; at: string }>>() // per store, this session only
 const hiddenNotices = new Map<string, string>() // notices hidden this session in the demo
@@ -180,6 +191,101 @@ export const demoApi: OrdersApi = {
     if (on) m.set(itemCode, { reason, by: email, at: new Date().toISOString() }); else m.delete(itemCode)
     blocked.set(storeId, m)
     await wait(null)
+  },
+
+  // ---------- Stock take (in memory) ----------
+  async listCounts(storeIds) {
+    const out: CountSummary[] = counts.filter((c) => storeIds.includes(c.store_id)).map((c) => {
+      const t = countTotals(cLines.get(c.id) ?? [])
+      return { ...c, store_name: storeName(c.store_id), lines: t.counted, differ: t.differ, gain_value: t.gainValue, loss_value: t.lossValue }
+    })
+    return wait(out.sort((a, b) => b.created_at.localeCompare(a.created_at)))
+  },
+  async openCount(storeId, kind, name, scopeType, scopeValue) {
+    let c = kind === 'full' ? counts.find((x) => x.store_id === storeId && x.kind === 'full' && x.status === 'open') : undefined
+    if (!c) {
+      c = { id: 'c' + (counts.length + 1) + '-' + Date.now(), store_id: storeId, kind, name: name.trim(), scope_type: kind === 'full' ? 'none' : scopeType, scope_value: kind === 'full' ? null : scopeValue,
+        status: 'open', nav_pos_ref: null, nav_neg_ref: null, created_by: 'demo@hsw.com.au', created_at: new Date().toISOString(), saved_at: null, posted_at: null }
+      counts.push(c)
+      cLines.set(c.id, [])
+    }
+    return wait({ ...c })
+  },
+  countLines: (countId) => wait([...(cLines.get(countId) ?? [])]),
+  async saveCountLine(countId, input, baseRevision) {
+    const c = counts.find((x) => x.id === countId)
+    if (!c || c.status !== 'open') throw new Error('This count has already been saved')
+    const cur = cLines.get(countId) ?? []
+    const existing = cur.find((l) => l.item_code === input.item.code)
+    if ((existing?.revision ?? 0) !== baseRevision) throw new CountConflictError(existing)
+    let next: CountLine[]
+    if (input.counted === null) next = cur.filter((l) => l.item_code !== input.item.code)
+    else if (existing) next = cur.map((l) => (l === existing ? { ...l, counted: input.counted!, revision: l.revision + 1, updated_at: new Date().toISOString() } : l))
+    else next = [{ id: 'cl' + Date.now() + input.item.code, count_id: countId, item_code: input.item.code, counted: input.counted, system_qty: input.stock?.inventory ?? 0, unit_cost: input.stock?.store_cost ?? 0,
+      description: input.item.description, division: input.item.division, category: input.item.category, vendor_no: input.stock?.vendor_no ?? input.item.vendor_no, vendor_item_no: input.item.vendor_item_no,
+      uom: input.item.base_uom ?? input.item.sales_uom, revision: 1, updated_by: 'demo@hsw.com.au', updated_at: new Date().toISOString() }, ...cur]
+    cLines.set(countId, next)
+    cSubs.get(countId)?.forEach((cb) => cb(next))
+    return wait(next)
+  },
+  subscribeCount(countId, cb) {
+    const set = cSubs.get(countId) ?? new Set()
+    set.add(cb)
+    cSubs.set(countId, set)
+    return () => { set.delete(cb) }
+  },
+  async setCountStatus(countId, status) {
+    const c = counts.find((x) => x.id === countId)!
+    if (c.status === 'posted') throw new Error('This count has already been posted in NAV')
+    if (status === 'saved') { if (!(cLines.get(countId) ?? []).length) throw new Error('Count at least one item first'); c.status = 'saved'; c.saved_at ??= new Date().toISOString() }
+    else { if (c.nav_pos_ref || c.nav_neg_ref) throw new Error('An adjustment has already been entered in NAV'); c.status = 'open'; c.saved_at = null }
+    return wait({ ...c })
+  },
+  async postCountSide(countId, side, ref) {
+    const c = counts.find((x) => x.id === countId)!
+    if (c.status === 'open') throw new Error('Save the count first')
+    if (side === 'positive') c.nav_pos_ref = ref.trim(); else c.nav_neg_ref = ref.trim()
+    const sp = splitAdjustments(cLines.get(countId) ?? [])
+    if (sidesToPost(c, sp).length === 0) { c.status = 'posted'; c.posted_at = new Date().toISOString() }
+    return wait({ ...c })
+  },
+  async deleteCount(countId) {
+    const i = counts.findIndex((x) => x.id === countId)
+    if (i < 0) throw new Error('No such count')
+    if (counts[i].status === 'posted') throw new Error('A count posted in NAV is kept as a record')
+    counts.splice(i, 1)
+    cLines.delete(countId)
+    await wait(null)
+  },
+  async uncounted(countId, limit) {
+    const c = counts.find((x) => x.id === countId)!
+    const done = new Set((cLines.get(countId) ?? []).map((l) => l.item_code))
+    const items = demoItems()
+    const all = demoStock(c.store_id).filter((s) => s.inventory > 0 && !done.has(s.item_code))
+      .map((s) => { const it = items.find((i) => i.code === s.item_code); return { item_code: s.item_code, description: it?.description ?? s.item_code, division: it?.division ?? null, category: it?.category ?? null, inventory: s.inventory, store_cost: s.store_cost } })
+      .sort((a, b) => b.inventory * b.store_cost - a.inventory * a.store_cost)
+    return wait({ items: all.slice(0, limit), total: all.length })
+  },
+  async zeroUncounted(countId) {
+    const c = counts.find((x) => x.id === countId)!
+    const { items } = await demoApi.uncounted(countId, 100000)
+    const added: CountLine[] = items.map((u) => ({ id: 'z' + u.item_code, count_id: countId, item_code: u.item_code, counted: 0, system_qty: u.inventory, unit_cost: u.store_cost, description: u.description, division: u.division,
+      category: u.category, vendor_no: null, vendor_item_no: null, uom: null, revision: 1, updated_by: 'demo@hsw.com.au', updated_at: new Date().toISOString() }))
+    const next = [...(cLines.get(countId) ?? []), ...added]
+    cLines.set(countId, next)
+    cSubs.get(c.id)?.forEach((cb) => cb(next))
+    return wait(added.length)
+  },
+  async categories(storeId) {
+    const has = new Set(demoStock(storeId).map((s) => s.item_code))
+    const per = new Map<string, { division: string | null; items: number }>()
+    for (const i of demoItems()) if (has.has(i.code) && i.category) per.set(i.category, { division: i.division, items: (per.get(i.category)?.items ?? 0) + 1 })
+    return wait([...per].map(([category, v]) => ({ category, ...v })).sort((a, b) => a.category.localeCompare(b.category)))
+  },
+  async categoryRange(storeId, category) {
+    const items = demoItems().filter((i) => i.category === category)
+    const stock = demoStock(storeId)
+    return wait(items.flatMap((item) => { const s = stock.find((x) => x.item_code === item.code); return s ? [{ item, stock: s }] : [] }))
   },
 
   async syncRuns() {

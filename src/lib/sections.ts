@@ -1,6 +1,6 @@
 /** The areas of the app, as shown on Home, and the tabs inside each. Adding an area later is one more entry here. */
-export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'price' | 'tansel' | 'sales' | 'analytics' | 'stores'
-export type AreaId = 'quote' | 'order' | 'price' | 'sales' | 'admin'
+export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'count' | 'counts' | 'price' | 'tansel' | 'sales' | 'analytics' | 'stores'
+export type AreaId = 'quote' | 'order' | 'stocktake' | 'price' | 'sales' | 'admin'
 
 export interface Area {
   id: AreaId
@@ -15,6 +15,8 @@ export const AREAS: Area[] = [
     tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }, { tab: 'tansel', label: 'Tansel' }] },
   { id: 'order', label: 'Order', blurb: 'Order stock, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order' }, { tab: 'orders', label: 'Orders' }] },
+  { id: 'stocktake', label: 'Stock take', blurb: 'Count the whole store, or one vendor or category, and copy the adjustments for NAV.',
+    tabs: [{ tab: 'count', label: 'Count' }, { tab: 'counts', label: 'Counts' }] },
   { id: 'price', label: 'Price check', blurb: 'Scan an item for its price and stock, see how it has sold, print a label.',
     tabs: [{ tab: 'price', label: 'Price check' }] },
   { id: 'sales', label: 'Sales', blurb: 'See how your store is selling and what to act on.',

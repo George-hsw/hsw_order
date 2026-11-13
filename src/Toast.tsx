@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 type Kind = 'error' | 'success' | 'info'
 interface Item { id: number; kind: Kind; lines: string[] }
@@ -23,6 +23,15 @@ const ICON: Record<Kind, string> = {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([])
   const next = useRef(1)
+  const box = useRef<HTMLDivElement>(null)
+
+  // The messages live in the top layer, shown again whenever one arrives, so a popup opened earlier never covers them.
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof el.showPopover !== 'function') return
+    if (el.matches(':popover-open')) el.hidePopover()
+    el.showPopover()
+  }, [items])
 
   const dismiss = useCallback((id: number) => setItems((l) => l.filter((t) => t.id !== id)), [])
   const push = useCallback((kind: Kind, message: string | string[]) => {
@@ -41,7 +50,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       {children}
-      <div className="toasts" aria-live="polite">
+      <div className="toasts" aria-live="polite" ref={box} {...({ popover: 'manual' } as object)}>
         {items.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`} role={t.kind === 'error' ? 'alert' : 'status'}>
             <svg className="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

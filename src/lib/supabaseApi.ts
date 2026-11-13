@@ -1,9 +1,9 @@
 import { codeLines, type CustomerOrderNeed } from './customerOrders'
 import type { Counted, OverdueInvoice } from './notifications'
 import { DEFAULT_COVER } from './insights'
-import { ConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
+import { ConflictError, CountConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
-import { supabase, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun } from './supabase'
+import { supabase, type CountLine, type CountRow, type CountSummary, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun, type UncountedItem } from './supabase'
 
 const db = () => {
   if (!supabase) throw new Error('No Supabase connection')
@@ -45,6 +45,11 @@ const RANGE_TTL = 10 * 60 * 1000
 const linesOf = async (orderId: string): Promise<OrderLine[]> =>
   readAll<OrderLine>((from, to, count) =>
     db().from('order_lines').select('*', countOpt(count)).eq('order_id', orderId).order('updated_at', { ascending: false }).order('id').range(from, to))
+
+const countLinesOf = async (countId: string): Promise<CountLine[]> =>
+  (await readAll<CountLine>((from, to, count) =>
+    db().from('stock_count_lines').select('*', countOpt(count)).eq('count_id', countId).order('updated_at', { ascending: false }).order('id').range(from, to)))
+    .map((l) => ({ ...l, counted: Number(l.counted), system_qty: Number(l.system_qty), unit_cost: Number(l.unit_cost) }))
 
 export const supabaseApi: OrdersApi = {
   async vendors(storeId): Promise<VendorList> {
@@ -285,5 +290,88 @@ export const supabaseApi: OrdersApi = {
       if (error) throw new Error(error.message)
     }
     rangeCache.clear() // what the order screens list has changed
+  },
+
+  // ---------- Stock take ----------
+  async listCounts(storeIds) {
+    if (!storeIds.length) return []
+    const rows = await readAll<CountSummary>((from, to, count) =>
+      db().from('stock_count_summaries').select('*', countOpt(count)).in('store_id', storeIds).order('created_at', { ascending: false }).order('id').range(from, to))
+    return rows.map((r) => ({ ...r, gain_value: Number(r.gain_value), loss_value: Number(r.loss_value) }))
+  },
+
+  async openCount(storeId, kind, name, scopeType, scopeValue) {
+    const { data, error } = await db().rpc('open_count', { p_store: storeId, p_kind: kind, p_name: name, p_scope_type: scopeType, p_scope_value: scopeValue })
+    if (error) throw new Error(error.message)
+    return data as CountRow
+  },
+
+  countLines: countLinesOf,
+
+  async saveCountLine(countId, input, baseRevision) {
+    const { item, stock } = input
+    const { data, error } = await db().rpc('save_count_line', {
+      p_count: countId, p_item: item.code, p_counted: input.counted, p_base: baseRevision,
+      p_description: item.description, p_division: item.division, p_category: item.category, p_vendor: stock?.vendor_no ?? item.vendor_no,
+      p_vendor_item: item.vendor_item_no, p_uom: item.base_uom ?? item.sales_uom,
+    })
+    if (error) throw new Error(error.message)
+    const result = data as { status: 'ok' | 'conflict'; current?: CountLine | null }
+    if (result.status === 'conflict') throw new CountConflictError(result.current ?? undefined)
+    return countLinesOf(countId)
+  },
+
+  subscribeCount(countId, onLines) {
+    // Any change to this count's lines (from any device) reloads the whole set, as the order screen does.
+    const reload = () => { countLinesOf(countId).then(onLines).catch(() => { /* the next change or reconnect tries again */ }) }
+    const channel = db()
+      .channel(`count-lines-${countId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_count_lines', filter: `count_id=eq.${countId}` }, reload)
+      .subscribe((status) => { if (status === 'SUBSCRIBED') reload() })
+    return () => { void db().removeChannel(channel) }
+  },
+
+  async setCountStatus(countId, status) {
+    const { data, error } = await db().rpc('set_count_status', { p_count: countId, p_status: status })
+    if (error) throw new Error(error.message)
+    return data as CountRow
+  },
+
+  async postCountSide(countId, side, ref) {
+    const { data, error } = await db().rpc('post_count_side', { p_count: countId, p_side: side, p_ref: ref })
+    if (error) throw new Error(error.message)
+    return data as CountRow
+  },
+
+  async deleteCount(countId) {
+    const { error } = await db().rpc('delete_count', { p_count: countId })
+    if (error) throw new Error(error.message)
+  },
+
+  async uncounted(countId, limit) {
+    const { data, error } = await db().rpc('count_uncounted', { p_count: countId, p_limit: limit })
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []) as (UncountedItem & { total: number | string })[]
+    return { items: rows.map(({ total: _t, ...r }) => ({ ...r, inventory: Number(r.inventory), store_cost: Number(r.store_cost) })), total: Number(rows[0]?.total ?? 0) }
+  },
+
+  async zeroUncounted(countId) {
+    const { data, error } = await db().rpc('count_zero_uncounted', { p_count: countId })
+    if (error) throw new Error(error.message)
+    return Number(data ?? 0)
+  },
+
+  async categories(storeId) {
+    const { data, error } = await db().rpc('store_categories', { p_store: storeId })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { category: string; division: string | null; items: number | string }[]).map((r) => ({ category: r.category, division: r.division, items: Number(r.items) }))
+  },
+
+  async categoryRange(storeId, category): Promise<Product[]> {
+    type Row = StockRow & { items: ItemRow }
+    const rows = await readAll<Row>((from, to, count) =>
+      db().from('store_stock').select(STOCK_COLUMNS + ',items!inner(' + ITEM_COLUMNS + ')', countOpt(count))
+        .eq('store_id', storeId).eq('items.category', category).order('item_code').range(from, to))
+    return rows.map(({ items, ...stock }) => ({ item: items, stock }))
   },
 }

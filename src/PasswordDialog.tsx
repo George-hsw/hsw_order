@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import Modal from './Modal'
 import { useToast } from './Toast'
 import { DEMO, supabase } from './lib/supabase'
 
@@ -19,11 +20,6 @@ export default function PasswordDialog({ name, email, fn, body, onClose, onDone 
   const [busy, setBusy] = useState(false)
   const [shown, setShown] = useState<string | null>(null) // the generated password, once
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy && shown === null) onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, busy, shown])
 
   const ownOk = own.length >= 10 && own.length <= 72 && own === own.trim()
 
@@ -57,7 +53,7 @@ export default function PasswordDialog({ name, email, fn, body, onClose, onDone 
   }
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="pw-title">
+    <Modal labelledBy="pw-title" onClose={() => { if (!busy && shown === null) onClose() }}>
       <div className="modalbox">
         <h2 id="pw-title">Password for {name}</h2>
         {shown !== null ? (
@@ -67,7 +63,7 @@ export default function PasswordDialog({ name, email, fn, body, onClose, onDone 
             <p className="muted">They sign in with <b>{email}</b> and this password.</p>
             <div className="actions">
               <button type="button" className="btn" onClick={copy}>Copy password</button>
-              <button type="button" className="btn primary" autoFocus onClick={() => { onDone(); onClose() }}>I have saved it</button>
+              <button type="button" className="btn primary" data-autofocus="" onClick={() => { onDone(); onClose() }}>I have saved it</button>
             </div>
           </>
         ) : (
@@ -80,7 +76,7 @@ export default function PasswordDialog({ name, email, fn, body, onClose, onDone 
             {mode === 'own' && (
               <div className="grid one" style={{ marginTop: 'var(--space-md)' }}>
                 <label>New password <small>10 to 72 characters</small>
-                  <input name="newPassword" type="text" autoComplete="off" autoFocus value={own} onChange={(e) => setOwn(e.target.value)} />
+                  <input name="newPassword" type="text" autoComplete="off" data-autofocus="" value={own} onChange={(e) => setOwn(e.target.value)} />
                 </label>
               </div>
             )}
@@ -92,6 +88,6 @@ export default function PasswordDialog({ name, email, fn, body, onClose, onDone 
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   )
 }

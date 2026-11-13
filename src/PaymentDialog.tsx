@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import Modal from './Modal'
 import { useToast } from './Toast'
 import { money } from './lib/quote'
 import { DEMO, isoDate, supabase, type PaymentRow } from './lib/supabase'
@@ -20,11 +21,6 @@ export function PaymentDialog({ doc, onClose, onDone }: { doc: PayDoc; onClose: 
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ balance_cents: number; emailed_to: string | null; warning: string } | null>(null)
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   const amt = Math.round(Number(amount.replace(/[$,]/g, '')) * 100)
   const valid = Number.isFinite(amt) && amt > 0 && amt <= balance
@@ -47,7 +43,7 @@ export function PaymentDialog({ doc, onClose, onDone }: { doc: PayDoc; onClose: 
   }
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+    <Modal labelledBy="pay-title" onClose={onClose}>
       <div className="modalbox">
         <h2 id="pay-title">{quote ? 'Record deposit for' : 'Record payment for'} {doc.doc_number}</h2>
         {result ? (
@@ -55,7 +51,7 @@ export function PaymentDialog({ doc, onClose, onDone }: { doc: PayDoc; onClose: 
             <p className="note">Recorded. Balance due is now {money(result.balance_cents)}.</p>
             {result.emailed_to && <p>Notification emailed to <b>{result.emailed_to}</b>.</p>}
             {result.warning && <p className="note bad">{result.warning}</p>}
-            <div className="actions"><button type="button" className="btn primary" autoFocus onClick={onDone}>Done</button></div>
+            <div className="actions"><button type="button" className="btn primary" data-autofocus="" onClick={onDone}>Done</button></div>
           </>
         ) : (
           <form onSubmit={submit}>
@@ -67,7 +63,7 @@ export function PaymentDialog({ doc, onClose, onDone }: { doc: PayDoc; onClose: 
                   <option value="payment">{quote ? 'Full payment received' : 'Payment received'}</option>
                 </select>
               </label>
-              <label>Amount received (AUD)<input name="amount" inputMode="decimal" autoComplete="off" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+              <label>Amount received (AUD)<input name="amount" inputMode="decimal" autoComplete="off" data-autofocus="" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
               <label>Date received<input name="paidOn" type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} /></label>
               <label>Reference <small>optional, e.g. POS receipt no.</small><input name="reference" autoComplete="off" value={reference} onChange={(e) => setReference(e.target.value)} /></label>
             </div>
@@ -80,6 +76,6 @@ export function PaymentDialog({ doc, onClose, onDone }: { doc: PayDoc; onClose: 
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   )
 }

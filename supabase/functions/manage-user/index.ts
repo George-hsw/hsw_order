@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       const store = await activeStore(b.store_id)
       if (!store) return json({ error: 'Choose an active store.' }, 400)
 
-      const { data: existing } = await admin.from('app_users').select('user_id,full_name').ilike('email', email).maybeSingle()
+      const { data: existing } = await admin.from('app_users').select('user_id,full_name').eq('email', email.toLowerCase()).maybeSingle()
       if (existing) {
         // Already has a login: just give them this store. No new password.
         const { error } = await admin.from('store_members').upsert({ user_id: existing.user_id, store_id: store.id, role: b.role })

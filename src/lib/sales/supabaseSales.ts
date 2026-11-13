@@ -109,7 +109,8 @@ export const supabaseSalesApi: SalesApi = {
     const digits = /^\d+$/.test(q) ? q.replace(/^0+/, '') : ''
     const forms = new Set<string>([q, q.toUpperCase()])
     if (digits) for (const pad of [0, 1, 2, 3, 4, 5]) forms.add('0'.repeat(pad) + digits)
-    const list = [...forms].map((f) => f.replace(/[,()"]/g, ''))
+    const list = [...forms].map((f) => f.replace(/[,()"%*\\]/g, '').trim()).filter(Boolean)
+    if (!list.length) return null
     const { data, error } = await db().from('items').select('code,description,vendor_no,division,barcode')
       .or(list.map((f) => `barcode.eq.${f}`).concat(list.map((f) => `code.eq.${f}`)).join(',')).limit(1)
     fail(error)

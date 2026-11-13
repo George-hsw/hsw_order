@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import Modal from './Modal'
 import Loading from './Loading'
 import { BarList, ChartCard, Legend, useEscapeKey } from './Charts'
 import { salesApi } from './lib/sales/api'
@@ -142,7 +143,7 @@ function ItemPanel({ item, onClose, onOrder, onTrend }: { item: ItemSale; onClos
   const f = itemFlag(item)
   const avg = chainAvg(item)
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="salesitem-title" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <Modal labelledBy="salesitem-title" onClose={onClose} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modalbox">
         <button type="button" className="modal-x" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -166,6 +167,6 @@ function ItemPanel({ item, onClose, onOrder, onTrend }: { item: ItemSale; onClos
           <button type="button" className="btn" onClick={onClose}>Close</button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

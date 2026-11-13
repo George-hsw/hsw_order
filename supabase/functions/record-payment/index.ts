@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
       document_id: doc.id, store_id: doc.store_id, kind, amount_cents: amountCents,
       paid_on: paidOn, reference: b.reference?.toString().slice(0, 200) || null, recorded_by: callerEmail,
     }).select('id').single()
+    if (pe && /more than the balance due/i.test(pe.message)) return json({ error: 'That is more than the balance due. Refresh and check what has already been recorded.' }, 400)
     if (pe) throw pe
 
     const paid = paidBefore + amountCents

@@ -48,12 +48,6 @@ Deno.serve(async (req) => {
     if (!canActOnDoc(await accessOf(admin, u.user?.id, callerEmail), doc, callerEmail))
       return json({ error: 'Not allowed for this document' }, 403)
 
-    // Hourly limit per signed-in user
-    const since = new Date(Date.now() - 3600_000).toISOString()
-    const { count } = await admin.from('document_emails').select('id', { count: 'exact', head: true })
-      .eq('sent_by', callerEmail).gte('sent_at', since)
-    if ((count ?? 0) >= HOURLY_LIMIT) return json({ error: 'Too many emails sent this hour. Try again later.' }, 429)
-
     // Recipients
     const managers = await managerEmails(admin, doc.store_id)
     const storeCopy = EMAIL.test(String(store.email ?? '')) ? [String(store.email)] : managers // the store's mailbox, else its managers
@@ -107,6 +101,16 @@ Deno.serve(async (req) => {
   <p style="color:#6D6E71;font-size:13px">Howards Storage World ${esc(store.name)}<br>${contact}</p></div>`
     const text = `${kind === 'store' ? `Copy for ${store.name}. Forward this to ${doc.customer_name} when you are ready.\n\n` : ''}Hi ${firstName(doc.customer_name)},\n\nPlease find your ${label} ${doc.doc_number} attached as a PDF.\n${note ? `\n${note}\n` : ''}\nTotal (incl GST): ${aud(doc.total_cents)}\n\nIf you have any questions, reply to this email${store.phone ? ` or call us on ${store.phone}` : ''}.\n\nHowards Storage World ${store.name}${store.phone ? `\nPhone: ${store.phone}` : ''}${store.email ? `\nEmail: ${store.email}` : ''}`
 
+    // Hourly limit per signed-in user: the slot is counted and logged in one database step before sending, so parallel requests cannot all pass.
+    const { data: slot, error: slotErr } = await admin.rpc('reserve_document_email', {
+      p_document: doc.id, p_store: doc.store_id, p_kind: kind, p_sent_by: callerEmail, p_sent_to: to, p_limit: HOURLY_LIMIT,
+    })
+    if (slotErr) throw slotErr
+    if (!slot) return json({ error: 'Too many emails sent this hour. Try again later.' }, 429)
+
+    let ok = false
+    let err: string | null = null
+    try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${Deno.env.get('RESEND_API_KEY')}`, 'content-type': 'application/json' },
@@ -115,11 +119,12 @@ Deno.serve(async (req) => {
         attachments: [{ filename: `${safeName(`${doc.doc_number} ${doc.customer_name}`)}.pdf`, content: pdf }],
       }),
     })
-    const ok = res.ok
-    const err = ok ? null : (await res.text()).slice(0, 500)
-    await admin.from('document_emails').insert({
-      document_id: doc.id, store_id: doc.store_id, kind, sent_to: to, sent_by: callerEmail, error: err,
-    })
+    ok = res.ok
+    err = ok ? null : (await res.text()).slice(0, 500)
+    } catch (e) {
+      err = String(e).slice(0, 500)
+    }
+    if (err) await admin.from('document_emails').update({ error: err }).eq('id', slot)
     if (!ok) return json({ error: 'The email could not be sent. Check the sending domain settings.' }, 502)
     return json({ ok: true, sent_to: to, bcc: bcc?.[0] ?? null })
   } catch (e) {

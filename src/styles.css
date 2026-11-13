@@ -426,6 +426,8 @@ table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge);
   table.book.range td[data-label="On order"] { grid-column: span 2; order: 4; }
   table.book.range td[data-label="Sold last week"] { grid-column: span 2; order: 4; }
   table.book.range td[data-label="MOQ"] { grid-column: span 2; order: 5; }
+  table.book.range td[data-label="GP"] { grid-column: span 2; order: 6; }
+  table.book.range td[data-label="Sold 13 wks"] { grid-column: span 2; order: 6; }
   table.book.range td[data-label="Cost"] { grid-column: span 2; order: 6; }
   table.book.range td[data-label="Order qty"] { grid-column: span 4; order: 7; }
   table.book.range td.rowactions { order: 8; }
@@ -449,6 +451,30 @@ table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge);
   table.book.detail td[data-label="Qty"] { grid-column: span 2; order: 2; }
   table.book.detail td[data-label="Description"] { grid-column: 1 / -1; order: 3; }
   table.book.detail td[data-label="Cost"] { grid-column: 1 / -1; order: 4; }
+
+  /* Stock take: a counted item. Item and count, description, then the system figure, the difference and the value. Every row adds up to six columns. */
+  table.book.counted { min-width: 0; }
+  table.book.counted td[data-label="Item"] { grid-column: span 4; order: 1; }
+  table.book.counted td[data-label="Counted"] { grid-column: span 2; order: 2; }
+  table.book.counted td[data-label="Description"] { grid-column: 1 / -1; order: 3; font-weight: 600; }
+  table.book.counted td[data-label="Description"]::before { display: none; }
+  table.book.counted td[data-label="System"] { grid-column: span 2; order: 4; }
+  table.book.counted td[data-label="Difference"] { grid-column: span 2; order: 5; }
+  table.book.counted td[data-label="Value"] { grid-column: span 2; order: 6; }
+  table.book.counted:not(:has(td[data-label="Value"])) td[data-label="Difference"] { grid-column: span 4; } /* no Value cell, so Difference fills the row */
+  table.book.counted td.rowactions { grid-column: 1 / -1; order: 7; }
+
+  /* Counts: when and status, store and count, who, the figures, then Open. Every row adds up to six columns. */
+  table.book.counts td[data-label="Started"] { grid-column: span 3; order: 1; font-weight: 600; }
+  table.book.counts td[data-label="Status"] { grid-column: span 3; order: 2; }
+  table.book.counts td[data-label="Store"] { grid-column: span 3; order: 3; }
+  table.book.counts td[data-label="Count"] { grid-column: span 3; order: 3; }
+  table.book.counts:not(:has(td[data-label="Store"])) td[data-label="Count"] { grid-column: span 6; }
+  table.book.counts td[data-label="By"] { grid-column: 1 / -1; order: 4; }
+  table.book.counts td[data-label="Items"], table.book.counts td[data-label="Differ"] { grid-column: span 3; order: 5; }
+  table.book.counts td[data-label="More"], table.book.counts td[data-label="Fewer"] { grid-column: span 3; order: 6; }
+  table.book.counts td.rowactions { grid-column: 1 / -1; order: 7; }
+  table.book.counts td[data-label="Started"]::before, table.book.counts td[data-label="Status"]::before { display: none; }
 
 
   /* Stores: name and Open, code and people, then the sync result and the managers each on their own row */
@@ -933,11 +959,6 @@ table.book.prep .why { min-height: 32px; padding: 0; }
 table.book.range td .cover { display: flex; width: fit-content; margin-top: var(--space-3xs); margin-left: auto; }
 .coverkey { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-sm); margin: 0; font-size: var(--text-sm); }
 .coverkey .cover { margin-left: var(--space-2xs); }
-.salesline { display: grid; gap: var(--space-3xs); margin-top: var(--space-3xs); justify-items: start; }
-.salesline small { font-size: var(--text-sm); font-weight: 400; white-space: nowrap; }
-.spark { display: block; overflow: visible; }
-.spark .bar { fill: var(--color-ink-2); opacity: 0.45; }
-.spark .bar.last { fill: var(--color-accent); opacity: 1; }
 .chk.promo { color: var(--color-link); font-weight: 600; }
 
 /* Store preferences on the Order screen. */
@@ -954,15 +975,11 @@ table.book.range td .cover { display: flex; width: fit-content; margin-top: var(
 .prefsbody .hit small { color: var(--color-ink-2); overflow-wrap: anywhere; }
 @media (max-width: 44rem) {
   .prefsadd .findrow label.inline { justify-content: space-between; }
-  table.book.range td[data-label="GP"] { grid-column: span 3; order: 6; }
-  table.book.range td[data-label="Cost"] { grid-column: span 3; order: 7; }
   table.book.range td[data-label="Order qty"] { grid-column: span 4; order: 8; }
   table.book.range td.rowactions { grid-column: span 2; order: 8; align-items: center; } /* the quantity and Details share a row on a phone */
   table.book.range td .cover { margin-left: 0; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes spark-grow { from { transform: scaleY(0); } }
-  .spark .bar { transform-box: fill-box; transform-origin: 50% 100%; animation: spark-grow var(--dur-long) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 24ms); }
   .blockedlist li, .prefshits li { animation: rise var(--dur-short) var(--ease-out) backwards; }
   .prefsbody { animation: rise var(--dur-short) var(--ease-out) backwards; }
   .cover { animation: pop var(--dur-short) var(--ease-out) backwards; }
@@ -976,15 +993,43 @@ table.book.range td .cover { display: flex; width: fit-content; margin-top: var(
 .tag.warn { background: var(--color-warn-soft); color: var(--color-warn); }
 .tag.error { background: var(--color-error-soft); color: var(--color-error); }
 .tag.promo { background: var(--color-accent-soft); color: var(--color-link); }
-.salesline, .cover { position: relative; }
+.soldtip, .cover { position: relative; }
 [data-tip] { cursor: help; }
 [data-tip]:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
 [data-tip]::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + var(--space-2xs)); z-index: var(--z-dropdown); width: max-content; max-width: min(18rem, 70vw); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-card); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 400; line-height: 1.4; white-space: normal; text-align: left; box-shadow: var(--shadow-lift); display: none; pointer-events: none; }
 [data-tip]:hover::after, [data-tip]:focus::after { display: block; } /* not merely hidden: a hidden tooltip would still add scroll space to the table */
-.cover[data-tip]::after { left: auto; right: 0; }
-@media (max-width: 44rem) { .cover[data-tip]::after { left: 0; right: auto; } }
+.cover[data-tip]::after, .soldtip[data-tip]::after { left: auto; right: 0; }
+@media (max-width: 44rem) { .cover[data-tip]::after, .soldtip[data-tip]::after { left: 0; right: auto; } }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes tip-in { from { opacity: 0; transform: translateY(-3px); } }
   [data-tip]:hover::after, [data-tip]:focus::after { animation: tip-in var(--dur-micro) var(--ease-out) 120ms backwards; }
 }
-@media (max-width: 44rem) { .tag[data-tip]::after, .salesline[data-tip]::after { max-width: 11.5rem; } } /* the description sits on the right of the card on a phone: keep the explanation inside it */
+@media (max-width: 44rem) { .tag[data-tip]::after, .soldtip[data-tip]::after { max-width: 11.5rem; } } /* the description sits on the right of the card on a phone: keep the explanation inside it */
+
+/* Stock take: the items nobody scanned in a full count, and the list of what is still to count */
+.uncounted { list-style: none; margin: var(--space-xs) 0; padding: 0; display: grid; gap: var(--space-3xs); }
+.uncounted li { overflow-wrap: anywhere; }
+.stockcount section + section, .stockcount .sheet + section { margin-top: var(--space-lg); }
+.stockcount h2 small { font-weight: 400; }
+
+/* Modal popups are native <dialog> elements: same look as before, with scrolling kept inside them. */
+dialog.modal { border: 0; margin: 0; max-width: none; max-height: none; width: 100%; height: 100%; color: inherit; overscroll-behavior: contain; }
+dialog.modal:not([open]) { display: none; }
+dialog.modal::backdrop { background: none; overflow: hidden; overscroll-behavior: contain; }
+/* Toasts sit in the top layer too, so a message is never hidden behind a popup. */
+.toasts[popover] { inset: auto; top: 80px; right: var(--space-md); margin: 0; padding: 0; border: 0; background: none; color: inherit; overflow: visible; }
+/* Stock take: the progress bar is a native <progress>. */
+progress.countbar { appearance: none; display: block; width: 100%; height: 8px; margin-top: var(--space-xs); padding: 0; border: 0 solid; border-radius: 4px; overflow: clip; background: var(--color-paper-3); color: var(--color-link); }
+progress.countbar::-webkit-progress-bar { background: var(--color-paper-3); }
+progress.countbar::-webkit-progress-value { background: var(--color-link); }
+progress.countbar::-moz-progress-bar { background: var(--color-link); }
+.segmented button[aria-selected="true"] { background: var(--color-paper-3); color: var(--color-ink); box-shadow: inset 0 0 0 1px var(--color-ink); }
+.segmented button[role="tab"]:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+/* Stock take polish from the Hallmark audit */
+.stockcount .segmented { margin: var(--space-md) 0 var(--space-sm); }
+.facts > div:last-child:nth-child(3n+2) { grid-column: span 2; }
+.facts > div:last-child:nth-child(3n+1) { grid-column: span 3; }
+.modalbox h2:focus { outline: none; }
+@media (max-width: 44rem) { .modal-x { width: var(--hit); height: var(--hit); } }
+@media (min-width: 64rem) { .pricehits.tocount { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); column-gap: var(--space-lg); } }

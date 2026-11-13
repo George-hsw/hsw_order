@@ -151,5 +151,48 @@ export interface BlockedItem { item_code: string; description: string; vendor_no
 
 export interface OrderSummary extends OrderRow { lines: number; units: number; cost: number }
 
+/** A stock take: a full count of a store, or a rolling count of one vendor or category. open: counting. saved: finished, waiting for NAV. posted: both journals entered. */
+export type CountKind = 'full' | 'rolling'
+export type CountStatus = 'open' | 'saved' | 'posted'
+export type CountScopeType = 'none' | 'vendor' | 'category'
+export interface CountRow {
+  id: string
+  store_id: string
+  kind: CountKind
+  name: string
+  scope_type: CountScopeType
+  scope_value: string | null
+  status: CountStatus
+  nav_pos_ref: string | null
+  nav_neg_ref: string | null
+  created_by: string | null
+  created_at: string
+  saved_at: string | null
+  posted_at: string | null
+}
+export interface CountSummary extends CountRow { store_name: string; lines: number; differ: number; gain_value: number; loss_value: number }
+
+/** One counted item. system_qty is the store's stock when it was counted, so the adjustment stays the same whenever it is copied. */
+export interface CountLine {
+  id: string
+  count_id: string
+  item_code: string
+  counted: number
+  system_qty: number
+  unit_cost: number
+  description: string
+  division: string | null
+  category: string | null
+  vendor_no: string | null
+  vendor_item_no: string | null
+  uom: string | null
+  revision: number
+  updated_by: string | null
+  updated_at: string
+}
+
+/** A full-count item with stock on the system that nobody has scanned yet. */
+export interface UncountedItem { item_code: string; description: string; division: string | null; category: string | null; inventory: number; store_cost: number }
+
 /** One nightly sync of one store's data from NAV. */
 export interface SyncRun { store_id: string; finished_at: string; ok: boolean; rows: number; message: string | null }

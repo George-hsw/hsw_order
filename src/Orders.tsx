@@ -1,4 +1,5 @@
 import { track, trackError } from './lib/analytics/track'
+import Modal from './Modal'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { copyText } from './CopyDialog'
 import { useConfirm } from './Confirm'
@@ -6,7 +7,6 @@ import StatusChip from './StatusChip'
 import { useToast } from './Toast'
 import { api } from './lib/api'
 import { groupByVendor, lineCost, money, navText } from './lib/order'
-import { useEscape } from './lib/useEscape'
 import { ORDER_STATUS_LABEL, type OrderLine, type OrderStatus, type OrderSummary, type StoreRow } from './lib/supabase'
 
 interface Props { multi: boolean; stores: StoreRow[]; names: Record<string, string>; refreshKey: number }
@@ -118,7 +118,6 @@ function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: st
   const toast = useToast()
   const [lines, setLines] = useState<OrderLine[] | null>(null)
   const [failed, setFailed] = useState(false)
-  useEscape(onClose)
   useEffect(() => {
     let live = true
     api.orderLines(order.id).then((l) => live && setLines(l)).catch(() => live && setFailed(true))
@@ -132,7 +131,7 @@ function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: st
   }
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="order-title">
+    <Modal labelledBy="order-title" onClose={onClose}>
       <div className="modalbox wide panel">
         <button type="button" className="modal-x" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -171,6 +170,6 @@ function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: st
         )}
         <div className="actions"><button type="button" className="btn primary" onClick={onClose}>Close</button></div>
       </div>
-    </div>
+    </Modal>
   )
 }

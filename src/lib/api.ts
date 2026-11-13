@@ -2,7 +2,7 @@ import type { Counted, OverdueInvoice } from './notifications'
 import type { OrderNeed } from './suggest'
 import type { CustomerOrderNeed, Fulfilment } from './customerOrders'
 import { applyLine, type LineInput, type Product, type VendorOption } from './order'
-import { DEMO, supabase, type BlockedItem, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type SyncRun } from './supabase'
+import { DEMO, supabase, type BlockedItem, type CountKind, type CountLine, type CountRow, type CountScopeType, type CountSummary, type ItemRow, type OrderLine, type OrderRow, type OrderStatus, type OrderSummary, type StockRow, type SyncRun, type UncountedItem } from './supabase'
 import { demoApi } from './demoApi'
 import { supabaseApi } from './supabaseApi'
 
@@ -14,6 +14,14 @@ export interface OrderData { order: OrderRow; lines: OrderLine[] }
 export class ConflictError extends Error {
   constructor(public current: OrderLine | undefined) { super('Someone else changed this line.') }
 }
+
+/** Thrown when someone else changed the same counted item since this screen loaded it. */
+export class CountConflictError extends Error {
+  constructor(public current: CountLine | undefined) { super('Someone else counted this item.') }
+}
+
+/** What one count of one item sends: the counted quantity (null removes the line). The database takes the system quantity and cost from the store's stock. */
+export interface CountInput { item: ItemRow; stock: StockRow | undefined; counted: number | null }
 
 /**
  * Everything the screens need from the back end. `demoApi` runs it in memory for `npm run demo`; `supabaseApi` talks to
@@ -65,6 +73,30 @@ export interface OrdersApi {
   blockedItems(storeId: string): Promise<BlockedItem[]>
   /** Block or unblock an item at one store. Only the store's manager (or the admin) may; the database enforces it. */
   setBlocked(storeId: string, itemCode: string, blocked: boolean, email: string, reason?: string): Promise<void>
+
+  // ---------- Stock take ----------
+  /** Every count for these stores, newest first, with line totals. */
+  listCounts(storeIds: string[]): Promise<CountSummary[]>
+  /** Starts a count. A store has one open full count, so asking for another returns it. */
+  openCount(storeId: string, kind: CountKind, name: string, scopeType: CountScopeType, scopeValue: string | null): Promise<CountRow>
+  countLines(countId: string): Promise<CountLine[]>
+  /** Set an item's counted quantity (null removes it). `baseRevision` is the revision this screen last saw (0 = not counted yet). */
+  saveCountLine(countId: string, input: CountInput, baseRevision: number): Promise<CountLine[]>
+  /** Called with the full set of lines whenever any device changes them. Returns an unsubscribe. */
+  subscribeCount(countId: string, onLines: (lines: CountLine[]) => void): () => void
+  /** Finish a count (saved), or take a saved one back to counting while nothing has been entered in NAV. */
+  setCountStatus(countId: string, status: 'saved' | 'open'): Promise<CountRow>
+  /** Record that one side's journal is entered in NAV. When every side is entered the count is posted. */
+  postCountSide(countId: string, side: 'positive' | 'negative', ref: string): Promise<CountRow>
+  deleteCount(countId: string): Promise<void>
+  /** Full count: items with stock on the system nobody has scanned, biggest value first (at most `limit`), and how many there are. */
+  uncounted(countId: string, limit: number): Promise<{ items: UncountedItem[]; total: number }>
+  /** Full count, managers only: counts every unscanned item as zero. Returns how many lines were added. */
+  zeroUncounted(countId: string): Promise<number>
+  /** The categories this store stocks, for a rolling count. */
+  categories(storeId: string): Promise<{ category: string; division: string | null; items: number }[]>
+  /** One category's whole range at one store, with stock. */
+  categoryRange(storeId: string, category: string): Promise<Product[]>
 }
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
@@ -72,6 +104,9 @@ const offline: OrdersApi = {
   vendors: async () => notConnected(), range: async () => notConnected(), findOrder: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
   orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(), blockedItems: async () => notConnected(), setBlocked: async () => notConnected(),
+  listCounts: async () => notConnected(), openCount: async () => notConnected(), countLines: async () => notConnected(), saveCountLine: async () => notConnected(), subscribeCount: () => notConnected(),
+  setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),
+  categories: async () => notConnected(), categoryRange: async () => notConnected(),
 }
 
 export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline

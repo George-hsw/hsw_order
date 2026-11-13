@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import Modal from './Modal'
 
 interface Prepared { fileName: string; blob: Blob }
 
@@ -19,7 +20,7 @@ interface Props {
   onSend: (to: 'customer' | 'store', toEmail: string, message: string) => Promise<boolean>
 }
 
-const EMAIL = /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/
+const EMAIL = /^[^@\s,;<>?&#%]+@[^@\s,;<>?&#%]+\.[^@\s,;<>?&#%]+$/ // no ? & # %, which would add fields to the mailto link
 
 export default function EmailDialog({
   docLabel, customerName, customerEmail, storeEmail, subject, body, alreadyDownloaded, prepare, onDownloaded, onClose, onSend,
@@ -41,11 +42,6 @@ export default function EmailDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, busy])
 
   const toOk = EMAIL.test(to.trim())
   const ready = !!prepared && toOk
@@ -85,7 +81,7 @@ export default function EmailDialog({
   }
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="email-title">
+    <Modal labelledBy="email-title" onClose={() => { if (!busy) onClose() }}>
       <div className="modalbox wide">
         <button type="button" className="modal-x" aria-label="Close" onClick={onClose} disabled={busy}>
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -153,6 +149,6 @@ export default function EmailDialog({
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   )
 }

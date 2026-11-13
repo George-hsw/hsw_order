@@ -138,7 +138,8 @@ export async function importFolder(plan: FolderPlan<BulkFile>, ctx: { stores: St
 
 /** The whole check as a spreadsheet-ready list: one line per report, what the file holds and what is saved, so it can be kept as a record. */
 export function resultsCsv(state: WeekState[]): string {
-  const q = (v: string | number | boolean | undefined) => { const s = v === undefined ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  // Text that starts with = + - @ would run as a formula when the file is opened in Excel, so it gets a leading apostrophe.
+  const q = (v: string | number | boolean | undefined) => { let s = v === undefined ? '' : String(v); if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
   const head = ['Year', 'Week', 'Report', 'File', 'Result', 'File rows', 'File total A', 'File total B', 'Saved rows', 'Saved total A', 'Saved total B', 'Matches', 'Why or notes']
   const label = { weekly: 'Weekly (a = this year, b = last year)', daily: 'Daily (a = this year, b = last year)', detailed: 'Items (a = net sales, b = units)' }
   const lines = [head.map(q).join(',')]

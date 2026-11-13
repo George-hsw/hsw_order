@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
+import Modal from './Modal'
 
 export interface ConfirmOptions {
   title: string
@@ -28,25 +29,18 @@ export function useConfirm(): [(o: ConfirmOptions) => Promise<boolean>, ReactNod
     setOpts(null)
   }, [])
 
-  useEffect(() => {
-    if (!opts) return
-    // Capture phase, so Escape closes only this dialog and not the popup underneath it.
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); answer(false) } }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [opts, answer])
 
   const dialog = opts && (
-    <div className="modal confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby={opts.body ? 'confirm-body' : undefined}>
+    <Modal className="confirm" role="alertdialog" labelledBy="confirm-title" describedBy={opts.body ? 'confirm-body' : undefined} onClose={() => answer(false)}>
       <div className="modalbox">
         <h2 id="confirm-title">{opts.title}</h2>
         {opts.body && <div id="confirm-body" className="confirm-body">{opts.body}</div>}
         <div className="actions">
-          <button type="button" className="btn" autoFocus={opts.danger} onClick={() => answer(false)}>{opts.cancelLabel ?? 'Cancel'}</button>
-          <button type="button" className={'btn ' + (opts.danger ? 'danger-fill' : 'primary')} autoFocus={!opts.danger} onClick={() => answer(true)}>{opts.confirmLabel}</button>
+          <button type="button" className="btn" data-autofocus={opts.danger ? '' : undefined} onClick={() => answer(false)}>{opts.cancelLabel ?? 'Cancel'}</button>
+          <button type="button" className={'btn ' + (opts.danger ? 'danger-fill' : 'primary')} data-autofocus={opts.danger ? undefined : ''} onClick={() => answer(true)}>{opts.confirmLabel}</button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
   return [ask, dialog]
 }

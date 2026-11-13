@@ -64,6 +64,8 @@ async function fetchAll(baseUrl, F, filter, auth) {
     const body = await get(next, auth)
     rows.push(...body.value)
     next = body['@odata.nextLink'] ?? body['odata.nextLink']
+    // The login header goes with every request, so never follow a next-page link to a different server.
+    if (next && new URL(next, baseUrl).origin !== url.origin) throw new Error(`NAV sent a next-page link on a different server (${new URL(next, baseUrl).origin}); stopped.`)
     console.log(`  fetched ${rows.length}…`)
   }
   return rows

@@ -12,7 +12,6 @@ import { movCheck } from './lib/mov'
 import MovFlag from './MovFlag'
 import StorePrefs from './StorePrefs'
 import Tag from './Tag'
-import Sparkline from './Sparkline'
 import { CHART_WEEKS, COVER_HELP, COVER_LABEL, COVER_WEEKS, coverStatus, gpPercent, soldOver } from './lib/orderview'
 import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
@@ -602,14 +601,14 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
                   <div className="tablewrap">
                     <table className="book range">
                       <thead>
-                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th className="r">GP</th><th className="r">Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
+                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th className="r">GP</th><th className="r">Sold 13 wks</th><th className="r">Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
                       </thead>
                       <tbody>
                         {rows.slice(0, limit).map((p) => {
                           const l = lineOf.get(p.item.code)
                           const warnings = itemWarnings(p.item, p.stock, l?.qty ?? 0)
                           const ins = insightOf.get(p.item.code)
-                          const weekly = enough ? (rates!.series?.get(p.item.code) ?? Array<number>(rates!.weeks).fill(0)).slice(-CHART_WEEKS) : []
+                          const weekly = enough ? rates!.series?.get(p.item.code) ?? Array<number>(rates!.weeks).fill(0) : []
                           const cover = enough ? coverStatus(p.stock?.inventory, p.stock?.qty_on_po, soldOver(rates!.series?.get(p.item.code), COVER_WEEKS)) : null
                           const gp = gpPercent(p.item.price, p.stock?.store_cost)
                           return (
@@ -625,18 +624,13 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
                                   {(() => { const sg = suggestions.get(p.item.code); if (sg && sg.qty > 0) return <Tag tone="warn" tip={sg.why}>{sg.hold ? `Your call: ${sg.qty}` : `${ins?.low ? 'Low · ' : ''}Suggest ${sg.qty}`}</Tag>; return ins?.low && orderable(p) ? <Tag tone="warn" tip="Under the weeks of stock this store aims to hold, at the pace it sells.">Low stock</Tag> : null })()}
                                   {warnings.map((w) => <Tag key={w.text} tone={w.level} tip={w.text}>{w.text.split(/[.:]/)[0]}</Tag>)}
                                 </span>
-                                {enough && (
-                                  <span className="salesline" tabIndex={0} data-tip={`Units sold each week for the last ${weekly.length} weeks, oldest first. Last week ${weekly.at(-1) ?? 0}, last 4 weeks ${soldOver(weekly, 4)}, last ${weekly.length} weeks ${soldOver(weekly, weekly.length)}.${ins && ins.rate > 0 ? ` Sells about ${perWeekText(ins.rate)} a week, ${coverText(ins.cover)}${l ? ' with this order' : ''}.` : ''}`}>
-                                    <Sparkline series={weekly} label={`Units sold each week for the last ${weekly.length} weeks, oldest first`} />
-                                    <small className="muted num">1 wk {weekly.at(-1) ?? 0} · 4 wk {soldOver(weekly, 4)} · {weekly.length} wk {soldOver(weekly, weekly.length)}</small>
-                                  </span>
-                                )}
                               </td>
                               <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}{cover && <small className={'cover ' + cover} tabIndex={0} role="note" data-tip={COVER_HELP[cover]} aria-label={`${COVER_LABEL[cover]}: ${COVER_HELP[cover]}`}>{COVER_LABEL[cover]}</small>}</td>
                               <td data-label="On order" className="r">{p.stock?.qty_on_po ?? '–'}</td>
                               {SHOW_SALES && <td data-label="Sold last week" className="r">{p.stock?.sales_qty ?? '–'}</td>}
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>
                               <td data-label="GP" className="r">{gp === null ? '–' : <span className={gp < 0 ? 'chk error' : undefined}>{gp.toFixed(1)}%</span>}</td>
+                              <td data-label="Sold 13 wks" className="r">{enough ? <span className="soldtip" tabIndex={0} data-tip={`Units sold in the last ${CHART_WEEKS} weeks. Last week ${weekly.at(-1) ?? 0}, last 4 weeks ${soldOver(weekly, 4)}.${ins && ins.rate > 0 ? ` Sells about ${perWeekText(ins.rate)} a week, ${coverText(ins.cover)}${l ? ' with this order' : ''}.` : ''}`}>{soldOver(weekly, CHART_WEEKS)}</span> : '–'}</td>
                               <td data-label="Order qty" className="r"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} onCommit={(text) => setQty(p, text)} /></td>
                               <td data-label="Cost" className="r">{l ? money(lineCost(l.qty, l.unit_cost)) : ''}</td>
                               <td className="rowactions"><button type="button" className="btn" aria-label={`Details for ${p.item.description}`} onClick={() => open(p)}>Details</button></td>

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
+import Modal from './Modal'
 import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
 import { groupByVendor, money, navText } from './lib/order'
-import { useEscape } from './lib/useEscape'
 import type { OrderLine } from './lib/supabase'
 
 interface Props {
@@ -43,7 +43,6 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onDe
   const [ref, setRef] = useState('')
   const startedCopied = useRef(wasCopied) // was the order already copied before this dialog opened?
   const asked = useRef(false)
-  useEscape(onClose)
 
   const copy = async (vendor: string) => {
     const g = groups.find((x) => x.vendor === vendor)!
@@ -66,7 +65,7 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onDe
   const valid = ref.trim().length > 0
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="copy-title">
+    <Modal labelledBy="copy-title" onClose={onClose}>
       <div className="modalbox wide">
         <button type="button" className="modal-x" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -103,6 +102,6 @@ export default function CopyDialog({ lines, wasCopied, onCopied, onOrdered, onDe
         </form>
       </div>
       {confirmDialog}
-    </div>
+    </Modal>
   )
 }
