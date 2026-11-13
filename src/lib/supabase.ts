@@ -26,6 +26,7 @@ export interface AppUser {
   active: boolean
   password_set_at: string | null
   created_at: string
+  is_admin?: boolean // made an admin by the main admin: sees and does everything
 }
 
 /** A person's place in one store. A person can have several. */

@@ -60,7 +60,7 @@ function Shell({ session }: { session: Session }) {
   const toast = useToast()
   useIdleSignOut(!DEMO, (m) => toast.info(`This device has been idle. You will be signed out in about ${m} ${m === 1 ? 'minute' : 'minutes'}. Tap or press anything to stay signed in.`))
   const email = (session.user.email ?? '').toLowerCase()
-  const isAdmin = email === ADMIN_EMAIL
+  const isOwner = email === ADMIN_EMAIL // the main admin, always; the only one who adds or removes admins
   const [view, setView] = useState<View>('home') // always Home after sign-in
   const lastKey = `hsw-last-area:${email}`
   const [lastArea, setLastArea] = useState<AreaId | null>(() => { try { const v = localStorage.getItem(lastKey); return isAreaId(v) ? v : null } catch { return null } })
@@ -95,7 +95,7 @@ function Shell({ session }: { session: Session }) {
   const loadStores = useCallback(async () => {
     if (DEMO) {
       const all = demoStores()
-      if (isAdmin) return setAllStores(all)
+      if (isOwner) return setAllStores(all)
       const me = demoUsers().find((u) => u.email === email)
       const mine = new Set(demoMembers().filter((m) => m.user_id === me?.user_id).map((m) => m.store_id))
       return setAllStores(all.filter((s) => mine.has(s.id)))
@@ -117,6 +117,7 @@ function Shell({ session }: { session: Session }) {
   useEffect(() => { loadPeople() }, [loadPeople])
 
   const me = (people ?? []).find((p) => p.user_id === session.user.id)
+  const isAdmin = isOwner || (!!me?.is_admin && me.active) // the database decides the same way (is_admin())
   const active = (allStores ?? []).filter((s) => s.active) // Row Level Security already limits this to the person's own stores
   const multi = isAdmin || active.length > 1 // may pick the store
   const names = Object.fromEntries((people ?? []).map((p) => [p.email.toLowerCase(), p.full_name]))
@@ -177,7 +178,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'new' ? <Suspense fallback={<Loading />}><Builder key={builderKey} seed={seed} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
           : view === 'docs' ? <Suspense fallback={<Loading />}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
           : view === 'reports' && sees ? <Suspense fallback={<Loading />}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
-          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} multi={multi} stores={active} names={names} jump={jump} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} onSaved={() => setRefresh((r) => r + 1)} />
+          : view === 'order' ? <Order key={jump ? jump.vendor + jump.item + (jump.show ?? '') : 'order'} email={email} isAdmin={isAdmin} multi={multi} stores={active} names={names} jump={jump} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} onSaved={() => setRefresh((r) => r + 1)} />
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'count' ? <StockTake multi={multi} stores={active} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} />
           : view === 'counts' ? <StockCounts multi={multi} stores={active} names={names} />
@@ -185,7 +186,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'tansel' ? <Suspense fallback={<Loading />}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>
           : view === 'sales' ? <Sales key={salesStart ? `${salesStart.storeId}:${salesStart.code}` : 'sales'} start={salesStart} email={email} isAdmin={isAdmin} stores={active} allStores={allStores} onOrder={(j) => { setJump(j); setView('order') }} />
           : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
-          : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} onChanged={() => { loadStores(); loadPeople() }} />
+          : view === 'stores' && isAdmin ? <Stores stores={allStores} people={people ?? []} members={members} isOwner={isOwner} onChanged={() => { loadStores(); loadPeople() }} />
           : null}
         </div>
       </main>

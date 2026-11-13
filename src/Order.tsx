@@ -20,9 +20,9 @@ import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
 import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
 import { SHOW_SALES, SORT_LABEL, findByScan, isStale, itemWarnings, moqNote, lineCost, money, parseQty, searchItems, sortProducts, stockBelow, syncedLabel, totals, type Product, type SortBy, type VendorOption } from './lib/order'
-import { ADMIN_EMAIL, DEMO, type BlockedItem, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
+import { DEMO, type BlockedItem, type OrderLine, type OrderRow, type OrderSummary, type StoreRow } from './lib/supabase'
 
-interface Props { email: string; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; canManage?: (storeId: string) => boolean; jump?: { storeId: string; vendor: string; item: string; show?: 'low' | 'new' } | null }
+interface Props { email: string; isAdmin?: boolean; multi: boolean; stores: StoreRow[]; names: Record<string, string>; onSaved: () => void; canManage?: (storeId: string) => boolean; jump?: { storeId: string; vendor: string; item: string; show?: 'low' | 'new' } | null }
 
 const STORE_KEY = 'hsw-orders-store'
 const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
@@ -40,7 +40,7 @@ const needMemo = new Map<string, OrderNeed[]>()
  * orders from them is listed: type a quantity beside each item, or scan to jump to one. Each vendor's order saves as you go,
  * so you can leave it on hold and start the next vendor's.
  */
-export default function Order({ email, multi, stores, names, onSaved, canManage, jump }: Props) {
+export default function Order({ email, isAdmin = false, multi, stores, names, onSaved, canManage, jump }: Props) {
   const toast = useToast()
   const [storeId, setStoreId] = useState(() => {
     if (jump && stores.some((x) => x.id === jump.storeId)) return jump.storeId // arriving from the Sales tab
@@ -189,7 +189,7 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
   const blockedCodes = useMemo(() => new Set((blocked ?? []).map((b) => b.item_code)), [blocked])
   // A blocked item is left out of everything the store orders from, unless it is already on this order or was jumped to: then it stays, marked, so it can be taken off.
   // The admin sees every item, blocked ones marked: it is still never suggested, so Needs ordering and the bell stay the same.
-  const seesBlocked = email.toLowerCase() === ADMIN_EMAIL
+  const seesBlocked = isAdmin
   const range = useMemo(() => (vendor ? rangeList.filter((p) => !blockedCodes.has(p.item.code) || seesBlocked || lines.some((l) => l.item_code === p.item.code) || jump?.item === p.item.code) : []), [vendor, rangeList, blockedCodes, lines, jump?.item, seesBlocked])
   const lineOf = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
   const enough = !!rates && rates.weeks >= MIN_WEEKS

@@ -12,9 +12,10 @@ export async function accessOf(admin: SupabaseClient, userId: string | undefined
   if (email === ADMIN_EMAIL) return { admin: true, stores: {} }
   const stores: Record<string, StoreRole> = {}
   if (userId) {
-    const { data: person } = await admin.from('app_users').select('active').eq('user_id', userId).maybeSingle()
+    const { data: person } = await admin.from('app_users').select('active,is_admin').eq('user_id', userId).maybeSingle()
     if (person) {
       if (!person.active) return null
+      if (person.is_admin) return { admin: true, stores: {} } // made an admin by the main admin
       const { data: mine } = await admin.from('store_members').select('store_id,role,stores(active)').eq('user_id', userId)
       for (const m of mine ?? []) if ((m.stores as { active: boolean } | null)?.active) stores[m.store_id] = m.role as StoreRole
     }
