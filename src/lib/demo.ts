@@ -54,6 +54,8 @@ export const demoItems = (): ItemRow[] => [
   I('ANA01095', 'HUSH TOILET BRUSH WHT', 'ANAS001', 'IHUW-17', '9325039010952', 'BATHROOM', 'BATH-TOILET_BRUSH', 49.95, { promotion: '10% off' }),
   I('ANA01096', 'HUSH ROLL CANISTER WHT', 'ANAS001', 'IHUW-15', '9325039010969', 'BATHROOM', 'BATH-TOILET_BRUSH', 69.95, { status: 'NEW' }),
   I('ANA01394', 'HUSH TOILET BRUSH BLACK', 'ANAS001', 'IHUB-17', '9325039013946', 'BATHROOM', 'BATH-TOILET_BRUSH', 49.95, { blocked: true }),
+  I('MYH0001', 'STORAGE BOX 32L CLEAR', 'MYHO001', 'SB-32', '9325039030013', 'HOME', 'HOME-BOXES', 19.95, { status: 'TOS' }), // My Home Storage items with status TOS cannot be ordered
+  I('MYH0002', 'STORAGE BOX 52L CLEAR', 'MYHO001', 'SB-52', '9325039030020', 'HOME', 'HOME-BOXES', 29.95),
   I('ANA0001', 'TOWEL TO GO BALI ANTHRACITE', 'ANAS001', 'TTG-01', '9325039000011', 'ON_THE_GO', 'OTG-TRAVEL_OUTDOOR', 54.5, { status: 'NEW' }),
 ]
 const S = (store_id: string, item_code: string, inventory: number, qty_on_po: number, moq: number, store_cost: number, sales_qty: number, vendor_no = 'ANAS001', po_blocked = false): StockRow =>
@@ -61,7 +63,7 @@ const S = (store_id: string, item_code: string, inventory: number, qty_on_po: nu
 export const demoStock = (storeId: string): StockRow[] => [
   S(storeId, 'ANA01091', 6, 0, 6, 9.78, 0), S(storeId, 'ANA01092', 0, 0, 6, 5.12, 3), S(storeId, 'ANA01093', 6, 0, 6, 5.12, 0),
   S(storeId, 'ANA01095', 1, 0, 6, 20.43, 4), S(storeId, 'ANA01096', 5, 6, 6, 29.04, 3),
-  S(storeId, 'ANA0001', 0, 0, 1, 24.1, 0, 'MYHO001'), S(storeId, 'ANA01394', 2, 0, 6, 20.43, 1, 'MYHO001', true),
+  S(storeId, 'ANA0001', 0, 0, 1, 24.1, 0, 'MYHO001'), S(storeId, 'ANA01394', 2, 0, 6, 20.43, 1, 'MYHO001', true), S(storeId, 'MYH0001', 3, 0, 4, 8.5, 0, 'MYHO001'), S(storeId, 'MYH0002', 1, 0, 4, 12.2, 0, 'MYHO001'),
 ]
 
 export const demoOrder = (): OrderRow => ({

@@ -9,6 +9,7 @@ import { useToast } from './Toast'
 import { api, ConflictError } from './lib/api'
 import { suggestLine, type OrderNeed, type Suggestion } from './lib/suggest'
 import { movCheck } from './lib/mov'
+import { noOrderReason } from './lib/vendorRules'
 import MovFlag from './MovFlag'
 import StorePrefs from './StorePrefs'
 import Tag from './Tag'
@@ -62,6 +63,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const [show, setShow] = useState<Show>(jump?.show ?? 'all')
   const [below, setBelow] = useState('') // show only items with less than this much in stock ('' = no limit)
   const [sortBy, setSortBy] = useState<SortBy>('code')
+  const [status, setStatus] = useState('') // show only items with this NAV status code ('' = any)
   const [limit, setLimit] = useState(PAGE)
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
@@ -166,7 +168,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
 
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
-  useEffect(() => { setLimit(PAGE) }, [vendor, show, find, below, sortBy])
+  useEffect(() => { setLimit(PAGE) }, [vendor, show, find, status, below, sortBy])
 
   const openScanner = () => { primeAudio(); setScanMsg(''); (document.activeElement as HTMLElement | null)?.blur?.(); setScanning(true) }
   useEffect(() => { if (!window.BarcodeDetector) void import('@zxing/browser') }, []) // warm the scanner code on iPhones so the camera starts at once
@@ -202,7 +204,8 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const vendorNeeds = useMemo(() => needs.filter((n) => n.lines.some((l) => l.vendor === vendor || range.some((p) => p.item.code === l.code))), [needs, vendor, range])
   const isNew = (p: Product) => p.item.status.trim().toUpperCase() === 'NEW'
   // Items that cannot be ordered (blocked, excluded, PO-blocked) are not flagged low: the same rule as the bell.
-  const orderable = (p: Product) => !p.item.blocked && !p.item.exclude_from_replen && !p.stock?.po_blocked && !blockedCodes.has(p.item.code)
+  const noOrder = (p: Product) => noOrderReason(vendor, p.item.status) // a status this vendor's items may not be ordered under (TOS for My Home Storage)
+  const orderable = (p: Product) => !p.item.blocked && !p.item.exclude_from_replen && !p.stock?.po_blocked && !blockedCodes.has(p.item.code) && !noOrder(p)
   const isLow = (p: Product) => orderable(p) && !!insightOf.get(p.item.code)?.low
   const lowCount = useMemo(() => range.filter(isLow).length, [range, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
   const newCount = useMemo(() => range.filter(isNew).length, [range]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -231,10 +234,18 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const activePane = !enough ? 'items' : pane ?? (show !== 'all' || find.trim() ? 'items' : prepLines.length > 0 ? 'suggested' : 'items')
   const stillFilled = filled.filter((f) => lineOf.get(f.code)?.qty === f.qty) // quantities the person has since changed are theirs, and are left alone
 
+  const statuses = useMemo(() => {
+    const n = new Map<string, number>()
+    for (const p of range) { const k = (p.item.status ?? '').trim().toUpperCase(); if (k) n.set(k, (n.get(k) ?? 0) + 1) }
+    return [...n].sort(([a], [b]) => a.localeCompare(b))
+  }, [range])
+  useEffect(() => { setStatus('') }, [vendor])
+
   const rows = useMemo(() => {
     const hit = find.trim() ? new Set(searchItems(range.map((p) => p.item), find, 100000).map((i) => i.code)) : null
     const shown = range.filter((p) => {
       if (hit && !hit.has(p.item.code)) return false
+      if (status && (p.item.status ?? '').trim().toUpperCase() !== status) return false
       const on = lineOf.has(p.item.code)
       if (show === 'low') return isLow(p)
       if (show === 'new') return isNew(p)
@@ -242,8 +253,8 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
       return show === 'all' || (show === 'ordered' ? on : !on)
     })
     return sortProducts(stockBelow(shown, below.trim() === '' ? null : parseQty(below)), sortBy)
-  }, [range, find, show, below, sortBy, lineOf, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
-  const filtered = find.trim() !== '' || show !== 'all' || below.trim() !== ''
+  }, [range, find, show, status, below, sortBy, lineOf, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = find.trim() !== '' || show !== 'all' || status !== '' || below.trim() !== ''
   const orderedCount = useMemo(() => range.filter((p) => lineOf.has(p.item.code)).length, [range, lineOf])
 
   const open = (p: Product, focusQty = false) => { setSheet({ product: p, base: lineOf.get(p.item.code)?.revision ?? 0, focusQty }); setFind('') }
@@ -251,6 +262,8 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   /** Save one line. Returns true when it saved. */
   const save = async (p: Product, qty: number, base: number): Promise<boolean> => {
     if (!ready) return false
+    const why = qty > 0 ? noOrder(p) : null // taking a line off (0) is always allowed
+    if (why) { toast.error(`${p.item.code}: ${why}`); return false }
     setPending((n) => n + 1)
     let made: OrderRow | null = null
     try {
@@ -587,6 +600,14 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                         </select>
                       </label>
                     )}
+                    {statuses.length > 1 && (
+                      <label className="inline">Status
+                        <select name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
+                          <option value="">Any</option>
+                          {statuses.map(([k, n]) => <option key={k} value={k}>{k} ({n})</option>)}
+                        </select>
+                      </label>
+                    )}
                     <label className="inline">Sort by
                       <select name="sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
                         {(Object.keys(SORT_LABEL) as SortBy[]).map((k) => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
@@ -596,7 +617,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                   {(filtered || sortBy !== 'code') && range.length > 0 && (
                     <p className="muted listcount">
                       Showing {rows.length} of {range.length} items.{' '}
-                      <button type="button" className="quiet" onClick={() => { setFind(''); setShow('all'); setBelow(''); setSortBy('code') }}>Clear filters</button>
+                      <button type="button" className="quiet" onClick={() => { setFind(''); setShow('all'); setStatus(''); setBelow(''); setSortBy('code') }}>Clear filters</button>
                     </p>
                   )}
                   <details className="orderhelp">
@@ -640,6 +661,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                               <td data-label="Description" className="desc">
                                 {p.item.description}
                                 <span className="tags">
+                                  {noOrder(p) && <Tag tone="error" tip={noOrder(p)!}>{p.item.status.trim().toUpperCase()}: not orderable</Tag>}
                                   {isNew(p) && <Tag tone="ok" tip="NAV marks this as a new item. See whether the store wants it.">New</Tag>}
                                   {blockedCodes.has(p.item.code) && <Tag tone="error" tip={`Blocked at this store (see Store preferences).${l ? ' Set the quantity to 0 to take it off the order.' : ''}`}>Blocked here</Tag>}
                                   {p.item.promotion && <Tag tone="promo" tip="The supplier has this item on promotion, so it may be cheaper to buy now.">Promotion</Tag>}
@@ -654,7 +676,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>
                               <td data-label="GP" className="r">{gp === null ? '–' : <span className={gp < 0 ? 'chk error' : undefined}>{gp.toFixed(1)}%</span>}</td>
                               <td data-label="Sold 13 wks" className="r">{enough ? <span className="soldtip" tabIndex={0} data-tip={`Units sold in the last ${CHART_WEEKS} weeks. Last week ${weekly.at(-1) ?? 0}, last 4 weeks ${soldOver(weekly, 4)}.${ins && ins.rate > 0 ? ` Sells about ${perWeekText(ins.rate)} a week, ${coverText(ins.cover)}${l ? ' with this order' : ''}.` : ''}`}>{soldOver(weekly, CHART_WEEKS)}</span> : '–'}</td>
-                              <td data-label="Order qty" className="r"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} onCommit={(text) => setQty(p, text)} /></td>
+                              <td data-label="Order qty" className="r"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} locked={noOrder(p) !== null && !l} onCommit={(text) => setQty(p, text)} /></td>
                               <td data-label="Cost" className="r">{l ? money(lineCost(l.qty, l.unit_cost)) : ''}</td>
                               <td className="rowactions"><button type="button" className="btn" aria-label={`Details for ${p.item.description}`} onClick={() => open(p)}>Details</button></td>
                             </tr>
@@ -720,7 +742,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
 }
 
 /** The quantity in a row. Saves when you leave the box or press Enter; a bad number goes back to what was saved. Empty = not ordered. */
-function QtyCell({ item, qty, onCommit }: { item: string; qty: number | undefined; onCommit: (text: string) => void }) {
+function QtyCell({ item, qty, locked = false, onCommit }: { item: string; qty: number | undefined; locked?: boolean; onCommit: (text: string) => void }) {
   const saved = qty === undefined ? '' : String(qty)
   const [text, setText] = useState(saved)
   const commit = () => {
@@ -728,7 +750,7 @@ function QtyCell({ item, qty, onCommit }: { item: string; qty: number | undefine
     if (text !== saved) onCommit(text)
   }
   return (
-    <input className="qty" inputMode="numeric" autoComplete="off" placeholder="0" aria-label={`Order quantity for ${item}`} value={text}
+    <input className="qty" inputMode="numeric" autoComplete="off" placeholder={locked ? '' : '0'} disabled={locked} title={locked ? 'This item cannot be ordered from this vendor.' : undefined} aria-label={`Order quantity for ${item}`} value={text}
       onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
   )
 }

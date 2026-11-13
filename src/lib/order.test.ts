@@ -129,7 +129,7 @@ describe('vendors', () => {
     expect(vendorOf({ ...brush, vendor_no: null }, undefined)).toBeNull()
   })
   it('lists each vendor once with its item count', () => {
-    expect(vendorOptions(items, stock)).toEqual([{ vendor: 'ANAS001', items: 5 }, { vendor: 'MYHO001', items: 2 }])
+    expect(vendorOptions(items, stock)).toEqual([{ vendor: 'ANAS001', items: 5 }, { vendor: 'MYHO001', items: 4 }])
   })
   it('puts the chosen vendor on the line', () => {
     const l = applyLine([], 'o1', 'a', { item: soapDish, qty: 6, unitCost: 5.12, vendorNo: 'MYHO001' })
@@ -156,7 +156,7 @@ describe('a vendor’s range', () => {
     const range = rangeFor(items, demoStock('s'), 'ANAS001')
     expect(range.map((p) => p.item.code)).toEqual(['ANA01091', 'ANA01092', 'ANA01093', 'ANA01095', 'ANA01096'])
     expect(range[0].stock?.inventory).toBe(6)
-    expect(rangeFor(items, demoStock('s'), 'MYHO001').map((p) => p.item.code)).toEqual(['ANA0001', 'ANA01394'])
+    expect(rangeFor(items, demoStock('s'), 'MYHO001').map((p) => p.item.code)).toEqual(['ANA0001', 'ANA01394', 'MYH0001', 'MYH0002'])
     expect(rangeFor(items, demoStock('s'), 'NOBODY')).toEqual([])
   })
 })
