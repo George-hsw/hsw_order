@@ -15,6 +15,7 @@ import Tag from './Tag'
 import { CHART_WEEKS, COVER_HELP, COVER_LABEL, COVER_WEEKS, coverStatus, gpPercent, soldOver } from './lib/orderview'
 import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, perWeekText, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
+import { persistGet, persistSet } from './lib/persist'
 import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
 import { track, trackError } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
@@ -75,6 +76,8 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
   const [filled, setFilled] = useState<{ code: string; qty: number }[]>([]) // what the last Add put in, so it can be undone
   const [pane, setPane] = useState<'suggested' | 'items' | null>(null) // null: choose by what there is to show
   const [needList, setNeedList] = useState<OrderNeed[] | null>(null) // what each vendor needs ordering, shown before a vendor is chosen
+  const [needFailed, setNeedFailed] = useState(false) // the list could not be worked out (the database was too slow), so what shows may be out of date
+  const [needAttempt, setNeedAttempt] = useState(0)
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
   const refreshDrafts = useCallback(() => { api.drafts(storeId).then(setDrafts).catch(() => { /* the list is a convenience */ }) }, [storeId])
@@ -104,14 +107,20 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
   }, [storeId, vendor, email, orderAttempt])
 
   // How fast each item sells here, and the store's cover target. Both are extras: if they fail, ordering still works.
+  useEffect(() => { setRates(null) }, [storeId]) // another store has other sales
   useEffect(() => {
     if (!storeId) return
     let live = true
-    setRates(null)
-    salesApi.itemRates(storeId).then((r) => live && setRates(r)).catch((e) => { trackError('item rates', e) })
     api.coverTarget(storeId).then((w) => live && setTarget(w)).catch(() => live && setTarget(DEFAULT_COVER))
     return () => { live = false }
   }, [storeId])
+  // The sales history is the heavy read, and only a chosen vendor's page uses it. Waiting for a vendor keeps it from slowing the Needs ordering list down.
+  useEffect(() => {
+    if (!storeId || !vendor) return
+    let live = true
+    salesApi.itemRates(storeId).then((r) => live && setRates(r)).catch((e) => { trackError('item rates', e) })
+    return () => { live = false }
+  }, [storeId, vendor])
 
   // The store's blocked items. If this fails the list is simply empty: ordering still works.
   useEffect(() => { setBlocked(null); setBlockedFailed(false) }, [storeId]) // another store has another list; a refresh after a change keeps the current one on screen
@@ -145,10 +154,15 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
     let live = true
     const memoKey = email + '|' + storeId
     const memo = needMemo.get(memoKey)
+    setNeedFailed(false)
     setNeedList(memo ?? null)
-    api.orderNeeds([storeId]).then((n) => { needMemo.set(memoKey, n); if (live) setNeedList(n) }).catch((e) => { trackError('order needs', e); if (live && !memo) setNeedList([]) })
+    // The last list kept on this device shows at once while the database works out the new one.
+    if (!memo) void persistGet<OrderNeed[]>('needs|' + memoKey, 'v1').then((saved) => { if (live && saved) setNeedList((now) => now ?? saved) })
+    api.orderNeeds([storeId])
+      .then((n) => { needMemo.set(memoKey, n); void persistSet('needs|' + memoKey, 'v1', n); if (live) setNeedList(n) })
+      .catch((e) => { trackError('order needs', e); if (live) { setNeedFailed(true); setNeedList((now) => now ?? (memo ? memo : null)) } })
     return () => { live = false }
-  }, [storeId, vendor, attempt, blockedAttempt, email])
+  }, [storeId, vendor, attempt, blockedAttempt, email, needAttempt])
 
   const orderId = orderLoad.phase === 'ready' ? orderLoad.order?.id ?? '' : ''
   useEffect(() => (orderId ? api.subscribe(orderId, setLines) : undefined), [orderId])
@@ -439,7 +453,8 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
           {vendors.length > 0 && (
             <section className="block needs">
               <h2>Needs ordering</h2>
-              {needList === null ? <Loading rows={3} /> : (() => {
+              {needFailed && <div className="state error" role="alert"><p>{needList ? 'Could not refresh this list' : 'The list did not load'}</p><p className="muted">{needList ? 'What shows is the last list worked out. ' : ''}The database was too slow to work out what needs ordering. You can still choose a vendor above.</p><div className="actions"><button type="button" className="btn" onClick={() => setNeedAttempt((a) => a + 1)}>Try again</button></div></div>}
+              {needList === null ? (needFailed ? null : <Loading rows={3} />) : (() => {
                 const list = [...needList].filter((n) => vendors.some((v) => v.vendor === n.vendor_no)).sort((a, b) => b.cost - a.cost)
                 return list.length === 0 ? <p className="muted">Nothing needs ordering right now. Choose a vendor above to order anything yourself.</p> : (
                   <ul className="people">
