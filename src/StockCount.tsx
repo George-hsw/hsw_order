@@ -26,7 +26,7 @@ const RECENT = 25 // counted items shown at a time
 
 /**
  * Counting. Scan an item (or type its number or name and pick it from the suggestions), enter what is there, and the system's number is revealed. A full count covers
- * the whole store; a rolling count has a vendor or division to work through, so it also shows what is still to count.
+ * the whole store; a rolling count has a vendor or category to work through, so it also shows what is still to count.
  */
 export default function StockCount({ count, store, canManage, onChange, onLeave }: Props) {
   const toast = useToast()
@@ -68,10 +68,10 @@ export default function StockCount({ count, store, canManage, onChange, onLeave 
     return () => { live = false; off() }
   }, [count.id])
 
-  // A rolling count's scope: every item the store holds from this vendor or in this division (or category, for counts started before divisions).
+  // A rolling count's scope: every item the store holds from this vendor or in this category.
   const scoped = count.kind === 'rolling' && count.scope_type !== 'none' && !!count.scope_value
   const range = useLoad<Product[]>(
-    () => (count.scope_type === 'vendor' ? api.range(store.id, count.scope_value!) : count.scope_type === 'division' ? api.divisionRange(store.id, count.scope_value!) : api.categoryRange(store.id, count.scope_value!)),
+    () => (count.scope_type === 'vendor' ? api.range(store.id, count.scope_value!) : api.categoryRange(store.id, count.scope_value!)),
     [store.id, count.scope_type, count.scope_value], scoped)
   const inScope = useMemo(() => new Set((range.data ?? []).map((p) => p.item.code)), [range.data])
   // The list to work through: by default only items with stock on the system (not 0), so the shelf check is about what should be there.

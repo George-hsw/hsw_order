@@ -12,10 +12,10 @@ interface Props { multi: boolean; stores: StoreRow[]; canManage: (storeId: strin
 
 const STORE_KEY = 'hsw-orders-store' // the same store the Order tab last used
 const when = (iso: string) => new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-type Pick = 'vendor' | 'division' | 'none'
-const PICK_LABEL: Record<Pick, string> = { vendor: 'A vendor', division: 'A division', none: 'Just scan' }
+type Pick = 'vendor' | 'category' | 'none'
+const PICK_LABEL: Record<Pick, string> = { vendor: 'A vendor', category: 'A category', none: 'Just scan' }
 
-/** Start a stock take, or carry on with one that is open. A full count covers the whole store; a rolling count is one vendor or division. */
+/** Start a stock take, or carry on with one that is open. A full count covers the whole store; a rolling count is one vendor or category. */
 export default function StockTake({ multi, stores, canManage }: Props) {
   const toast = useToast()
   const [ask, confirmDialog] = useConfirm()
@@ -30,7 +30,7 @@ export default function StockTake({ multi, stores, canManage }: Props) {
   const counts = useLoad(() => api.listCounts([storeId]), [storeId, active === null], !!storeId)
   const openCounts = (counts.data ?? []).filter((c) => c.status === 'open')
   const vendors = useLoad(() => api.vendors(storeId), [storeId], rolling && pick === 'vendor')
-  const divisions = useLoad(() => api.divisions(storeId), [storeId], rolling && pick === 'division')
+  const categories = useLoad(() => api.categories(storeId), [storeId], rolling && pick === 'category')
 
   useEffect(() => { setActive(null); setRolling(false) }, [storeId])
   const changeStore = (id: string) => { setStoreId(id); try { localStorage.setItem(STORE_KEY, id) } catch { /* ignore */ } }
@@ -63,11 +63,11 @@ export default function StockTake({ multi, stores, canManage }: Props) {
   const options = useMemo(() => {
     const term = filter.trim().toLowerCase()
     const rows = pick === 'vendor'
-      ? (vendors.data?.options ?? []).map((o) => ({ value: o.vendor, label: o.vendor, items: o.items }))
-      : (divisions.data ?? []).map((o) => ({ value: o.division, label: o.division, items: o.items }))
-    return rows.filter((r) => !term || r.label.toLowerCase().includes(term))
-  }, [pick, vendors.data, divisions.data, filter])
-  const picker = pick === 'vendor' ? vendors : divisions
+      ? (vendors.data?.options ?? []).map((o) => ({ value: o.vendor, label: o.vendor, sub: '', items: o.items }))
+      : (categories.data ?? []).map((o) => ({ value: o.category, label: o.category, sub: o.division ?? '', items: o.items }))
+    return rows.filter((r) => !term || r.label.toLowerCase().includes(term) || r.sub.toLowerCase().includes(term))
+  }, [pick, vendors.data, categories.data, filter])
+  const picker = pick === 'vendor' ? vendors : categories
 
   if (!stores.length) return <div className="state"><p>No stores yet</p><p className="muted">Add a store on the Stores tab first.</p></div>
 
@@ -121,7 +121,7 @@ export default function StockTake({ multi, stores, canManage }: Props) {
         </button>
         <button type="button" className="flagbtn hometile" aria-expanded={rolling} onClick={() => setRolling((r) => !r)}>
           <b>Rolling count</b>
-          <span>Check one vendor or division, or just scan a few items, and fix the stock as you go.</span>
+          <span>Check one vendor or category, or just scan a few items, and fix the stock as you go.</span>
         </button>
       </div>
 
@@ -129,7 +129,7 @@ export default function StockTake({ multi, stores, canManage }: Props) {
         <section className="sheet viz-card">
           <div className="viz-head"><h2>What are you counting?</h2></div>
           <div className="segmented" role="group" aria-label="What to count">
-            {(['vendor', 'division', 'none'] as const).map((p) => <button key={p} type="button" aria-pressed={pick === p} onClick={() => { setPick(p); setFilter('') }}>{PICK_LABEL[p]}</button>)}
+            {(['vendor', 'category', 'none'] as const).map((p) => <button key={p} type="button" aria-pressed={pick === p} onClick={() => { setPick(p); setFilter('') }}>{PICK_LABEL[p]}</button>)}
           </div>
 
           {pick === 'none' ? (
@@ -152,7 +152,7 @@ export default function StockTake({ multi, stores, canManage }: Props) {
                       <li key={o.value}>
                         <div className="who-line">
                           <b>{o.label}</b>
-                          <span className="muted">{o.items} {o.items === 1 ? 'item' : 'items'}</span>
+                          <span className="muted">{o.sub ? `${o.sub}, ` : ''}{o.items} {o.items === 1 ? 'item' : 'items'}</span>
                           <span className={'chip' + (last ? '' : ' warn')}>{last ? `Counted ${when(last)}` : 'Not counted yet'}</span>
                         </div>
                         <div className="person-actions"><button type="button" className="btn" onClick={() => void begin('rolling', pick, o.value)} disabled={starting}>Count</button></div>

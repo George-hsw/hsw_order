@@ -287,17 +287,6 @@ export const demoApi: OrdersApi = {
     const stock = demoStock(storeId)
     return wait(items.flatMap((item) => { const s = stock.find((x) => x.item_code === item.code); return s ? [{ item, stock: s }] : [] }))
   },
-  async divisions(storeId) {
-    const has = new Set(demoStock(storeId).map((s) => s.item_code))
-    const per = new Map<string, number>()
-    for (const i of demoItems()) if (has.has(i.code) && i.division) per.set(i.division, (per.get(i.division) ?? 0) + 1)
-    return wait([...per].map(([division, items]) => ({ division, items })).sort((a, b) => a.division.localeCompare(b.division)))
-  },
-  async divisionRange(storeId, division) {
-    const items = demoItems().filter((i) => i.division === division)
-    const stock = demoStock(storeId)
-    return wait(items.flatMap((item) => { const s = stock.find((x) => x.item_code === item.code); return s ? [{ item, stock: s }] : [] }))
-  },
 
   async syncRuns() {
     const runs: SyncRun[] = demoStores().map((s, i) => ({
