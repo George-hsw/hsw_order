@@ -7,6 +7,7 @@
 //   delete          { user_id }                                       remove the login and every membership
 //   reset_password  { user_id, password? }
 //   set_admin       see below; the main admin only
+//   set_area        see below; any admin
 // With no password in an `add` of a new person, or in reset_password, a strong random one is generated and returned
 // ONCE, to hand over. Supabase Auth hashes and stores it; this function never keeps or logs it.
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -54,8 +55,8 @@ Deno.serve(async (req) => {
       return data?.active ? data : null
     }
 
-    // A new login for a person (b.full_name, b.password), with their app_users row. isAdmin: made an admin straight away.
-    const newLogin = async (email: string, isAdmin: boolean): Promise<{ userId: string; pw: { password: string; generated: boolean } } | { error: string }> => {
+    // A new login for a person (b.full_name, b.password), with their app_users row. role: made an admin, or a manager, straight away.
+    const newLogin = async (email: string, role: { admin?: boolean; area?: boolean }): Promise<{ userId: string; pw: { password: string; generated: boolean } } | { error: string }> => {
       const fullName = String(b.full_name ?? '').trim().slice(0, 80)
       if (!fullName) return { error: 'Enter the person’s name.' }
       // A shared store login and a person must never share an address, or the two would be confused.
@@ -79,7 +80,7 @@ Deno.serve(async (req) => {
       } else userId = created.data.user.id
 
       const { error } = await admin.from('app_users').insert({
-        user_id: userId, email, full_name: fullName, active: true, is_admin: isAdmin, password_set_at: new Date().toISOString(),
+        user_id: userId, email, full_name: fullName, active: true, is_admin: !!role.admin, sees_all_sales: !!role.area, password_set_at: new Date().toISOString(),
       })
       if (error) throw error
       return { userId: userId!, pw }
@@ -87,6 +88,31 @@ Deno.serve(async (req) => {
 
     //   set_admin { email, full_name?, password?, admin: true }  make someone an admin (a new login is made if they have none)
     //   set_admin { user_id, admin: false }                       an admin goes back to their stores only
+    //   set_area  { email, full_name?, password?, enabled: true }  make someone a manager: reads every store's sales, nothing else
+    //   set_area  { user_id, enabled: false }                       back to their own stores only. Any admin may do this.
+    if (b.action === 'set_area') {
+      if (b.enabled === false) {
+        const { data, error } = await admin.from('app_users').update({ sees_all_sales: false }).eq('user_id', b.user_id).select('user_id')
+        if (error) throw error
+        if (!data?.length) return json({ error: 'User not found' }, 404)
+        return json({ ok: true })
+      }
+      const email = String(b.email ?? '').trim().toLowerCase()
+      if (!EMAIL.test(email)) return json({ error: 'Enter a valid email address.' }, 400)
+      if (email === ADMIN_EMAIL) return json({ error: 'That is the main admin, who already sees everything.' }, 400)
+      const { data: existing } = await admin.from('app_users').select('user_id,full_name,active,is_admin').eq('email', email).maybeSingle()
+      if (existing) {
+        if (!existing.active) return json({ error: 'That person’s login is turned off. Turn it on first.' }, 400)
+        if (existing.is_admin) return json({ error: 'That person is an admin, who already sees everything.' }, 400)
+        const { error } = await admin.from('app_users').update({ sees_all_sales: true }).eq('user_id', existing.user_id)
+        if (error) throw error
+        return json({ ok: true, existing: true, name: existing.full_name })
+      }
+      const made = await newLogin(email, { area: true })
+      if ('error' in made) return json({ error: made.error }, 400)
+      return json({ ok: true, generated: made.pw.generated, password: made.pw.generated ? made.pw.password : undefined })
+    }
+
     if (b.action === 'set_admin') {
       if (!owner) return json({ error: 'Only the main admin can add or remove admins.' }, 403)
       if (b.admin === false) {
@@ -105,7 +131,7 @@ Deno.serve(async (req) => {
         if (error) throw error
         return json({ ok: true, existing: true, name: existing.full_name })
       }
-      const made = await newLogin(email, true)
+      const made = await newLogin(email, { admin: true })
       if ('error' in made) return json({ error: made.error }, 400)
       return json({ ok: true, generated: made.pw.generated, password: made.pw.generated ? made.pw.password : undefined })
     }
@@ -126,7 +152,7 @@ Deno.serve(async (req) => {
         return json({ ok: true, existing: true, name: existing.full_name })
       }
 
-      const made = await newLogin(email, false)
+      const made = await newLogin(email, {})
       if ('error' in made) return json({ error: made.error }, 400)
       const { userId, pw } = made
       const { error: memberError } = await admin.from('store_members').insert({ user_id: userId, store_id: store.id, role: b.role })

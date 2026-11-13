@@ -292,6 +292,12 @@ tr.inactive { opacity: 0.6; }
   table.book.stores td[data-label="ABN"] { grid-column: span 2; order: 5; }
   table.book.stores td[data-label="Managers"] { grid-column: 1 / -1; order: 6; }
   table.book.stores td[data-label="Store"]::before { display: none; }
+  table.book.users td[data-label="Person"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
+  table.book.users td.rowactions { grid-column: span 2; order: 2; }
+  table.book.users td[data-label="Access"] { grid-column: span 3; order: 3; }
+  table.book.users td[data-label="Login"] { grid-column: span 3; order: 4; }
+  table.book.users td[data-label="Stores"] { grid-column: 1 / -1; order: 5; }
+  table.book.users td[data-label="Person"]::before { display: none; }
   table td.r { text-align: left; }
   table.items td.x { position: absolute; top: var(--space-xs); right: 0; } table.items td.x::before { display: none; }
   .rowactions { display: flex; gap: var(--space-xs); } .rowactions .btn { flex: 1; } .rowactions .btn + .btn { margin-left: 0; }

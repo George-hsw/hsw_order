@@ -13,6 +13,7 @@ describe('sections', () => {
   it('only the admin sees the Admin area', () => {
     expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'stocktake', 'price', 'sales'])
     expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'stocktake', 'price', 'sales', 'admin'])
+    expect(visibleAreas(false, false).map((a) => a.id)).toEqual(['sales']) // a manager with no store of their own
   })
   it('Reports needs someone who works in a store', () => {
     const quote = AREAS[0]

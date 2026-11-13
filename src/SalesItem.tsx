@@ -16,7 +16,7 @@ const units = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
  * Scan or type an item and see how it has sold at this store: units and sales week by week, the average store that stocks it beside it,
  * growth, rank and sales lost to no stock. It reads only the weeks the Detailed report has been loaded for, and says so.
  */
-export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: string; initialCode: string | null; onOrder: (vendor: string, item: string) => void }) {
+export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: string; initialCode: string | null; onOrder?: (vendor: string, item: string) => void }) {
   const [text, setText] = useState(initialCode ?? '')
   const [item, setItem] = useState<ItemInfo | null>(null)
   const [state, setState] = useState<'idle' | 'looking' | 'missing' | 'error'>(initialCode ? 'looking' : 'idle')
@@ -84,7 +84,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
           <section className="sheet viz-card">
             <div className="viz-head">
               <div><h2>{item.description}</h2><p className="muted">{item.code}{item.vendor_no ? `, vendor ${item.vendor_no}` : ''}{item.division ? `, ${item.division.replace(/_/g, ' ').toLowerCase()}` : ''}</p></div>
-              {item.vendor_no && <button type="button" className="btn primary" onClick={() => onOrder(item.vendor_no!, item.code)}>Order this item</button>}
+              {item.vendor_no && onOrder && <button type="button" className="btn primary" onClick={() => onOrder(item.vendor_no!, item.code)}>Order this item</button>}
             </div>
             {flag && flag !== 'ok' && <p className={`note${flag === 'out' ? ' bad' : ''}`}><span className={`chip ${CHIP[flag]}`}>{FLAG_LABEL[flag]}</span> {FLAG_HELP[flag]}</p>}
           </section>

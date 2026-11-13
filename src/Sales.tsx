@@ -16,14 +16,14 @@ import type { StoreRow } from './lib/supabase'
 import { reveal } from './lib/motion'
 
 export interface OrderJump { storeId: string; vendor: string; item: string; show?: 'low' | 'new' }
-interface Props { email: string; isAdmin: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder: (j: OrderJump) => void; start?: { storeId: string; code: string } | null }
+interface Props { email: string; isAdmin: boolean; seesAll: boolean; stores: StoreRow[]; allStores: StoreRow[]; onOrder?: (j: OrderJump) => void; start?: { storeId: string; code: string } | null }
 type Sub = 'store' | 'items' | 'item' | 'all' | 'upload'
 
 const STORE_KEY = 'hsw-orders-store'
 const LAST = 13 // weeks shown in the weekly chart
 
 /** The weeks a store can look at, and what each tab shows. A store sees its own figures and where it ranks; head office sees every store. */
-export default function Sales({ email, isAdmin, stores, allStores, onOrder, start }: Props) {
+export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOrder, start }: Props) {
   const [sub, setSub] = useState<Sub>(start ? 'item' : 'store')
   const [storeId, setStoreId] = useState(() => {
     if (start && stores.some((x) => x.id === start.storeId)) return start.storeId
@@ -61,13 +61,13 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder, star
 
       <div className="filters">
         <div className="segmented" role="group" aria-label="Sales view">
-          {tab('store', 'My store')}
+          {tab('store', seesAll && !isAdmin ? 'Store' : 'My store')}
           {tab('items', 'Items')}
           {tab('item', 'Scan item')}
-          {isAdmin && tab('all', 'All stores')}
+          {seesAll && tab('all', 'All stores')}
           {isAdmin && tab('upload', 'Upload')}
         </div>
-        {(stores.length > 1 || isAdmin) && sub !== 'all' && sub !== 'upload' && (
+        {(stores.length > 1 || seesAll) && sub !== 'all' && sub !== 'upload' && (
           <select name="salesStore" aria-label="Store" value={storeId} onChange={(e) => { setStoreId(e.target.value); setWeek(null); try { localStorage.setItem(STORE_KEY, e.target.value) } catch { /* ignore */ } }} style={{ width: 'auto' }}>
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -84,12 +84,12 @@ export default function Sales({ email, isAdmin, stores, allStores, onOrder, star
           <div className="state error" role="alert"><p>Could not load sales</p><p className="muted">Check your connection and try again.</p>
             <div className="actions"><button type="button" className="btn" onClick={() => { weeks.retry(); history.retry() }}>Try again</button></div></div>
         ) : weeks.loading || (sub !== 'all' && history.loading) ? <Loading />
-        : sub === 'item' && storeId ? <SalesItem storeId={storeId} initialCode={itemCode} onOrder={(vendor, item) => onOrder({ storeId, vendor, item })} />
+        : sub === 'item' && storeId ? <SalesItem storeId={storeId} initialCode={itemCode} onOrder={onOrder && ((vendor, item) => onOrder({ storeId, vendor, item }))} />
         : !weekOptions.length ? (
           <div className="state"><p>No sales loaded yet</p><p className="muted">{isAdmin ? 'Open the Upload view and add this week’s reports.' : 'Head office loads the weekly reports. They will appear here once they do.'}</p></div>
         ) : !week ? null
-        : sub === 'all' && isAdmin ? <SalesLeague week={week} stores={allStores} />
-        : sub === 'items' ? <SalesItems storeId={storeId} week={week} onOrder={(vendor, item) => onOrder({ storeId, vendor, item })} onTrend={(code) => { setItemCode(code); setSub('item') }} />
+        : sub === 'all' && seesAll ? <SalesLeague week={week} stores={allStores} />
+        : sub === 'items' ? <SalesItems storeId={storeId} week={week} onOrder={onOrder && ((vendor, item) => onOrder({ storeId, vendor, item }))} onTrend={(code) => { setItemCode(code); setSub('item') }} />
         : <MyStore storeId={storeId} week={week} dates={dates} history={history.data ?? []} onWeek={setWeek} />}
     </>
   )

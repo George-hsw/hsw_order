@@ -130,9 +130,9 @@ export const supabaseSalesApi: SalesApi = {
     fail(error)
     const item = (data ?? [])[0] as { code: string; description: string; vendor_no: string | null; division: string | null; barcode: string | null } | undefined
     if (!item) return null
-    const stock = await db().from('store_stock').select('inventory,moq,vendor_no').eq('store_id', storeId).eq('item_code', item.code).maybeSingle()
+    const stock = await db().rpc('sales_item_stock', { p_store: storeId, p_code: item.code })
     fail(stock.error)
-    const s = stock.data as { inventory: number; moq: number; vendor_no: string | null } | null
+    const s = ((stock.data ?? []) as { inventory: number; moq: number; vendor_no: string | null }[])[0] ?? null
     return { ...item, vendor_no: s?.vendor_no ?? item.vendor_no, inventory: Number(s?.inventory ?? 0), moq: Number(s?.moq ?? 1) }
   },
   async league(w) {

@@ -27,7 +27,13 @@ export interface AppUser {
   password_set_at: string | null
   created_at: string
   is_admin?: boolean // made an admin by the main admin: sees and does everything
+  sees_all_sales?: boolean // manager: reads every store's sales and nothing else
 }
+
+/** A store as a manager sees it: name and code only (the stores_basic view), never an address or bank detail. */
+export const basicStore = (r: { id: string; name: string; code: string; active: boolean }): StoreRow => ({
+  ...r, address: '', suburb: '', phone: '', email: null, owner_email: null, legal_name: '', abn: '', bank_name: '', bsb: '', account: '', password_set_at: null,
+})
 
 /** A person's place in one store. A person can have several. */
 export interface Member {

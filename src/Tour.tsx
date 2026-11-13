@@ -33,7 +33,7 @@ function stepsFor({ isAdmin, manager }: Pick<Props, 'isAdmin' | 'manager'>): Ste
   steps.push({ scene: 'sales', tab: 'order', title: 'Sales on every item', body: 'Open Details on any item in the Order tab to see how it sold at your store in recent weeks, its rank, and the sales lost while it was out of stock. Item sales are before GST and leave out Elfa.' })
   if (isAdmin) steps.push({ scene: 'send', tab: 'sales', title: 'Load the weekly reports', body: 'In Sales, open Upload and add the three Power BI files. Each is checked against its own totals before anything is saved, and a store sees only its own figures.' })
   if (isAdmin) steps.push({ scene: 'pay', tab: 'analytics', title: 'Analytics', body: 'See who is using the app, what they do, any errors, and anything unusual such as a new device or overnight sign-ins.' })
-  if (isAdmin) steps.push({ scene: 'stores', tab: 'stores', title: 'Stores and people', body: 'Open a store to add people. Everyone in a store has the same access there. The sync status for each store is shown here too.' })
+  if (isAdmin) steps.push({ scene: 'stores', tab: 'stores', title: 'Stores and users', body: 'Stores lists each store and its last sync. Users is where you add people: store managers and staff, managers who read every store’s sales, and other admins.' })
   steps.push({ scene: 'done', title: 'You are ready', body: 'You can replay this tour from the question mark at the top. If you cannot sign in, contact support@hsw.com.au.' })
   return steps
 }

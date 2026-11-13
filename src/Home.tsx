@@ -14,7 +14,7 @@ const ICON: Record<AreaId, string> = {
 }
 
 /** What opens after sign-in: one tile for each area the person can use. The one they used last is marked. */
-export default function Home({ isAdmin, last, onPick }: { isAdmin: boolean; last: AreaId | null; onPick: (id: AreaId) => void }) {
+export default function Home({ isAdmin, works = true, last, onPick }: { isAdmin: boolean; works?: boolean; last: AreaId | null; onPick: (id: AreaId) => void }) {
   const [ask, dialog] = useConfirm()
   const toast = useToast()
   const signOutEverywhere = async () => {
@@ -32,7 +32,7 @@ export default function Home({ isAdmin, last, onPick }: { isAdmin: boolean; last
         </div>
       </div>
       <div className="hometiles">
-        {visibleAreas(isAdmin).map((a) => (
+        {visibleAreas(isAdmin, works).map((a) => (
           <button key={a.id} type="button" className={`flagbtn hometile${last === a.id ? ' last' : ''}`} data-tour={a.id} onClick={() => onPick(a.id)}>
             <span className="tileicon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d={ICON[a.id]} /></svg>

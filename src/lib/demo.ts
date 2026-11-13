@@ -30,6 +30,8 @@ export const demoUsers = (): AppUser[] => [
   { user_id: 'u1', email: 'priya@hsw.com.au', full_name: 'Priya Nair', active: true, password_set_at: dayAgo(20).toISOString(), created_at: dayAgo(20).toISOString() },
   { user_id: 'u2', email: 'sam@hsw.com.au', full_name: 'Sam Carter', active: true, password_set_at: dayAgo(12).toISOString(), created_at: dayAgo(12).toISOString() },
   { user_id: 'u3', email: 'lee@hsw.com.au', full_name: 'Lee Tran', active: false, password_set_at: dayAgo(30).toISOString(), created_at: dayAgo(30).toISOString() },
+  { user_id: 'u4', email: 'alex@hsw.com.au', full_name: 'Alex Reid', active: true, sees_all_sales: true, password_set_at: dayAgo(9).toISOString(), created_at: dayAgo(9).toISOString() }, // manager: ?as=alex
+  { user_id: 'u5', email: 'jordan@hsw.com.au', full_name: 'Jordan Blake', active: true, is_admin: true, password_set_at: dayAgo(5).toISOString(), created_at: dayAgo(5).toISOString() }, // a second admin
 ]
 export const demoMembers = (): Member[] => [
   { user_id: 'u1', store_id: 'demo-0', role: 'manager' },
