@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCounts, adjustValue, byImpact, countTotals, fmtDiff, lastCounted, navAdjustText, onHand, sidesToPost, splitAdjustments, stillToCount, variance, verdict } from './stocktake'
+import { addCounts, adjustValue, byImpact, countTotals, fmtDiff, lastCounted, navAdjustText, onHand, scopeLabel, sidesToPost, splitAdjustments, stillToCount, variance, verdict } from './stocktake'
 import type { CountLine, CountRow, ItemRow, StockRow } from './supabase'
 import type { Product } from './order'
 
@@ -97,5 +97,10 @@ describe('counting', () => {
     const counts = [count('1', 'ANAS001', 'saved', '2026-03-01'), count('2', 'ANAS001', 'posted', '2026-09-01'), count('3', 'ANAS001', 'open', null), count('4', 'MYHO001', 'saved', '2026-05-05')]
     expect(lastCounted(counts, 'vendor', 'ANAS001')).toBe('2026-09-01')
     expect(lastCounted(counts, 'vendor', 'NOPE')).toBeNull()
+  })
+  it('names a count by its division', () => {
+    expect(scopeLabel({ kind: 'rolling', scope_type: 'division', scope_value: 'BATHROOM' })).toBe('Division BATHROOM')
+    expect(scopeLabel({ kind: 'rolling', scope_type: 'category', scope_value: 'TOWELS' })).toBe('Category TOWELS')
+    expect(lastCounted([{ ...({} as CountRow), kind: 'rolling', scope_type: 'division', scope_value: 'BATHROOM', status: 'saved', saved_at: '2026-09-02' }], 'division', 'BATHROOM')).toBe('2026-09-02')
   })
 })

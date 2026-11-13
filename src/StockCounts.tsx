@@ -49,7 +49,7 @@ export default function StockCounts({ multi, stores, names }: Props) {
       </div>
 
       <div className="filters">
-        <input type="search" name="countSearch" aria-label="Search counts" placeholder="Search by vendor, category, NAV number, person or store…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" name="countSearch" aria-label="Search counts" placeholder="Search by vendor, division, NAV number, person or store…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="segmented" role="group" aria-label="Status">
           {(['all', 'open', 'saved', 'posted'] as const).map((s) => <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === 'all' ? 'All' : STATUS_LABEL[s]}</button>)}
         </div>

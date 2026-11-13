@@ -210,6 +210,15 @@ tr.inactive { opacity: 0.6; }
   .stickybar b { display: block; font-size: var(--text-lg); font-weight: 600; }
   .builder { padding-bottom: 80px; }
 }
+/* The Order table has ten columns and needs room: below 82rem the totals go under it, with the same bottom bar as on a tablet, instead of squeezing it. */
+@media (min-width: 64.01rem) and (max-width: 82rem) {
+  .workspace.wide { grid-template-columns: minmax(0, 1fr); }
+  .workspace.wide .ledger { position: static; }
+  .workspace.wide .ledger .actions .primary { display: none; }
+  .builder:has(.workspace.wide) { padding-bottom: 80px; }
+  .builder:has(.workspace.wide) .stickybar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-sticky); padding: var(--space-sm) var(--space-md); background: var(--color-paper-2); border-top: var(--rule-hair) solid var(--color-ink); }
+  .builder:has(.workspace.wide) .stickybar b { display: block; font-size: var(--text-lg); font-weight: 600; }
+}
 @media (max-width: 60rem) {
   .loginwrap { grid-template-columns: minmax(0, 1fr); } .hero { padding: var(--space-xl) var(--space-lg) var(--space-xs); } .hero .logo { height: 56px; }
 }
@@ -395,6 +404,7 @@ tr.inactive { opacity: 0.6; }
 /* The vendor's range is a .book table like the others: a ruled table on desktop, boxed cells on phones. A row with a quantity gets a bar and a heavier box. */
 table.book.range td { padding: var(--space-xs) var(--space-sm); }
 table.book.range td.desc small { display: block; }
+@media (min-width: 44.01rem) { table.book.range td.desc { min-width: 12rem; } } /* the description is the widest thing in the row: never let the numbers squeeze it */
 table.book.range input.qty { width: 72px; min-width: 0; }
 table.book.range tr.ordering td:first-child { box-shadow: inset 3px 0 0 var(--color-accent-edge); }
 table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge); font-weight: 600; }
@@ -996,15 +1006,12 @@ table.book.range td .cover { display: flex; width: fit-content; margin-top: var(
 .soldtip, .cover { position: relative; }
 [data-tip] { cursor: help; }
 [data-tip]:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
-[data-tip]::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + var(--space-2xs)); z-index: var(--z-dropdown); width: max-content; max-width: min(18rem, 70vw); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-card); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 400; line-height: 1.4; white-space: normal; text-align: left; box-shadow: var(--shadow-lift); display: none; pointer-events: none; }
-[data-tip]:hover::after, [data-tip]:focus::after { display: block; } /* not merely hidden: a hidden tooltip would still add scroll space to the table */
-.cover[data-tip]::after, .soldtip[data-tip]::after { left: auto; right: 0; }
-@media (max-width: 44rem) { .cover[data-tip]::after, .soldtip[data-tip]::after { left: 0; right: auto; } }
+.tooltip { position: fixed; z-index: var(--z-tooltip); width: max-content; max-width: min(20rem, calc(100vw - 2 * var(--space-sm))); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-card); background: var(--color-ink); color: var(--color-paper-2); font-size: var(--text-sm); font-weight: 400; line-height: 1.4; text-align: left; box-shadow: var(--shadow-lift); pointer-events: none; overflow-wrap: anywhere; }
+.tooltip[hidden] { display: none; }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes tip-in { from { opacity: 0; transform: translateY(-3px); } }
-  [data-tip]:hover::after, [data-tip]:focus::after { animation: tip-in var(--dur-micro) var(--ease-out) 120ms backwards; }
+  .tooltip { animation: tip-in var(--dur-micro) var(--ease-out) backwards; }
 }
-@media (max-width: 44rem) { .tag[data-tip]::after, .soldtip[data-tip]::after { max-width: 11.5rem; } } /* the description sits on the right of the card on a phone: keep the explanation inside it */
 
 /* Stock take: the items nobody scanned in a full count, and the list of what is still to count */
 .uncounted { list-style: none; margin: var(--space-xs) 0; padding: 0; display: grid; gap: var(--space-3xs); }

@@ -97,6 +97,10 @@ export interface OrdersApi {
   categories(storeId: string): Promise<{ category: string; division: string | null; items: number }[]>
   /** One category's whole range at one store, with stock. */
   categoryRange(storeId: string, category: string): Promise<Product[]>
+  /** The divisions this store stocks, for a rolling count. */
+  divisions(storeId: string): Promise<{ division: string; items: number }[]>
+  /** One division's whole range at one store, with stock. */
+  divisionRange(storeId: string, division: string): Promise<Product[]>
 }
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
@@ -107,6 +111,7 @@ const offline: OrdersApi = {
   listCounts: async () => notConnected(), openCount: async () => notConnected(), countLines: async () => notConnected(), saveCountLine: async () => notConnected(), subscribeCount: () => notConnected(),
   setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),
   categories: async () => notConnected(), categoryRange: async () => notConnected(),
+  divisions: async () => notConnected(), divisionRange: async () => notConnected(),
 }
 
 export const api: OrdersApi = DEMO ? demoApi : supabase ? supabaseApi : offline

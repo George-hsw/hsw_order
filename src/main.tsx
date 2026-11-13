@@ -2,7 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { ToastProvider } from './Toast'
+import { installTooltips } from './lib/tooltip'
 import './styles.css'
+
+installTooltips()
 
 // Myriad Pro comes from an Adobe Fonts web project (kit). Set VITE_ADOBE_FONTS_KIT to its id to switch it on.
 const kit = import.meta.env.VITE_ADOBE_FONTS_KIT as string | undefined

@@ -522,7 +522,7 @@ export default function Order({ email, multi, stores, names, onSaved, canManage,
           {order?.status === 'copied' && !editedAfterCopy && <p className="note">This order has been copied for NAV. Enter the NAV order number when it is done.</p>}
           {editedAfterCopy && <p className="note bad">Lines changed after this order was copied. Copy it again before you use it in NAV.</p>}
 
-          <div className="workspace">
+          <div className="workspace wide">
             <div className="sheet">
               <section className="block">
                 <h2>{vendor} <small>{range.length} items · {orderedCount} on order{pending > 0 ? ' · Saving…' : ''}</small></h2>

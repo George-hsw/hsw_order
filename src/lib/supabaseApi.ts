@@ -374,4 +374,18 @@ export const supabaseApi: OrdersApi = {
         .eq('store_id', storeId).eq('items.category', category).order('item_code').range(from, to))
     return rows.map(({ items, ...stock }) => ({ item: items, stock }))
   },
+
+  async divisions(storeId) {
+    const { data, error } = await db().rpc('store_divisions', { p_store: storeId })
+    if (error) throw new Error(error.message)
+    return ((data ?? []) as { division: string; items: number | string }[]).map((r) => ({ division: r.division, items: Number(r.items) }))
+  },
+
+  async divisionRange(storeId, division): Promise<Product[]> {
+    type Row = StockRow & { items: ItemRow }
+    const rows = await readAll<Row>((from, to, count) =>
+      db().from('store_stock').select(STOCK_COLUMNS + ',items!inner(' + ITEM_COLUMNS + ')', countOpt(count))
+        .eq('store_id', storeId).eq('items.division', division).order('item_code').range(from, to))
+    return rows.map(({ items, ...stock }) => ({ item: items, stock }))
+  },
 }

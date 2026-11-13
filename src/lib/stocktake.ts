@@ -102,11 +102,12 @@ export function scopeLabel(c: Pick<CountRow, 'kind' | 'scope_type' | 'scope_valu
   if (c.kind === 'full') return 'Full stock take'
   if (c.scope_type === 'vendor') return `Vendor ${c.scope_value}`
   if (c.scope_type === 'category') return `Category ${c.scope_value}`
+  if (c.scope_type === 'division') return `Division ${c.scope_value}`
   return 'Scanned items'
 }
 
-/** When this vendor or category was last counted (the newest finished count with that scope), or null. */
-export function lastCounted(counts: CountRow[], type: 'vendor' | 'category', value: string): string | null {
+/** When this vendor or division was last counted (the newest finished count with that scope), or null. */
+export function lastCounted(counts: CountRow[], type: 'vendor' | 'category' | 'division', value: string): string | null {
   const done = counts.filter((c) => c.kind === 'rolling' && c.scope_type === type && c.scope_value === value && c.status !== 'open' && c.saved_at)
   return done.reduce<string | null>((best, c) => (best === null || c.saved_at! > best ? c.saved_at : best), null)
 }

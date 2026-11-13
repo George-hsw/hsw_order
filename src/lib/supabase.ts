@@ -154,7 +154,7 @@ export interface OrderSummary extends OrderRow { lines: number; units: number; c
 /** A stock take: a full count of a store, or a rolling count of one vendor or category. open: counting. saved: finished, waiting for NAV. posted: both journals entered. */
 export type CountKind = 'full' | 'rolling'
 export type CountStatus = 'open' | 'saved' | 'posted'
-export type CountScopeType = 'none' | 'vendor' | 'category'
+export type CountScopeType = 'none' | 'vendor' | 'category' | 'division'
 export interface CountRow {
   id: string
   store_id: string
