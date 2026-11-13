@@ -76,7 +76,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const [filled, setFilled] = useState<{ code: string; qty: number }[]>([]) // what the last Add put in, so it can be undone
   const [pane, setPane] = useState<'suggested' | 'items' | null>(null) // null: choose by what there is to show
   const [needList, setNeedList] = useState<OrderNeed[] | null>(null) // what each vendor needs ordering, shown before a vendor is chosen
-  const [needFailed, setNeedFailed] = useState(false) // the list could not be worked out (the database was too slow), so what shows may be out of date
+  const [needFailed, setNeedFailed] = useState(false) // the list could not be worked out (too slow, or offline), so what shows may be out of date
   const [needAttempt, setNeedAttempt] = useState(0)
 
   const who = (e: string | null) => (e ? names[e.toLowerCase()] ?? e : '')
@@ -453,7 +453,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
           {vendors.length > 0 && (
             <section className="block needs">
               <h2>Needs ordering</h2>
-              {needFailed && <div className="state error" role="alert"><p>{needList ? 'Could not refresh this list' : 'The list did not load'}</p><p className="muted">{needList ? 'What shows is the last list worked out. ' : ''}The database was too slow to work out what needs ordering. You can still choose a vendor above.</p><div className="actions"><button type="button" className="btn" onClick={() => setNeedAttempt((a) => a + 1)}>Try again</button></div></div>}
+              {needFailed && <div className="state error" role="alert"><p>{needList ? 'Could not refresh this list' : 'The list did not load'}</p><p className="muted">{needList ? 'What shows is the last list worked out. ' : ''}What needs ordering could not be worked out just now. You can still choose a vendor above.</p><div className="actions"><button type="button" className="btn" onClick={() => setNeedAttempt((a) => a + 1)}>Try again</button></div></div>}
               {needList === null ? (needFailed ? null : <Loading rows={3} />) : (() => {
                 const list = [...needList].filter((n) => vendors.some((v) => v.vendor === n.vendor_no)).sort((a, b) => b.cost - a.cost)
                 return list.length === 0 ? <p className="muted">Nothing needs ordering right now. Choose a vendor above to order anything yourself.</p> : (

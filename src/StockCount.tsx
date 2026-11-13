@@ -35,6 +35,7 @@ export default function StockCount({ count, store, canManage, onChange, onLeave 
   const [loaded, setLoaded] = useState(false)
   const [text, setText] = useState('')
   const [results, setResults] = useState<Product[]>([])
+  const [noMatch, setNoMatch] = useState('') // what was typed when the suggestions found nothing
   const [looking, setLooking] = useState(false)
   const [message, setMessage] = useState('')
   const [scanning, setScanning] = useState(false)
@@ -52,10 +53,12 @@ export default function StockCount({ count, store, canManage, onChange, onLeave 
   // Suggestions as you type: after a short pause, the items that match what is in the box. An older answer never replaces a newer one.
   useEffect(() => {
     const v = text.trim()
-    if (v.length < 2) { setResults([]); return }
+    if (v.length < 2) { setResults([]); setNoMatch(''); return }
     let live = true
     const timer = setTimeout(() => {
-      api.findItems(store.id, v).then((found) => { if (live && !sheetOpen.current) setResults(found.slice(0, 8)) }).catch(() => { if (live) setResults([]) })
+      api.findItems(store.id, v)
+        .then((found) => { if (live && !sheetOpen.current) { setResults(found.slice(0, 8)); setNoMatch(found.length ? '' : v) } })
+        .catch(() => { if (live) { setResults([]); setNoMatch('') } })
     }, 250)
     return () => { live = false; clearTimeout(timer) }
   }, [text, store.id])
@@ -170,6 +173,7 @@ export default function StockCount({ count, store, canManage, onChange, onLeave 
           </button>
         </form>
         {message && <p className="note bad" role="alert">{message}</p>}
+        {!message && noMatch && results.length === 0 && <p className="muted" role="status">No item matches “{noMatch}”. Check the number, try part of the name, or scan it.</p>}
         {results.length > 0 && (
           <ul className="pricehits">
             {results.map((r) => <li key={r.item.code}><button type="button" className="linkish" onClick={() => { setResults([]); setText(''); openItem(r) }}><b>{r.item.description || r.item.code}</b><small>{r.item.code}{lineOf.has(r.item.code) ? ', already counted' : ''}</small></button></li>)}
