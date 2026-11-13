@@ -95,7 +95,7 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
                   <td data-label="Lines" className="r num">{o.lines}</td>
                   <td data-label="Units" className="r num">{o.units}</td>
                   <td data-label="Cost" className="r num">{money(o.cost)}</td>
-                  <td data-label="NAV order">{o.nav_ref ? <span className="num">{o.nav_ref}</span> : <span className="muted">–</span>}</td>
+                  <td data-label="NAV order">{o.nav_ref ? <span className="num">{o.nav_ref}</span> : <span className="muted">Not yet</span>}</td>
                   <td className="rowactions">
                     <button type="button" className="btn" onClick={() => setOpenId(o.id)}>Open</button>
                     {o.status !== 'ordered' && <button type="button" className="btn danger" onClick={() => remove(o)}>Delete</button>}

@@ -66,7 +66,7 @@ export default function SalesItems({ storeId, week, onOrder, onTrend }: { storeI
           {FLAGS.map((f) => (
             <button key={f} type="button" className={`flagbtn${flag === f ? ' on' : ''}`} aria-pressed={flag === f} disabled={counts[f] === 0} onClick={() => show(f)}>
               <b>{counts[f].toLocaleString('en-AU')}</b><span>{SHORT[f]}</span>
-              <span className="go">{flag === f ? 'Showing below' : counts[f] ? 'View items' : 'None'}<span aria-hidden="true"> ›</span></span>
+              <span className="go">{flag === f ? 'Showing below' : counts[f] ? 'View items' : 'None'}</span>
             </button>
           ))}
         </div>

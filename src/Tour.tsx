@@ -41,11 +41,11 @@ const line = 'var(--color-ink-2)'
 
 /** The little picture for each step. They move with transform and opacity only, and stand still if motion is reduced. */
 function Picture({ scene }: { scene: Scene }): ReactNode {
-  const frame = { viewBox: '0 0 160 100', width: 160, height: 100, role: 'img', 'aria-hidden': true as const }
+  const frame = { viewBox: '0 0 160 100', width: 160, height: 100 }
   switch (scene) {
     case 'scan':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <rect x="30" y="18" width="100" height="64" rx="8" fill="var(--color-paper-3)" stroke={line} />
           {[40, 48, 53, 62, 68, 78, 84, 94, 100, 108, 116].map((x, i) => <rect key={x} x={x} y="30" width={i % 3 === 0 ? 4 : 2} height="40" fill={ink} />)}
           <rect className="tour-sweep" x="34" y="30" width="92" height="3" rx="1.5" fill="var(--color-accent)" />
@@ -53,7 +53,7 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'phone':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <rect x="8" y="26" width="32" height="56" rx="6" fill="var(--color-paper-3)" stroke={line} />
           <rect x="16" y="40" width="16" height="10" fill={ink} opacity=".7" />
           <rect x="82" y="22" width="70" height="46" rx="5" fill="var(--color-paper-3)" stroke={line} />
@@ -66,7 +66,7 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'build':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <rect x="34" y="10" width="92" height="80" rx="6" fill="var(--color-paper-3)" stroke={line} />
           <rect x="44" y="20" width="40" height="5" rx="2.5" fill={ink} opacity=".7" />
           {[34, 46, 58].map((y, i) => <rect key={y} className={'tour-line l' + (i + 1)} x="44" y={y} width={72 - i * 10} height="6" rx="3" fill="var(--color-accent)" />)}
@@ -75,7 +75,7 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'send':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <rect x="30" y="26" width="100" height="56" rx="6" fill="var(--color-paper-3)" stroke={line} />
           <path d="M34 32l46 30 46-30" fill="none" stroke={line} strokeWidth="2" />
           <g className="tour-fly"><rect x="62" y="6" width="36" height="26" rx="3" fill="var(--color-paper-2)" stroke="var(--color-accent)" strokeWidth="2" /><rect x="68" y="13" width="24" height="3" fill={ink} opacity=".6" /><rect x="68" y="20" width="16" height="3" fill={ink} opacity=".6" /></g>
@@ -83,7 +83,7 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'docs':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           {[14, 38, 62].map((y, i) => (
             <g key={y} className={'tour-line l' + (i + 1)}>
               <rect x="26" y={y} width="108" height="20" rx="4" fill="var(--color-paper-3)" stroke={line} />
@@ -95,7 +95,7 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'sales':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           {[[58, 70], [40, 56], [24, 44]].map(([a, b], i) => (
             <g key={i}>
               <rect className={'tour-grow g' + (i + 1)} x={30 + i * 40} y={a} width="16" height={86 - a} fill="var(--color-accent)" />
@@ -107,14 +107,14 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'pay':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           {[60, 44, 28].map((y, i) => <rect key={y} className={'tour-grow g' + (i + 1)} x={36 + i * 34} y={y} width="22" height={86 - y} fill="var(--color-accent)" />)}
           <path d="M26 86h110" stroke={line} strokeWidth="2" />
         </svg>
       )
     case 'stores':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <rect x="22" y="40" width="46" height="42" rx="4" fill="var(--color-paper-3)" stroke={line} />
           <path d="M18 42l27-22 27 22" fill="none" stroke={ink} strokeWidth="2.5" strokeLinejoin="round" />
           {[96, 124].map((cx, i) => (
@@ -127,14 +127,14 @@ function Picture({ scene }: { scene: Scene }): ReactNode {
       )
     case 'done':
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <circle cx="80" cy="50" r="34" fill="var(--color-success-soft)" />
           <path className="tour-tick" d="M64 52l12 12 22-26" fill="none" stroke="var(--color-success)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )
     default:
       return (
-        <svg {...frame}>
+        <svg {...frame} aria-hidden="true">
           <rect className="tour-line l1" x="40" y="22" width="80" height="12" rx="6" fill="var(--color-accent)" />
           <rect className="tour-line l2" x="40" y="44" width="64" height="12" rx="6" fill="var(--color-accent)" opacity=".7" />
           <rect className="tour-line l3" x="40" y="66" width="48" height="12" rx="6" fill="var(--color-accent)" opacity=".45" />
