@@ -190,7 +190,7 @@ function Shell({ session }: { session: Session }) {
           : null}
         </div>
       </main>
-      {tour && allStores && people && <Tour isAdmin={isAdmin} manager={active.length > 0 || isAdmin} onClose={closeTour} />}
+      {tour && allStores && people && <Tour isAdmin={isAdmin} manager={active.length > 0 || isAdmin} onShow={(t) => { if (t === 'home') { if (view !== 'home') goHome() } else if (view !== t) goTab(t) }} onClose={closeTour} />}
     </>
   )
 }

@@ -428,7 +428,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
           )}
           {cat && (
             <label className="inline">Vendor
-              <select name="vendor" value={vendor} onChange={(e) => chooseVendor(e.target.value)}>
+              <select name="vendor" data-tourtarget="vendor" value={vendor} onChange={(e) => chooseVendor(e.target.value)}>
                 <option value="">Choose a vendor…</option>
                 {vendors.map((v) => {
                   const d = draftOf.get(v.vendor)
@@ -563,7 +563,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                     <input type="search" name="find" aria-label={`Find an item from ${vendor}`} placeholder="Search this vendor, or scan…" value={find} enterKeyHint="search"
                       autoComplete="off" onChange={(e) => setFind(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onFinderEnter()} />
                     {/* Opens on the touch itself, not on the click that follows: when the keyboard is up, the first tap only closes it and the button moves, so the click never lands. */}
-                    <button type="button" className="btn scanbtn" onPointerDown={openScanner} onClick={openScanner}>
+                    <button type="button" className="btn scanbtn" data-tourtarget="scan" onPointerDown={openScanner} onClick={openScanner}>
                       <svg className="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M12 8v8M16 8v8" /></svg>
                       Scan
                     </button>
@@ -688,7 +688,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                   <dt>Stock</dt><dd>{syncedLabel(synced).replace('Stock ', '')}</dd>
                 </dl>
                 <div className="actions">
-                  <button type="button" className={'btn primary wide' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
+                  <button type="button" data-tourtarget="copy" className={'btn primary wide' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
                   <button type="button" className="btn wide" onClick={holdAndNext}>Save and start another order</button>
                 </div>
                 {holds.length > 0 && (
@@ -703,7 +703,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
 
           <div className="stickybar">
             <div><small>{vendor} · {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b>{moqShort > 0 && <small className="chk error">MOQ not met on {moqShort}</small>}{mov && !mov.met && <MovFlag check={mov} total={t.cost} float />}</div>
-            <button type="button" className={'btn primary' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
+            <button type="button" data-tourtarget="copy" className={'btn primary' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
           </div>
 
           {sheet && (

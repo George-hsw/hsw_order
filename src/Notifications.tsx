@@ -27,7 +27,7 @@ export default function Notifications({ shown, count, urgent, loading, partial, 
   const close = () => setOpen(false)
   return (
     <>
-      <button ref={bell} type="button" className="quiet bellbtn" aria-label={count ? `Notifications, ${count} to look at${urgent ? ', some urgent' : ''}` : 'Notifications, none'}
+      <button ref={bell} type="button" data-tourtarget="bell" className="quiet bellbtn" aria-label={count ? `Notifications, ${count} to look at${urgent ? ', some urgent' : ''}` : 'Notifications, none'}
         aria-expanded={open} aria-controls="noticepanel" title="Notifications" onClick={() => setOpen((o) => !o)}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7" /><path d="M10 20a2 2 0 0 0 4 0" />
