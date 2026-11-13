@@ -1,7 +1,7 @@
 import { supabase, type StoreRow } from '../supabase'
 import { RATE_WEEKS, ratesFrom, type Rates } from '../insights'
 import { persistGet, persistSet } from '../persist'
-import { countOpt, readAll } from '../supabaseApi'
+import { countOpt, readAll } from '../readAll'
 import type { ItemInfo, SalesApi, SavedSource, UploadRecord } from './api'
 import { dailyRows, dedupeItems, detailedRows, indexStores, weeklyRows } from './import'
 import type { ChainWeek, ItemSale, ItemWeek, RankMetric, StoreDay, StoreWeek, WeekDates } from './model'

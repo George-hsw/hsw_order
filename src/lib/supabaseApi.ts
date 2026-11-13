@@ -2,6 +2,7 @@ import { codeLines, type CustomerOrderNeed } from './customerOrders'
 import type { Counted, OverdueInvoice } from './notifications'
 import { DEFAULT_COVER } from './insights'
 import { persistGet, persistSet } from './persist'
+import { countOpt, readAll } from './readAll'
 import { ConflictError, CountConflictError, type OrderData, type OrdersApi, type VendorList } from './api'
 import type { Product } from './order'
 import { supabase, type CountLine, type CountRow, type CountSummary, type ItemRow, type OrderLine, type OrderRow, type OrderSummary, type StockRow, type SyncRun, type UncountedItem } from './supabase'
@@ -11,29 +12,6 @@ const db = () => {
   return supabase
 }
 
-const PAGE = 1000 // Supabase returns at most 1,000 rows a request
-
-type Page = { data: unknown; error: { message: string } | null; count?: number | null }
-
-/**
- * Reads every row of a query. The first page also asks for the total, then every remaining page is requested at once, so a
- * 4,400-row list takes about two round trips instead of five in a row. The query must be ordered so pages never overlap.
- */
-export async function readAll<T>(build: (from: number, to: number, count: boolean) => PromiseLike<Page>): Promise<T[]> {
-  const first = await build(0, PAGE - 1, true)
-  if (first.error) throw new Error(first.error.message)
-  const rows = (first.data ?? []) as T[]
-  const total = first.count ?? rows.length
-  if (rows.length < PAGE || total <= PAGE) return rows
-  const starts = Array.from({ length: Math.ceil((total - PAGE) / PAGE) }, (_, i) => PAGE * (i + 1))
-  const rest = await Promise.all(starts.map((from) => build(from, from + PAGE - 1, false)))
-  for (const r of rest) {
-    if (r.error) throw new Error(r.error.message)
-    rows.push(...((r.data ?? []) as T[]))
-  }
-  return rows
-}
-export const countOpt = (count: boolean) => (count ? { count: 'exact' as const } : {})
 
 const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen,promotion'
