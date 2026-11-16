@@ -58,6 +58,8 @@ export interface ClosuresApi {
   /** The closing store's stock for these item numbers, to warn when the sheet holds more than the system says. */
   opsStock(storeId: string, codes: string[]): Promise<Map<string, { inventory: number; cost: number }>>
   list(): Promise<ClosureRow[]>
+  /** The status of every request, to show how far each closure has got. */
+  requestStatuses(): Promise<{ closure_id: string; status: RequestStatus }[]>
   get(id: string): Promise<ClosureDetail>
   create(storeId: string, name: string, file: string): Promise<ClosureRow>
   addLines(id: string, lines: { code: string; qty: number; description: string }[], onProgress?: (done: number) => void): Promise<void>
@@ -79,7 +81,7 @@ export interface ClosuresApi {
 
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: ClosuresApi = {
-  opsStores: async () => notConnected(), knownCodes: async () => notConnected(), opsStock: async () => notConnected(), list: async () => notConnected(), get: async () => notConnected(),
+  opsStores: async () => notConnected(), knownCodes: async () => notConnected(), opsStock: async () => notConnected(), list: async () => notConnected(), requestStatuses: async () => notConnected(), get: async () => notConnected(),
   create: async () => notConnected(), addLines: async () => notConnected(), setStores: async () => notConnected(), need: async () => notConnected(), saveAlloc: async () => notConnected(),
   send: async () => notConnected(), cancelRequest: async () => notConnected(), deleteClosure: async () => notConnected(), reoffer: async () => notConnected(),
   incoming: async () => notConnected(), respond: async () => notConnected(), markCopied: async () => notConnected(), markReceived: async () => notConnected(),

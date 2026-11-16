@@ -1,6 +1,6 @@
 import { supabase } from '../supabase'
 import { readAll, countOpt } from '../readAll'
-import type { AllocRow, ClosureDetail, ClosureLineRow, ClosureRow, ClosuresApi, NeedRow, RequestLineRow, RequestRow } from './api'
+import type { AllocRow, ClosureDetail, ClosureLineRow, ClosureRow, ClosuresApi, NeedRow, RequestLineRow, RequestRow, RequestStatus } from './api'
 
 const db = () => {
   if (!supabase) throw new Error('No Supabase connection')
@@ -48,6 +48,10 @@ export const supabaseClosuresApi: ClosuresApi = {
     const { data, error } = await db().from('closures').select('*').order('created_at', { ascending: false })
     fail(error)
     return (data ?? []) as ClosureRow[]
+  },
+
+  async requestStatuses() {
+    return readAll<{ closure_id: string; status: RequestStatus; id: string }>((from, to, count) => db().from('transfer_requests').select('id,closure_id,status', countOpt(count)).order('id').range(from, to))
   },
 
   async get(id): Promise<ClosureDetail> {

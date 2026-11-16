@@ -51,6 +51,7 @@ export const demoClosuresApi: ClosuresApi = {
   async knownCodes(codes) { const known = new Set(items().map((i) => i.code)); return wait(new Set(codes.filter((c) => known.has(c)))) },
   async opsStock(_store, codes) { return wait(new Map(codes.map((c) => [c, { inventory: 40, cost: 9 }] as const))) },
   async list() { return wait([...closures].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))) },
+  async requestStatuses() { return wait(requests.map((r) => ({ closure_id: r.closure_id, status: r.status }))) },
   async get(id): Promise<ClosureDetail> {
     const closure = closures.find((c) => c.id === id)
     if (!closure) throw new Error('That closure does not exist')

@@ -298,6 +298,27 @@ tr.inactive { opacity: 0.6; }
   table.book.users td[data-label="Login"] { grid-column: span 3; order: 4; }
   table.book.users td[data-label="Stores"] { grid-column: 1 / -1; order: 5; }
   table.book.users td[data-label="Person"]::before { display: none; }
+  table.book.closures td[data-label="Closure"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
+  table.book.closures td.rowactions { grid-column: span 2; order: 2; }
+  table.book.closures td[data-label="Status"], table.book.closures td[data-label="Started"] { grid-column: span 3; order: 3; }
+  table.book.closures td[data-label="Closure"]::before { display: none; }
+  table.book.alloc td[data-label="Item"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
+  table.book.alloc td[data-label="Available"], table.book.alloc td[data-label="Store needs"], table.book.alloc td[data-label="Suggested"] { grid-column: span 2; order: 2; }
+  table.book.alloc td[data-label="Sending"] { grid-column: 1 / -1; order: 3; }
+  table.book.alloc td[data-label="Item"]::before { display: none; }
+  table.book.items td[data-label="Item"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
+  table.book.items td.rowactions { grid-column: span 2; order: 2; }
+  table.book.items td[data-label="Available"], table.book.items td[data-label="Left over"] { grid-column: span 3; order: 3; }
+  table.book.items td[data-label="Going to"] { grid-column: 1 / -1; order: 4; }
+  table.book.items td[data-label="Item"]::before { display: none; }
+  table.book.sentreq td[data-label="Store"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
+  table.book.sentreq td.rowactions { grid-column: span 2; order: 2; }
+  table.book.sentreq td[data-label="Status"], table.book.sentreq td[data-label="Asked"], table.book.sentreq td[data-label="Accepted"] { grid-column: span 2; order: 3; }
+  table.book.sentreq td[data-label="Answer"] { grid-column: 1 / -1; order: 4; }
+  table.book.sentreq td[data-label="Store"]::before { display: none; }
+  table.book.leftover td[data-label="Item"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
+  table.book.leftover td[data-label="On the sheet"], table.book.leftover td[data-label="With stores"], table.book.leftover td[data-label="Left over"] { grid-column: span 2; order: 2; }
+  table.book.leftover td[data-label="Item"]::before { display: none; }
   table td.r { text-align: left; }
   table.items td.x { position: absolute; top: var(--space-xs); right: 0; } table.items td.x::before { display: none; }
   .rowactions { display: flex; gap: var(--space-xs); } .rowactions .btn { flex: 1; } .rowactions .btn + .btn { margin-left: 0; }
@@ -1025,6 +1046,15 @@ table.book.range td .cover { display: flex; width: fit-content; margin-top: var(
 /* Stock take: the items nobody scanned in a full count, and the list of what is still to count */
 .uncounted { list-style: none; margin: var(--space-xs) 0; padding: 0; display: grid; gap: var(--space-3xs); }
 .uncounted li { overflow-wrap: anywhere; }
+
+/* Closures: choosing stores, the By store tables, and the count on the Transfers tab */
+.storepick { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: var(--space-2xs) var(--space-md); margin: var(--space-sm) 0; }
+.storepick label.inline { display: flex; align-items: center; gap: var(--space-xs); min-height: var(--hit); }
+.closure-store { margin-top: var(--space-md); }
+.closure-store h3 { margin: 0 0 var(--space-xs); }
+.closure-store h3 small { font-weight: 400; margin-left: var(--space-xs); }
+table.book.alloc input.qty { width: 72px; min-width: 0; }
+.tabbadge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4em; height: 1.4em; margin-left: var(--space-xs); padding: 0 var(--space-2xs); border-radius: var(--radius-pill); background: var(--color-error); color: var(--color-paper); font-size: var(--text-sm); font-weight: 600; line-height: 1; }
 .stockcount section + section, .stockcount .sheet + section { margin-top: var(--space-lg); }
 .stockcount h2 small { font-weight: 400; }
 

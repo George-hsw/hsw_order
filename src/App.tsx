@@ -168,7 +168,8 @@ function Shell({ session }: { session: Session }) {
     setLastArea(id)
     setJump(null)
     setSalesStart(null)
-    setView(AREAS.find((a) => a.id === id)!.tabs[0].tab)
+    const area = AREAS.find((a) => a.id === id)!
+    setView((visibleTabs(area, works, isOps)[0] ?? area.tabs[0]).tab) // the first tab this person can use (an operations person with no store opens Closures, not Order)
   }
   const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setView('new') }
   const tabBtn = (t: Tab, label: string) => (
