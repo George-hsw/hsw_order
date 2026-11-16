@@ -50,6 +50,7 @@ create table if not exists public.transfer_requests (
   id             uuid primary key default gen_random_uuid(),
   closure_id     uuid not null references public.closures (id) on delete cascade,
   from_store_id  uuid not null references public.stores (id),
+  from_store_name text not null default '',     -- the closing store's name when it was sent: a receiving store cannot read the stores table
   to_store_id    uuid not null references public.stores (id),
   round          integer not null default 1,    -- a re-offer to the same store is a new request with the next round
   status         text not null default 'sent' check (status in ('sent', 'accepted', 'declined', 'received', 'cancelled')),
@@ -298,7 +299,7 @@ begin
   if bad is not null then raise exception 'These items are given out above what the sheet holds: %', bad; end if;
   if not exists (select 1 from public.closure_alloc where closure_id = p_closure and qty > 0) then raise exception 'Nothing has been given to any store yet'; end if;
   for s in select a.store_id, count(*) as lines, sum(a.qty) as units from public.closure_alloc a where a.closure_id = p_closure and a.qty > 0 group by a.store_id loop
-    insert into public.transfer_requests (closure_id, from_store_id, to_store_id, sent_by) values (p_closure, c.closing_store_id, s.store_id, who) returning id into rid;
+    insert into public.transfer_requests (closure_id, from_store_id, from_store_name, to_store_id, sent_by) values (p_closure, c.closing_store_id, (select name from public.stores where id = c.closing_store_id), s.store_id, who) returning id into rid;
     insert into public.transfer_request_lines (request_id, item_code, description, qty_requested, unit_cost)
       select rid, a.item_code, l.description, a.qty, l.unit_cost
         from public.closure_alloc a join public.closure_lines l on l.closure_id = a.closure_id and l.item_code = a.item_code
@@ -370,7 +371,7 @@ begin
   end if;
   for s in select j.store_id, count(*) as lines, sum(j.qty) as units from jsonb_to_recordset(p_rows) as j(store_id uuid, item_code text, qty numeric) group by j.store_id loop
     select coalesce(max(round), 0) + 1 into rnd from public.transfer_requests where closure_id = p_closure and to_store_id = s.store_id;
-    insert into public.transfer_requests (closure_id, from_store_id, to_store_id, round, sent_by) values (p_closure, c.closing_store_id, s.store_id, rnd, who) returning id into rid;
+    insert into public.transfer_requests (closure_id, from_store_id, from_store_name, to_store_id, round, sent_by) values (p_closure, c.closing_store_id, (select name from public.stores where id = c.closing_store_id), s.store_id, rnd, who) returning id into rid;
     insert into public.transfer_request_lines (request_id, item_code, description, qty_requested, unit_cost)
       select rid, j.item_code, l.description, j.qty::integer, l.unit_cost
         from jsonb_to_recordset(p_rows) as j(store_id uuid, item_code text, qty numeric)

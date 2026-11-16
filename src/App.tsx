@@ -15,6 +15,7 @@ import Stores from './Stores'
 import Users from './Users'
 import { useConfirm } from './Confirm'
 import { recordSignInPlace } from './lib/analytics/location'
+import { closuresApi } from './lib/closures/api'
 import Tour from './Tour'
 import { useToast } from './Toast'
 import { api } from './lib/api'
@@ -32,6 +33,8 @@ const Builder = lazy(() => import('./Builder'))
 const Documents = lazy(() => import('./Documents'))
 const Reports = lazy(() => import('./Reports'))
 const Tansel = lazy(() => import('./Tansel')) // carries the Tansel packer table, so it loads only when opened
+const Closures = lazy(() => import('./Closures')) // operations only: carries the sheet reader
+const Transfers = lazy(() => import('./Transfers'))
 
 type View = 'home' | Tab
 
@@ -147,7 +150,8 @@ function Shell({ session }: { session: Session }) {
   const names = Object.fromEntries((people ?? []).map((p) => [p.email.toLowerCase(), p.full_name]))
   const sees = isAdmin || active.length > 0 // quote reports, and who created what: everyone works with their whole store
   const canPay = (storeId: string) => isAdmin || active.some((s) => s.id === storeId) // anyone in the store can take a deposit or payment
-  const noAccess = allStores && people && !isAdmin && !isArea && active.length === 0
+  const isOps = isAdmin || (!!me?.is_operations && me.active) // runs store closures (the database decides the same way)
+  const noAccess = allStores && people && !isAdmin && !isArea && !isOps && active.length === 0
 
   const notices = useNotices({ isAdmin, stores: active, refreshKey: refresh + docRefresh })
   // A notice's button: straight to the screen, and for the Order tab to the vendor and filter.
@@ -168,10 +172,22 @@ function Shell({ session }: { session: Session }) {
   }
   const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setView('new') }
   const tabBtn = (t: Tab, label: string) => (
-    <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}</button>
+    <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}{t === 'transfers' && waiting > 0 && <span className="tabbadge" role="status" aria-label={`${waiting} waiting for your answer`}>{waiting}</span>}</button>
   )
   const area = view === 'home' ? null : areaOf(view)
   const works = isAdmin || active.length > 0
+
+  // Transfers waiting for this person's stores to answer: the number on the Transfers tab, kept current as requests change.
+  const storeKey = active.map((s) => s.id).join(',')
+  const [waiting, setWaiting] = useState(0)
+  useEffect(() => {
+    if (!storeKey) { setWaiting(0); return }
+    let live = true
+    const load = () => { closuresApi.incoming(storeKey.split(',')).then((r) => { if (live) setWaiting(r.requests.filter((x) => x.status === 'sent').length) }).catch(() => undefined) }
+    load()
+    const off = closuresApi.subscribe(load)
+    return () => { live = false; off() }
+  }, [storeKey])
 
   return (
     <>
@@ -183,11 +199,11 @@ function Shell({ session }: { session: Session }) {
           {area && (
             <nav aria-label="Main">
               <button type="button" className="tab" data-tour="home" onClick={goHome}>Home</button>
-              {visibleTabs(area, works).map((t) => tabBtn(t.tab, t.label))}
+              {visibleTabs(area, works, isOps).map((t) => tabBtn(t.tab, t.label))}
             </nav>
           )}
           <div className="who">
-            <span><span className="who-name">{isAdmin ? 'Admin' : isArea && !active.length ? 'Manager' : me?.full_name ?? active[0]?.name ?? ''}</span><small>{email}</small></span>
+            <span><span className="who-name">{isAdmin ? 'Admin' : isArea && !active.length ? 'Manager' : isOps && !active.length ? 'Operations' : me?.full_name ?? active[0]?.name ?? ''}</span><small>{email}</small></span>
             {active.length > 0 && <Notifications shown={notices.shown} count={notices.count} urgent={notices.urgent} loading={notices.loading} partial={notices.partial} onHide={notices.hide} onGo={goTarget} onReload={notices.reload} />}
             {works && <button type="button" className="quiet help" aria-label="Take the tour" title="Take the tour" onClick={() => setTour(true)}>?</button>}
             <button type="button" className="quiet" onClick={() => (DEMO ? toast.info('Demo mode: there is no sign-in.') : supabase!.auth.signOut())}>Sign out</button>
@@ -198,7 +214,7 @@ function Shell({ session }: { session: Session }) {
         <div className={view === 'home' ? undefined : 'screen'} key={view}>
         {!allStores || (!people && view !== 'order' && view !== 'home') ? <Loading />
           : noAccess ? <p className="note bad">This email is not linked to an active store. Ask the admin ({ADMIN_EMAIL}).</p>
-          : view === 'home' ? <Home isAdmin={isAdmin} works={works} last={lastArea} onPick={pickArea} />
+          : view === 'home' ? <Home isAdmin={isAdmin} works={works} isOps={isOps} last={lastArea} onPick={pickArea} />
           : view === 'new' ? <Suspense fallback={<Loading />}><Builder key={builderKey} seed={seed} email={email} isAdmin={multi} stores={active} openDoc={openDoc} canPay={canPay} onSaved={() => setDocRefresh((r) => r + 1)} onNew={() => goTab('new')} /></Suspense>
           : view === 'docs' ? <Suspense fallback={<Loading />}><Documents isAdmin={multi} showBy={sees} canPay={canPay} names={names} refreshKey={docRefresh} onOpen={openDocument} /></Suspense>
           : view === 'reports' && sees ? <Suspense fallback={<Loading />}><Reports isAdmin={multi} stores={active} names={names} /></Suspense>
@@ -207,6 +223,8 @@ function Shell({ session }: { session: Session }) {
           : view === 'count' ? <StockTake multi={multi} stores={active} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} />
           : view === 'counts' ? <StockCounts multi={multi} stores={active} names={names} />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onQuote={quoteFrom} onOrder={(j) => { setJump(j); setView('order') }} onSales={(storeId, code) => { setSalesStart({ storeId, code }); setView('sales') }} />
+          : view === 'closures' && isOps ? <Suspense fallback={<Loading />}><Closures names={names} /></Suspense>
+          : view === 'transfers' && works ? <Suspense fallback={<Loading />}><Transfers stores={active} multi={multi} names={names} /></Suspense>
           : view === 'tansel' ? <Suspense fallback={<Loading />}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>
           : view === 'sales' ? (salesStores === null ? <Loading /> : <Sales key={salesStart ? `${salesStart.storeId}:${salesStart.code}` : 'sales'} start={salesStart} email={email} isAdmin={isAdmin} seesAll={isAdmin || isArea} stores={salesStores} allStores={isAdmin ? allStores : salesStores} onOrder={works ? (j) => { setJump(j); setView('order') } : undefined} />)
           : view === 'analytics' && isAdmin ? <Analytics stores={allStores} people={people ?? []} />
