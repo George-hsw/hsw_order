@@ -3,7 +3,7 @@ import type { OrderNeed } from './suggest'
 import { api } from './api'
 import { findings, type AppEvent } from './analytics/model'
 import { loadEvents } from './analytics/api'
-import { badge, buildNotices, hideUntil, visible, type Notice, type TransferRef } from './notifications'
+import { badge, buildNotices, hideUntil, visible, type Notice, type OpsRequestRef, type TransferRef } from './notifications'
 import { closuresApi, type RequestLineRow, type RequestRow } from './closures/api'
 import { salesApi } from './sales/api'
 import type { StoreRow } from './supabase'
@@ -27,7 +27,7 @@ function waitingTransfers(r: { requests: RequestRow[]; lines: RequestLineRow[] }
   })
 }
 
-export function useNotices({ isAdmin, stores, refreshKey }: { isAdmin: boolean; stores: StoreRow[]; refreshKey: number }) {
+export function useNotices({ isAdmin, isOps = false, stores, refreshKey }: { isAdmin: boolean; isOps?: boolean; stores: StoreRow[]; refreshKey: number }) {
   const [all, setAll] = useState<Notice[]>([])
   const [hidden, setHidden] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -84,7 +84,28 @@ export function useNotices({ isAdmin, stores, refreshKey }: { isAdmin: boolean; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idKey, isAdmin, refreshKey, tick])
 
-  const shown = useMemo(() => visible(all, hidden, new Date()), [all, hidden])
+  // Operations hears of each store's answer and of stock arriving. It loads on its own, and again whenever a request changes.
+  const [opsAll, setOpsAll] = useState<Notice[]>([])
+  const [opsHidden, setOpsHidden] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!isOps) { setOpsAll([]); return }
+    let live = true
+    const load = () => {
+      Promise.all([within(closuresApi.opsRequests()), within(closuresApi.list()), within(closuresApi.opsStores()), within(api.dismissals())]).then(([reqs, closures, stores, dismissed]) => {
+        if (!live) return
+        const closureName = new Map(closures.map((c) => [c.id, c.name]))
+        const storeName = new Map(stores.map((s) => [s.id, s.name]))
+        const refs: OpsRequestRef[] = reqs.map((r) => ({ id: r.id, closure_name: closureName.get(r.closure_id) ?? 'A closure', from_store_name: r.from_store_name, to_store_name: storeName.get(r.to_store_id) ?? '', status: r.status, decline_reason: r.decline_reason, at: r.status === 'received' ? r.received_at : r.responded_at }))
+        setOpsAll(buildNotices({ now: new Date(), isAdmin: false, stores: [], customerOrders: [], lowStock: [], newItems: [], orders: [], overdue: [], syncs: [], opsRequests: refs }))
+        setOpsHidden(dismissed)
+      }).catch(() => undefined) // the bell simply has nothing for operations this time
+    }
+    load()
+    const off = closuresApi.subscribe(load)
+    return () => { live = false; off() }
+  }, [isOps, refreshKey, tick])
+
+  const shown = useMemo(() => visible([...all, ...opsAll], new Map([...hidden, ...opsHidden]), new Date()), [all, opsAll, hidden, opsHidden])
 
   /** Hide these for a while: a day, or a week for information. They come back if the problem is still there. */
   const hide = useCallback((list: Notice[]) => {

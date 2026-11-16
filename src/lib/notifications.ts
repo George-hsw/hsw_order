@@ -17,6 +17,7 @@ export const COPIED_DAYS = 2 // an order copied for NAV this long ago and not ma
 /** How long a notice stays hidden once dismissed. Information comes back after a week; anything that needs action, tomorrow. */
 export const HIDE_HOURS: Record<Level, number> = { bad: 24, warn: 24, info: 24 * 7 }
 export const MAX_FINDINGS = 3
+export const OPS_DAYS = 7 // how long operations hears of a store's answer
 export const LOW_CAP = 4 // vendors listed one by one for low stock; the rest are summed into one line
 export const NEW_CAP = 2
 
@@ -26,6 +27,8 @@ export interface OrderRef { store_id: string; vendor_no: string; status: string;
 export interface OverdueInvoice { store_id: string; doc_number: string; customer_name: string; balance_cents: number; due_date: string }
 /** A transfer request from a closing store that is still waiting for this store's answer. */
 export interface TransferRef { id: string; store_id: string; from_store_name: string; lines: number; units: number }
+/** A request that a store has answered or received, as operations hears of it. */
+export interface OpsRequestRef { id: string; closure_name: string; from_store_name: string; to_store_name: string; status: string; decline_reason: string; at: string | null }
 export interface SyncRef { store_id: string; finished_at: string; ok: boolean; message: string | null }
 
 export interface NoticeInput {
@@ -40,6 +43,7 @@ export interface NoticeInput {
   overdue: OverdueInvoice[]
   syncs: SyncRef[]
   transfers?: TransferRef[] // requests waiting for an answer
+  opsRequests?: OpsRequestRef[] // for operations: every request, so a store's answer is heard of
   staleAfterHours?: number
   // admin extras
   salesWeekEnds?: string[] // week_end (yyyy-mm-dd) of every loaded Sales week
@@ -90,6 +94,19 @@ export function buildNotices(i: NoticeInput): Notice[] {
       title: `Stock from ${t.from_store_name || 'a closing store'}${at(t.store_id)} to answer`,
       detail: `${plural(t.lines, 'item')}, ${plural(t.units, 'unit')} offered. Accept it, lower it or decline it.`,
       go: { view: 'transfers', storeId: t.store_id },
+    })
+  }
+
+  // For operations: a store's answer, and the stock arriving, for a week after it happens.
+  for (const r of i.opsRequests ?? []) {
+    if (!r.at || (r.status !== 'accepted' && r.status !== 'declined' && r.status !== 'received')) continue
+    if (dayCount(new Date(r.at), i.now) >= OPS_DAYS) continue
+    out.push({
+      key: `closure:${r.id}:${r.status}`, level: r.status === 'declined' ? 'warn' : 'info', group: 'Closures',
+      title: `${r.to_store_name || 'A store'} ${r.status} stock from ${r.from_store_name || 'a closing store'}`,
+      detail: r.status === 'declined' ? `${r.closure_name}.${r.decline_reason ? ` They said: ${r.decline_reason}.` : ''} Offer it to another store.`
+        : r.status === 'accepted' ? `${r.closure_name}. They will copy it into NAV and tell you when it arrives.` : `${r.closure_name}. The transfer is done.`,
+      go: { view: 'closures' },
     })
   }
 

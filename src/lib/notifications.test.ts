@@ -12,6 +12,16 @@ describe('buildNotices', () => {
     expect(buildNotices(base({ syncs: [fresh] }))).toEqual([])
   })
 
+  it('tells operations when a store answers or receives, for a week', () => {
+    const ref = (id: string, status: string, daysAgo: number, reason = '') => ({ id, closure_name: 'Parramatta closure', from_store_name: 'Parramatta', to_store_name: 'Artarmon', status, decline_reason: reason, at: new Date(2026, 10, 11 - daysAgo, 9, 0).toISOString() })
+    const n = buildNotices(base({ stores: [], opsRequests: [ref('a', 'accepted', 1), ref('b', 'declined', 2, 'No room'), ref('c', 'received', 0), ref('d', 'accepted', 9), ref('e', 'sent', 0)] }))
+    expect(n.map((x) => x.key)).toEqual(['closure:b:declined', 'closure:a:accepted', 'closure:c:received'])
+    expect(n[1]).toMatchObject({ level: 'info', title: 'Artarmon accepted stock from Parramatta', go: { view: 'closures' } })
+    expect(n[0]).toMatchObject({ level: 'warn' })
+    expect(n[0].detail).toContain('No room')
+    expect(buildNotices(base({ stores: [], opsRequests: [] }))).toEqual([])
+  })
+
   it('a waiting customer is urgent and goes to the vendor that supplies the item', () => {
     const n = buildNotices(base({ customerOrders: [{ id: 'd1', store_id: 's1', doc_number: 'CO-1', customer_name: 'Mia Chen', created_at: '', lines: [{ code: 'A', qty: 2, description: 'Tumbler', vendor: 'ANAS001' }] }] }))
     expect(n).toHaveLength(1)

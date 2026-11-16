@@ -50,6 +50,11 @@ export const supabaseClosuresApi: ClosuresApi = {
     return (data ?? []) as ClosureRow[]
   },
 
+  async opsRequests() {
+    const reqs = await readAll<RequestRow>((from, to, count) => db().from('transfer_requests').select('*', countOpt(count)).order('sent_at', { ascending: false }).order('id').range(from, to))
+    return reqs.map(requestRow)
+  },
+
   async requestStatuses() {
     return readAll<{ closure_id: string; status: RequestStatus; id: string }>((from, to, count) => db().from('transfer_requests').select('id,closure_id,status', countOpt(count)).order('id').range(from, to))
   },

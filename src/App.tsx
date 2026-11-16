@@ -153,7 +153,7 @@ function Shell({ session }: { session: Session }) {
   const isOps = isAdmin || (!!me?.is_operations && me.active) // runs store closures (the database decides the same way)
   const noAccess = allStores && people && !isAdmin && !isArea && !isOps && active.length === 0
 
-  const notices = useNotices({ isAdmin, stores: active, refreshKey: refresh + docRefresh })
+  const notices = useNotices({ isAdmin, isOps, stores: active, refreshKey: refresh + docRefresh })
   // A notice's button: straight to the screen, and for the Order tab to the vendor and filter.
   const goTarget = (t: Target) => {
     if (t.view === 'order' && t.vendor) setJump({ storeId: t.storeId ?? active[0]?.id ?? '', vendor: t.vendor, item: '', show: t.show })
@@ -181,10 +181,11 @@ function Shell({ session }: { session: Session }) {
   // Transfers waiting for this person's stores to answer: the number on the Transfers tab, kept current as requests change.
   const storeKey = active.map((s) => s.id).join(',')
   const [waiting, setWaiting] = useState(0)
+  const [going, setGoing] = useState(0) // transfers still going: waiting for an answer, or accepted and not yet received. The Transfers tab shows only while there is one.
   useEffect(() => {
-    if (!storeKey) { setWaiting(0); return }
+    if (!storeKey) { setWaiting(0); setGoing(0); return }
     let live = true
-    const load = () => { closuresApi.incoming(storeKey.split(',')).then((r) => { if (live) setWaiting(r.requests.filter((x) => x.status === 'sent').length) }).catch(() => undefined) }
+    const load = () => { closuresApi.incoming(storeKey.split(',')).then((r) => { if (live) { setWaiting(r.requests.filter((x) => x.status === 'sent').length); setGoing(r.requests.filter((x) => x.status === 'sent' || x.status === 'accepted').length) } }).catch(() => undefined) }
     load()
     const off = closuresApi.subscribe(load)
     return () => { live = false; off() }
@@ -200,12 +201,12 @@ function Shell({ session }: { session: Session }) {
           {area && (
             <nav aria-label="Main">
               <button type="button" className="tab" data-tour="home" onClick={goHome}>Home</button>
-              {visibleTabs(area, works, isOps).map((t) => tabBtn(t.tab, t.label))}
+              {visibleTabs(area, works, isOps).filter((t) => t.tab !== 'transfers' || going > 0 || view === 'transfers').map((t) => tabBtn(t.tab, t.label))}
             </nav>
           )}
           <div className="who">
             <span><span className="who-name">{isAdmin ? 'Admin' : isArea && !active.length ? 'Manager' : isOps && !active.length ? 'Operations' : me?.full_name ?? active[0]?.name ?? ''}</span><small>{email}</small></span>
-            {active.length > 0 && <Notifications shown={notices.shown} count={notices.count} urgent={notices.urgent} loading={notices.loading} partial={notices.partial} onHide={notices.hide} onGo={goTarget} onReload={notices.reload} />}
+            {(active.length > 0 || isOps) && <Notifications shown={notices.shown} count={notices.count} urgent={notices.urgent} loading={notices.loading} partial={notices.partial} onHide={notices.hide} onGo={goTarget} onReload={notices.reload} />}
             {works && <button type="button" className="quiet help" aria-label="Take the tour" title="Take the tour" onClick={() => setTour(true)}>?</button>}
             <button type="button" className="quiet" onClick={() => (DEMO ? toast.info('Demo mode: there is no sign-in.') : supabase!.auth.signOut())}>Sign out</button>
           </div>
