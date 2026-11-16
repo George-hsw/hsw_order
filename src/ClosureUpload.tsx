@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import ItemPicker from './ItemPicker'
 import { useToast } from './Toast'
 import { closuresApi, type ClosureKind } from './lib/closures/api'
 import { readCsv, decodeUtf8 } from './lib/closures/csv'
 import { demoSheetRows } from './lib/closures/demoClosures'
-import { FIRST_ROW, rowsFromText } from './lib/closures/manual'
+import { addHandLine, FIRST_ROW, rowsFromLines, type HandLine } from './lib/closures/manual'
 import { parseClosure, type ClosureParse } from './lib/closures/parse'
 import { blocked, checkClosure } from './lib/closures/validate'
 import type { Check } from './lib/sales/validate'
@@ -52,7 +53,7 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   const input = useRef<HTMLInputElement>(null)
   const [kind, setKind] = useState<ClosureKind>('closure')
   const [mode, setMode] = useState<'sheet' | 'hand'>('sheet')
-  const [typed, setTyped] = useState('')
+  const [handLines, setHandLines] = useState<HandLine[]>([]) // items chosen by hand, in the order they were added
   const [storeId, setStoreId] = useState('')
   const [name, setName] = useState('')
   const [over, setOver] = useState(false)
@@ -88,17 +89,22 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   const changeStore = (id: string) => {
     setStoreId(id)
     const s = stores.find((x) => x.id === id)
-    if (s && !name.trim()) setName(kind === 'push' ? `Push from ${s.name}` : `${s.name} closure`)
-    if (read) void check(read.file, read.rows, read.notes, id, read.firstRow).catch(() => undefined) // the sheet's quantities are compared with the chosen store's stock
+    if (s && !name.trim()) setName(kind === 'push' ? `Push from ${s.name}` : `${s.name} closing`)
+    if (read && mode === 'sheet') void check(read.file, read.rows, read.notes, id, read.firstRow).catch(() => undefined) // the sheet's quantities are compared with the chosen store's stock
   }
 
   const needsStore = kind === 'closure' && !store // a closure needs its closing store; a push may have no sending store
-  const fallbackName = kind === 'push' ? 'Push to stores' : `${store?.name ?? 'Store'} closure`
+  const fallbackName = kind === 'push' ? 'Push to stores' : `${store?.name ?? 'Store'} closing`
 
-  const checkTyped = async () => {
-    setError(''); setRead(null); setReading(true)
-    try { await check('typed by hand', rowsFromText(typed), [], storeId, FIRST_ROW) } catch (e) { setError(e instanceof Error ? e.message : 'Could not check the list.') } finally { setReading(false) }
-  }
+  // The list chosen by hand is checked as it changes, so what you see is always what would be saved.
+  useEffect(() => {
+    if (mode !== 'hand') return
+    if (!handLines.length) { setRead(null); return }
+    let live = true
+    setError('')
+    check('chosen by hand', rowsFromLines(handLines), [], storeId, FIRST_ROW).catch((e) => { if (live) setError(e instanceof Error ? e.message : 'Could not check the list.') })
+    return () => { live = false }
+  }, [mode, handLines, storeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!read || needsStore || blocked(read.checks)) return
@@ -117,7 +123,7 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   return (
     <div className="viz-stack">
       <section className="sheet viz-card">
-        <div className="viz-head"><div><h2>{kind === 'push' ? 'Start a push' : 'Start a closure'}</h2><p className="muted">{kind === 'push'
+        <div className="viz-head"><div><h2>{kind === 'push' ? 'Start a push' : 'Start a transfer'}</h2><p className="muted">{kind === 'push'
           ? 'Send chosen items to stores. Upload a sheet or type the items. If no store is sending them, the stores are asked to order them. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'
           : 'Choose the store that is closing and upload its stock sheet, or type the items. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'}</p></div></div>
         <div className="segmented" role="group" aria-label="What you are starting">
@@ -132,7 +138,7 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
             </select>
           </label>
           <label>Name <small>shown in the list</small>
-            <input name="closureName" autoComplete="off" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'push' ? 'Spring range push' : 'Parramatta closure'} />
+            <input name="closureName" autoComplete="off" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'push' ? 'Spring range push' : 'Parramatta closing'} />
           </label>
         </div>
         <div className="segmented" role="group" aria-label="How to add the items">
@@ -141,11 +147,23 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
         </div>
         {mode === 'hand' ? (
           <div>
-            <label>Items
-              <textarea name="typedItems" rows={8} autoComplete="off" spellCheck={false} value={typed} onChange={(e) => { setTyped(e.target.value); setRead(null) }} placeholder={'One item per line: the item number, then the quantity\nANA01093 12\nANA01096 5'} />
-            </label>
-            <p className="muted">You can paste lines from Excel. Item numbers keep any zeros at the start.</p>
-            <div className="actions"><button type="button" className="btn" onClick={() => void checkTyped()} disabled={reading || saving !== null || !typed.trim()}>{reading ? 'Checking…' : 'Check the list'}</button></div>
+            <p className="muted">Search for an item, choose it, give a quantity and add it. The list below is what will be saved.</p>
+            <ItemPicker disabled={saving !== null} onAdd={(item, qty) => { setHandLines((l) => addHandLine(l, { code: item.code, description: item.description, qty })) }} />
+            {handLines.length > 0 && (
+              <div className="tablewrap">
+                <table className="book items">
+                  <thead><tr><th>Item</th><th className="r">Quantity</th><th><span className="visually-hidden">Remove</span></th></tr></thead>
+                  <tbody>{handLines.map((l) => (
+                    <tr key={l.code}>
+                      <td data-label="Item"><b className="num">{l.code}</b><small className="sub">{l.description}</small></td>
+                      <td data-label="Quantity" className="r"><input key={l.code + ':' + l.qty} className="qty" inputMode="numeric" autoComplete="off" aria-label={`Quantity of ${l.code}`} defaultValue={l.qty} disabled={saving !== null}
+                        onBlur={(e) => { const q = Math.floor(Number(e.target.value.replace(/[^\d]/g, ''))); if (q >= 1 && q !== l.qty) setHandLines((all) => all.map((x) => (x.code === l.code ? { ...x, qty: q } : x))); else e.target.value = String(l.qty) }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} /></td>
+                      <td className="rowactions"><button type="button" className="btn" disabled={saving !== null} aria-label={`Remove ${l.code}`} onClick={() => setHandLines((all) => all.filter((x) => x.code !== l.code))}>Remove</button></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
           </div>
         ) : (
         <div className={`drop${over ? ' over' : ''}`}
@@ -186,7 +204,7 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
           {needsStore && !stop && <p className="muted">Choose the closing store above to continue.</p>}
         </section>
       )}
-      {!read && <div className="actions"><button type="button" className="btn" onClick={onCancel}>Back to closures</button></div>}
+      {!read && <div className="actions"><button type="button" className="btn" onClick={onCancel}>Back to transfers</button></div>}
     </div>
   )
 }

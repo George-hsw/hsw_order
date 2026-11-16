@@ -36,10 +36,10 @@ export default function ClosureSent({ d, stores, names, onBack, reload }: { d: C
     <>
       <div className="pagehead">
         <div>
-          <h1>{d.closure.name || (d.closure.kind === 'push' ? 'Push to stores' : `${closingStore?.name ?? 'Store'} closure`)}</h1>
+          <h1>{d.closure.name || (d.closure.kind === 'push' ? 'Push to stores' : `${closingStore?.name ?? 'Store'} closing`)}</h1>
           <p className="muted">{closingStore?.name ?? (d.closure.kind === 'push' ? 'No sending store, so stores were asked to order' : 'Closing store')}, sent {whenText(d.closure.sent_at)}{d.closure.created_by ? ` by ${person(d.closure.created_by)}` : ''}. <span className="chip paid">Sent</span></p>
         </div>
-        <div className="actions"><button type="button" className="btn" onClick={onBack}>All closures</button><button type="button" className="btn" onClick={reload}>Refresh</button></div>
+        <div className="actions"><button type="button" className="btn" onClick={onBack}>All transfers</button><button type="button" className="btn" onClick={reload}>Refresh</button></div>
       </div>
 
       <div className="viz-stack">

@@ -102,7 +102,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
     if (!r.at || (r.status !== 'accepted' && r.status !== 'declined' && r.status !== 'received')) continue
     if (dayCount(new Date(r.at), i.now) >= OPS_DAYS) continue
     out.push({
-      key: `closure:${r.id}:${r.status}`, level: r.status === 'declined' ? 'warn' : 'info', group: 'Closures',
+      key: `closure:${r.id}:${r.status}`, level: r.status === 'declined' ? 'warn' : 'info', group: 'Transfers',
       title: r.from_store_name ? `${r.to_store_name || 'A store'} ${r.status} stock from ${r.from_store_name}` : `${r.to_store_name || 'A store'} ${r.status} your request to order items`,
       detail: r.status === 'declined' ? `${r.closure_name}.${r.decline_reason ? ` They said: ${r.decline_reason}.` : ''} Offer it to another store.`
         : r.status === 'accepted' ? `${r.closure_name}. They will copy it into NAV and tell you when it is ${r.from_store_name ? 'received' : 'done'}.` : `${r.closure_name}. It is ${r.from_store_name ? 'received' : 'done'}.`,

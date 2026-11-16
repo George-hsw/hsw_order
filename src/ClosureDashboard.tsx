@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StatTile } from './Charts'
 import { useConfirm } from './Confirm'
+import ItemPicker from './ItemPicker'
 import Loading from './Loading'
 import Modal from './Modal'
 import { useToast } from './Toast'
@@ -21,7 +22,7 @@ const whole = (text: string) => { const n = Math.floor(Number(text.replace(/[^\d
 export default function ClosureDashboard({ id, stores, names, onBack, renderSent }: Props) {
   const detail = useLoad(() => closuresApi.get(id), [id])
   if (detail.loading) return <Loading />
-  if (detail.failed || !detail.data) return <div className="state error" role="alert"><p>The closure did not load</p><div className="actions"><button type="button" className="btn" onClick={detail.retry}>Try again</button><button type="button" className="btn" onClick={onBack}>Back to closures</button></div></div>
+  if (detail.failed || !detail.data) return <div className="state error" role="alert"><p>The transfer did not load</p><div className="actions"><button type="button" className="btn" onClick={detail.retry}>Try again</button><button type="button" className="btn" onClick={onBack}>Back to transfers</button></div></div>
   if (detail.data.closure.status !== 'draft') return <>{renderSent(detail.data, detail.retry)}</>
   return <Planner key={id} d={detail.data} stores={stores} names={names} onBack={onBack} reload={detail.retry} />
 }
@@ -48,8 +49,6 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [sending, setSending] = useState(false)
   const [openItem, setOpenItem] = useState<string | null>(null)
-  const [newCode, setNewCode] = useState('')
-  const [newQty, setNewQty] = useState('')
   const [listBusy, setListBusy] = useState(false)
   const [listChanged, setListChanged] = useState(false) // items changed since the suggestions were worked out
   const [savedStores, setSavedStores] = useState<string[]>(d.participants) // the stores last saved with the suggestions
@@ -147,11 +146,10 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
       return true
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not change the list.'); return false } finally { setListBusy(false) }
   }
-  const addLine = async () => {
-    const code = newCode.trim()
-    const qty = whole(newQty)
-    if (!code || qty < 1) return toast.error('Enter an item number and a quantity of 1 or more.')
-    if (await changeLine(code, (info.get(code)?.qty ?? 0) + qty)) { setNewCode(''); setNewQty(''); toast.success(`Added ${qty} of ${code}.`) }
+  const addLine = async (code: string, qty: number): Promise<boolean> => {
+    const ok = await changeLine(code, (info.get(code)?.qty ?? 0) + qty)
+    if (ok) toast.success(`Added ${qty} of ${code}.`)
+    return ok
   }
 
   const remove = async () => {
@@ -167,11 +165,11 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
     <>
       <div className="pagehead">
         <div>
-          <h1>{d.closure.name || (d.closure.kind === 'push' ? 'Push to stores' : `${closingStore?.name ?? 'Store'} closure`)}</h1>
+          <h1>{d.closure.name || (d.closure.kind === 'push' ? 'Push to stores' : `${closingStore?.name ?? 'Store'} closing`)}</h1>
           <p className="muted">{closingStore?.name ?? (d.closure.kind === 'push' ? 'No sending store, so stores are asked to order' : 'Closing store')}, {sum.items} items, {sum.units.toLocaleString('en-AU')} units. Started {whenText(d.closure.created_at)}{d.closure.created_by ? ` by ${names[d.closure.created_by.toLowerCase()] ?? d.closure.created_by}` : ''}. <span className="chip warn">Draft</span></p>
         </div>
         <div className="actions">
-          <button type="button" className="btn" onClick={onBack}>All closures</button>
+          <button type="button" className="btn" onClick={onBack}>All transfers</button>
           <button type="button" className="btn danger" onClick={() => void remove()}>Delete draft</button>
         </div>
       </div>
@@ -195,11 +193,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
         <section className="sheet viz-card">
           <details className="storedetails" open={lines.length === 0 || undefined}>
             <summary>Items on this list ({lines.length}). Add, change or remove</summary>
-            <form className="addline" onSubmit={(e) => { e.preventDefault(); void addLine() }}>
-              <input name="newItemCode" autoComplete="off" aria-label="Item number to add" placeholder="Item number" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
-              <input name="newItemQty" className="qty" inputMode="numeric" autoComplete="off" aria-label="Quantity to add" placeholder="Qty" value={newQty} onChange={(e) => setNewQty(e.target.value)} />
-              <button type="submit" className="btn" disabled={listBusy}>Add item</button>
-            </form>
+            <ItemPicker disabled={listBusy} onAdd={(item, qty) => addLine(item.code, qty)} />
             {lines.length > 0 && (
               <div className="tablewrap">
                 <table className="book items">

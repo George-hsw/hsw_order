@@ -258,8 +258,8 @@ function Person({ p, stores, members, isOwner, onClose, onChanged }: { p: AppUse
 
   const toggleOps = async () => {
     const next = !p.is_operations
-    if (!next && !(await ask({ title: `Remove operations access from ${p.full_name}?`, body: <p>They will no longer see Closures or be able to send stock to stores. Requests already sent stay.</p>, confirmLabel: 'Remove access' }))) return
-    await run({ action: 'set_operations', user_id: p.user_id, enabled: next }, next ? `${p.full_name} can now run store closures.` : `${p.full_name} no longer has operations access.`)
+    if (!next && !(await ask({ title: `Remove operations access from ${p.full_name}?`, body: <p>They will no longer see Transfers or be able to send stock to stores. Requests already sent stay.</p>, confirmLabel: 'Remove access' }))) return
+    await run({ action: 'set_operations', user_id: p.user_id, enabled: next }, next ? `${p.full_name} can now run store transfers.` : `${p.full_name} no longer has operations access.`)
   }
   const setActive = async (next: boolean) => {
     if (!next && !(await ask({ title: `Turn off ${p.full_name}?`, body: <p>They won’t be able to sign in. What they made stays, and you can turn them back on later.</p>, confirmLabel: 'Turn off' }))) return
@@ -332,7 +332,7 @@ function Person({ p, stores, members, isOwner, onClose, onChanged }: { p: AppUse
 
         <section aria-labelledby="ops-title">
           <h3 id="ops-title">Operations</h3>
-          <p className="muted">{p.is_operations ? 'Can run store closures: upload a closing store’s stock, choose which stores take it, and send them the requests.' : 'Turn this on for the person who runs store closures. It sits on top of their access above, and they can have it with no store of their own.'}</p>
+          <p className="muted">{p.is_operations ? 'Can run store transfers: upload a closing store’s stock, choose which stores take it, and send them the requests.' : 'Turn this on for the person who runs store transfers. It sits on top of their access above, and they can have it with no store of their own.'}</p>
           <div className="actions quick">
             <button type="button" className="btn" disabled={busy} aria-pressed={!!p.is_operations} onClick={() => void toggleOps()}>{p.is_operations ? 'Remove operations access' : 'Give operations access'}</button>
           </div>

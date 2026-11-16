@@ -14,7 +14,7 @@ export const AREAS: Area[] = [
   { id: 'quote', label: 'Quote', blurb: 'Quotes, tax invoices, payments and Tansel pull-outs.',
     tabs: [{ tab: 'new', label: 'New' }, { tab: 'docs', label: 'Documents' }, { tab: 'reports', label: 'Reports', needsStore: true }, { tab: 'tansel', label: 'Tansel' }] },
   { id: 'order', label: 'Order', blurb: 'Order stock, and find past orders.',
-    tabs: [{ tab: 'order', label: 'Order', needsStore: true }, { tab: 'orders', label: 'Orders', needsStore: true }, { tab: 'transfers', label: 'Transfers', needsStore: true }, { tab: 'closures', label: 'Closures', needsOps: true }] },
+    tabs: [{ tab: 'order', label: 'Order', needsStore: true }, { tab: 'orders', label: 'Orders', needsStore: true }, { tab: 'transfers', label: 'Transfers', needsStore: true }, { tab: 'closures', label: 'Transfers', needsOps: true }] },
   { id: 'stocktake', label: 'Stock take', blurb: 'Count the whole store, or one vendor or category, and copy the adjustments for NAV.',
     tabs: [{ tab: 'count', label: 'Count' }, { tab: 'counts', label: 'Counts' }] },
   { id: 'price', label: 'Price check', blurb: 'Scan an item for its price and stock, see how it has sold, print a label.',

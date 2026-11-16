@@ -149,6 +149,7 @@ input.qty { text-align: right; }
 form.addline { display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; margin: var(--space-sm) 0; }
 form.addline input { width: auto; text-align: left; flex: 1 1 160px; min-width: 0; }
 form.addline input.qty { flex: 0 0 96px; text-align: right; }
+form.addline .pickedname { flex: 1 1 200px; margin: 0; min-width: 0; }
 .chk.ok { color: var(--color-success); } .chk.warn { color: var(--color-warn); } .chk.error { color: var(--color-error); font-weight: 600; }
 td.x .btn { min-height: var(--hit); width: var(--hit); padding: 0; border: 0; box-shadow: none; background: none; font-size: var(--text-lg); color: var(--color-muted); }
 td.x .btn:hover { color: var(--color-error); }

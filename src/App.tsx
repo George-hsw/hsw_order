@@ -201,7 +201,7 @@ function Shell({ session }: { session: Session }) {
           {area && (
             <nav aria-label="Main">
               <button type="button" className="tab" data-tour="home" onClick={goHome}>Home</button>
-              {visibleTabs(area, works, isOps).filter((t) => t.tab !== 'transfers' || going > 0 || view === 'transfers').map((t) => tabBtn(t.tab, t.label))}
+              {visibleTabs(area, works, isOps).filter((t) => t.tab !== 'transfers' || going > 0 || view === 'transfers').map((t, _, all) => tabBtn(t.tab, t.tab === 'closures' && all.some((x) => x.tab === 'transfers') ? 'All transfers' : t.label))}
             </nav>
           )}
           <div className="who">

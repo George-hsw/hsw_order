@@ -18,7 +18,7 @@ const lineOf = (closure_id: string, i: { code: string; description: string; pric
 // One closure already sent, so a store user (try ?as=priya) has something waiting and Closures has a history.
 const seedId = 'dc-seed'
 const seedItems = items().slice(0, 4)
-let closures: ClosureRow[] = [{ id: seedId, closing_store_id: DEMO_CLOSING_STORE, name: 'Parramatta closure', kind: 'closure', status: 'sent', source_file: 'parramatta-stock.xlsx', created_by: 'morgan@hsw.com.au', created_at: iso(30), sent_at: iso(28) }]
+let closures: ClosureRow[] = [{ id: seedId, closing_store_id: DEMO_CLOSING_STORE, name: 'Parramatta closing', kind: 'closure', status: 'sent', source_file: 'parramatta-stock.xlsx', created_by: 'morgan@hsw.com.au', created_at: iso(30), sent_at: iso(28) }]
 let lines: ClosureLineRow[] = seedItems.map((i, k) => lineOf(seedId, i, [12, 8, 10, 6][k]))
 let participants = new Map<string, string[]>([[seedId, ['demo-0', 'demo-1', 'demo-2']]])
 let alloc: AllocRow[] = []

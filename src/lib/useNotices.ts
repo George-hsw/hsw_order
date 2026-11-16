@@ -95,7 +95,7 @@ export function useNotices({ isAdmin, isOps = false, stores, refreshKey }: { isA
         if (!live) return
         const closureName = new Map(closures.map((c) => [c.id, c.name]))
         const storeName = new Map(stores.map((s) => [s.id, s.name]))
-        const refs: OpsRequestRef[] = reqs.map((r) => ({ id: r.id, closure_name: closureName.get(r.closure_id) ?? 'A closure', from_store_name: r.from_store_name, to_store_name: storeName.get(r.to_store_id) ?? '', status: r.status, decline_reason: r.decline_reason, at: r.status === 'received' ? r.received_at : r.responded_at }))
+        const refs: OpsRequestRef[] = reqs.map((r) => ({ id: r.id, closure_name: closureName.get(r.closure_id) ?? 'A transfer', from_store_name: r.from_store_name, to_store_name: storeName.get(r.to_store_id) ?? '', status: r.status, decline_reason: r.decline_reason, at: r.status === 'received' ? r.received_at : r.responded_at }))
         setOpsAll(buildNotices({ now: new Date(), isAdmin: false, stores: [], customerOrders: [], lowStock: [], newItems: [], orders: [], overdue: [], syncs: [], opsRequests: refs }))
         setOpsHidden(dismissed)
       }).catch(() => undefined) // the bell simply has nothing for operations this time

@@ -21,7 +21,7 @@ export default function Closures({ names }: { names: Record<string, string> }) {
   if (stores.failed || !stores.data) return <div className="state error" role="alert"><p>The stores did not load</p><div className="actions"><button type="button" className="btn" onClick={stores.retry}>Try again</button></div></div>
   const storeList = stores.data
   const storeName = (id: string | null) => (id ? storeList.find((s) => s.id === id)?.name ?? 'A store' : 'Operations') // a push may have no sending store
-  const titleOf = (c: { name: string; kind: string; closing_store_id: string | null }) => c.name || (c.kind === 'push' ? 'Push to stores' : `${storeName(c.closing_store_id)} closure`)
+  const titleOf = (c: { name: string; kind: string; closing_store_id: string | null }) => c.name || (c.kind === 'push' ? 'Push to stores' : `${storeName(c.closing_store_id)} closing`)
 
   if (screen.kind === 'upload') return <ClosureUpload stores={storeList} onCancel={back} onDone={(id) => setScreen({ kind: 'open', id })} />
   if (screen.kind === 'open') {
@@ -34,20 +34,20 @@ export default function Closures({ names }: { names: Record<string, string> }) {
     <>
       <div className="pagehead">
         <div>
-          <h1>Closures</h1>
+          <h1>Transfers</h1>
           <p className="muted">When a store closes, upload its stock, choose which stores take it, and send each store a request to accept. You can also push chosen items to stores. Stores see theirs under Transfers.</p>
         </div>
-        <div className="actions"><button type="button" className="btn primary" onClick={() => setScreen({ kind: 'upload' })}>New closure or push</button></div>
+        <div className="actions"><button type="button" className="btn primary" onClick={() => setScreen({ kind: 'upload' })}>New transfer</button></div>
       </div>
 
       {list.loading ? <Loading /> : list.failed ? (
-        <div className="state error" role="alert"><p>The closures did not load</p><div className="actions"><button type="button" className="btn" onClick={list.retry}>Try again</button></div></div>
+        <div className="state error" role="alert"><p>The transfers did not load</p><div className="actions"><button type="button" className="btn" onClick={list.retry}>Try again</button></div></div>
       ) : closures.length === 0 ? (
-        <div className="state"><p>No closures yet</p><p className="muted">Start one when a store is closing: you upload its stock sheet, then choose who takes what.</p><div className="actions"><button type="button" className="btn" onClick={() => setScreen({ kind: 'upload' })}>Start a closure</button></div></div>
+        <div className="state"><p>No transfers yet</p><p className="muted">Start one when a store is closing: you upload its stock sheet, then choose who takes what.</p><div className="actions"><button type="button" className="btn" onClick={() => setScreen({ kind: 'upload' })}>Start a transfer</button></div></div>
       ) : (
         <div className="tablewrap">
           <table className="book closures">
-            <thead><tr><th>Closure</th><th>Status</th><th>Started</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
+            <thead><tr><th>Transfer</th><th>Status</th><th>Started</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
             <tbody>{closures.map((c) => {
               const p = closureProgress(statuses.filter((s) => s.closure_id === c.id))
               return (
