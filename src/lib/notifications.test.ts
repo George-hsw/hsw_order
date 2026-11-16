@@ -158,3 +158,23 @@ describe('what needs ordering', () => {
     expect(buildNotices(base({ orderNeeds: [need('ANAS001', 1, 40)], orders: open(710) })).map((x) => x.key)).toEqual(['need:s1:ANAS001']) // 750 reached
   })
 })
+
+describe('stock offered by a closing store', () => {
+  const base = { now: new Date('2026-11-05T01:00:00Z'), isAdmin: false, stores: [{ id: 's1', name: 'Alpha' }], customerOrders: [], lowStock: [], newItems: [], orders: [], overdue: [], syncs: [] }
+  it('raises one notice for each request still waiting for an answer, pointing at Transfers', () => {
+    const n = buildNotices({ ...base, transfers: [{ id: 'r1', store_id: 's1', from_store_name: 'Parramatta', lines: 3, units: 14 }, { id: 'r2', store_id: 's1', from_store_name: 'Penrith', lines: 1, units: 1 }] })
+    const t = n.filter((x) => x.group === 'Transfers')
+    expect(t.map((x) => x.key)).toEqual(['transfer:r1', 'transfer:r2'])
+    expect(t[0]).toMatchObject({ level: 'warn', title: 'Stock from Parramatta to answer', go: { view: 'transfers', storeId: 's1' } })
+    expect(t[0].detail).toBe('3 items, 14 units offered. Accept it, lower it or decline it.')
+    expect(t[1].detail).toBe('1 item, 1 unit offered. Accept it, lower it or decline it.')
+  })
+  it('names the store when the person works in more than one', () => {
+    const n = buildNotices({ ...base, stores: [{ id: 's1', name: 'Alpha' }, { id: 's2', name: 'Beta' }], transfers: [{ id: 'r1', store_id: 's2', from_store_name: 'Parramatta', lines: 2, units: 5 }] })
+    expect(n.find((x) => x.key === 'transfer:r1')?.title).toBe('Stock from Parramatta at Beta to answer')
+  })
+  it('says nothing when there are none', () => {
+    expect(buildNotices({ ...base }).some((x) => x.group === 'Transfers')).toBe(false)
+    expect(buildNotices({ ...base, transfers: [] }).some((x) => x.group === 'Transfers')).toBe(false)
+  })
+})

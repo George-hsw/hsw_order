@@ -302,6 +302,13 @@ tr.inactive { opacity: 0.6; }
   table.book.closures td.rowactions { grid-column: span 2; order: 2; }
   table.book.closures td[data-label="Status"], table.book.closures td[data-label="Started"] { grid-column: span 3; order: 3; }
   table.book.closures td[data-label="Closure"]::before { display: none; }
+  table.book.transfers td[data-label="From"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
+  table.book.transfers td.rowactions { grid-column: span 2; order: 2; }
+  table.book.transfers td[data-label="To"], table.book.transfers td[data-label="Status"], table.book.transfers td[data-label="Offered"], table.book.transfers td[data-label="Sent"] { grid-column: span 3; order: 3; }
+  table.book.transfers td[data-label="From"]::before { display: none; }
+  table.book.tlines td[data-label="Item"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
+  table.book.tlines td[data-label="Offered"], table.book.tlines td[data-label="You take"], table.book.tlines td[data-label="Accepted"] { grid-column: span 3; order: 2; }
+  table.book.tlines td[data-label="Item"]::before { display: none; }
   table.book.alloc td[data-label="Item"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
   table.book.alloc td[data-label="Available"], table.book.alloc td[data-label="Store needs"], table.book.alloc td[data-label="Suggested"] { grid-column: span 2; order: 2; }
   table.book.alloc td[data-label="Sending"] { grid-column: 1 / -1; order: 3; }
@@ -1053,7 +1060,7 @@ table.book.range td .cover { display: flex; width: fit-content; margin-top: var(
 .closure-store { margin-top: var(--space-md); }
 .closure-store h3 { margin: 0 0 var(--space-xs); }
 .closure-store h3 small { font-weight: 400; margin-left: var(--space-xs); }
-table.book.alloc input.qty { width: 72px; min-width: 0; }
+table.book.alloc input.qty, table.book.tlines input.qty { width: 72px; min-width: 0; }
 .tabbadge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4em; height: 1.4em; margin-left: var(--space-xs); padding: 0 var(--space-2xs); border-radius: var(--radius-pill); background: var(--color-error); color: var(--color-paper); font-size: var(--text-sm); font-weight: 600; line-height: 1; }
 .stockcount section + section, .stockcount .sheet + section { margin-top: var(--space-lg); }
 .stockcount h2 small { font-weight: 400; }

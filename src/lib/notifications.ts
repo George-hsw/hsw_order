@@ -24,6 +24,8 @@ export interface StoreRef { id: string; name: string }
 export interface Counted { store_id: string; vendor_no: string; items: number }
 export interface OrderRef { store_id: string; vendor_no: string; status: string; copied_at: string | null; cost?: number }
 export interface OverdueInvoice { store_id: string; doc_number: string; customer_name: string; balance_cents: number; due_date: string }
+/** A transfer request from a closing store that is still waiting for this store's answer. */
+export interface TransferRef { id: string; store_id: string; from_store_name: string; lines: number; units: number }
 export interface SyncRef { store_id: string; finished_at: string; ok: boolean; message: string | null }
 
 export interface NoticeInput {
@@ -37,6 +39,7 @@ export interface NoticeInput {
   orders: OrderRef[]
   overdue: OverdueInvoice[]
   syncs: SyncRef[]
+  transfers?: TransferRef[] // requests waiting for an answer
   staleAfterHours?: number
   // admin extras
   salesWeekEnds?: string[] // week_end (yyyy-mm-dd) of every loaded Sales week
@@ -77,6 +80,16 @@ export function buildNotices(i: NoticeInput): Notice[] {
       title: `${n.customer_name} is waiting on an order${at(n.store_id)}`,
       detail: `${n.doc_number}: ${n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}. Order it, then mark it ordered.`,
       go: first ? { view: 'order', storeId: n.store_id, vendor: first.vendor! } : { view: 'docs' },
+    })
+  }
+
+  // Stock offered by a closing store: waiting for the store to accept, lower or decline it.
+  for (const t of i.transfers ?? []) {
+    out.push({
+      key: `transfer:${t.id}`, level: 'warn', group: 'Transfers',
+      title: `Stock from ${t.from_store_name || 'a closing store'}${at(t.store_id)} to answer`,
+      detail: `${plural(t.lines, 'item')}, ${plural(t.units, 'unit')} offered. Accept it, lower it or decline it.`,
+      go: { view: 'transfers', storeId: t.store_id },
     })
   }
 

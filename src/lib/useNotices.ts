@@ -3,7 +3,8 @@ import type { OrderNeed } from './suggest'
 import { api } from './api'
 import { findings, type AppEvent } from './analytics/model'
 import { loadEvents } from './analytics/api'
-import { badge, buildNotices, hideUntil, visible, type Notice } from './notifications'
+import { badge, buildNotices, hideUntil, visible, type Notice, type TransferRef } from './notifications'
+import { closuresApi, type RequestLineRow, type RequestRow } from './closures/api'
 import { salesApi } from './sales/api'
 import type { StoreRow } from './supabase'
 
@@ -18,6 +19,14 @@ const within = <T,>(p: Promise<T>): Promise<T> => new Promise((ok, no) => { cons
  * Everything the notification bell shows, for the stores a person can use. Each check loads on its own: if one fails (or is slow) the rest still
  * show, and `partial` says so. Dismissals are remembered per person.
  */
+/** The requests still waiting for a store's answer, with how many items and units each holds. */
+function waitingTransfers(r: { requests: RequestRow[]; lines: RequestLineRow[] }): TransferRef[] {
+  return r.requests.filter((x) => x.status === 'sent').map((x) => {
+    const mine = r.lines.filter((l) => l.request_id === x.id)
+    return { id: x.id, store_id: x.to_store_id, from_store_name: x.from_store_name, lines: mine.length, units: mine.reduce((n, l) => n + l.qty_requested, 0) }
+  })
+}
+
 export function useNotices({ isAdmin, stores, refreshKey }: { isAdmin: boolean; stores: StoreRow[]; refreshKey: number }) {
   const [all, setAll] = useState<Notice[]>([])
   const [hidden, setHidden] = useState<Map<string, string>>(new Map())
@@ -51,10 +60,11 @@ export function useNotices({ isAdmin, stores, refreshKey }: { isAdmin: boolean; 
       isAdmin ? within(salesApi.weeks()) : Promise.resolve([]),
       isAdmin ? within(loadEvents(since)) : Promise.resolve({ events: [] as AppEvent[], truncated: false }),
       few ? within(api.orderNeeds(ids)) : Promise.resolve(null),
+      within(closuresApi.incoming(ids)),
     ]).then((r) => {
       if (!live) return
       const val = <T,>(i: number, fallback: T): T => (r[i].status === 'fulfilled' ? (r[i] as PromiseFulfilledResult<T>).value : fallback)
-      const failed = [0, 1, 2, 3, 4, 5, 7, 8, 9].filter((i) => r[i].status === 'rejected').length
+      const failed = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10].filter((i) => r[i].status === 'rejected').length
       const now = new Date()
       const weeks = val<{ week_end: string }[]>(7, [])
       const events = val<{ events: AppEvent[] }>(8, { events: [] }).events
@@ -62,6 +72,7 @@ export function useNotices({ isAdmin, stores, refreshKey }: { isAdmin: boolean; 
         now, isAdmin, stores: stores.map((s) => ({ id: s.id, name: s.name })),
         customerOrders: val(0, []), lowStock: val(1, []), orderNeeds: val<OrderNeed[] | null>(9, null), newItems: val(2, []),
         orders: val(3, []), overdue: val(4, []), syncs: val(5, []),
+        transfers: waitingTransfers(val<{ requests: RequestRow[]; lines: RequestLineRow[] }>(10, { requests: [], lines: [] })),
         salesWeekEnds: isAdmin && r[7].status === 'fulfilled' ? weeks.map((w) => w.week_end) : undefined,
         findings: isAdmin ? findings(events, now) : undefined,
       }))
