@@ -28,6 +28,7 @@ export interface AppUser {
   created_at: string
   is_admin?: boolean // made an admin by the main admin: sees and does everything
   sees_all_sales?: boolean // manager: reads every store's sales and nothing else
+  is_operations?: boolean // operations: runs store closures (moves a closing store's stock to other stores), on top of whatever else they are
 }
 
 /** A store as a manager sees it: name and code only (the stores_basic view), never an address or bank detail. */

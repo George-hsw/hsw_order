@@ -8,6 +8,7 @@
 //   reset_password  { user_id, password? }
 //   set_admin       see below; the main admin only
 //   set_area        see below; any admin
+//   set_operations  see below; any admin
 // With no password in an `add` of a new person, or in reset_password, a strong random one is generated and returned
 // ONCE, to hand over. Supabase Auth hashes and stores it; this function never keeps or logs it.
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -88,6 +89,15 @@ Deno.serve(async (req) => {
 
     //   set_admin { email, full_name?, password?, admin: true }  make someone an admin (a new login is made if they have none)
     //   set_admin { user_id, admin: false }                       an admin goes back to their stores only
+    //   set_operations { user_id, enabled }  give or take away the Operations permission (closing stores). Additive: it sits on top of whatever else
+    //                                        the person is. Existing logins only, so someone is added as a person first. Any admin may do this.
+    if (b.action === 'set_operations') {
+      const { data, error } = await admin.from('app_users').update({ is_operations: b.enabled !== false }).eq('user_id', b.user_id).select('user_id')
+      if (error) throw error
+      if (!data?.length) return json({ error: 'User not found' }, 404)
+      return json({ ok: true })
+    }
+
     //   set_area  { email, full_name?, password?, enabled: true }  make someone a manager: reads every store's sales, nothing else
     //   set_area  { user_id, enabled: false }                       back to their own stores only. Any admin may do this.
     if (b.action === 'set_area') {

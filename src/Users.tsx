@@ -98,10 +98,10 @@ export default function Users({ stores, people, members, isOwner, onChanged }: P
               return (
                 <tr key={p.user_id} className={p.active ? '' : 'inactive'}>
                   <td data-label="Person"><b>{p.full_name}</b><small className="sub">{p.email}</small></td>
-                  <td data-label="Access"><span className={'chip' + (level === 'admin' ? ' quote' : level === 'area' ? ' warn' : '')}>{LEVEL_LABEL[level]}</span></td>
+                  <td data-label="Access"><span className={'chip' + (level === 'admin' ? ' quote' : level === 'area' ? ' warn' : '')}>{LEVEL_LABEL[level]}</span>{p.is_operations && <> <span className="chip">Operations</span></>}</td>
                   <td data-label="Stores">
                     {level !== 'store' && mine.length === 0 ? 'All stores'
-                      : mine.length === 0 ? <span className="chip warn">No store yet</span>
+                      : mine.length === 0 ? (p.is_operations ? <span className="muted">No store of their own</span> : <span className="chip warn">No store yet</span>)
                       : mine.map(({ m, s }) => <div key={s.id}>{s.name} <small>{ROLE_LABEL[m.role]}</small></div>)}
                   </td>
                   <td data-label="Login">{p.active ? <span className="chip paid">Active</span> : <span className="chip warn">Cannot sign in</span>}</td>
@@ -256,6 +256,11 @@ function Person({ p, stores, members, isOwner, onClose, onChanged }: { p: AppUse
     else { toast.success(`${p.full_name} is now a store user.`); onChanged() }
   }
 
+  const toggleOps = async () => {
+    const next = !p.is_operations
+    if (!next && !(await ask({ title: `Remove operations access from ${p.full_name}?`, body: <p>They will no longer see Closures or be able to send stock to stores. Requests already sent stay.</p>, confirmLabel: 'Remove access' }))) return
+    await run({ action: 'set_operations', user_id: p.user_id, enabled: next }, next ? `${p.full_name} can now run store closures.` : `${p.full_name} no longer has operations access.`)
+  }
   const setActive = async (next: boolean) => {
     if (!next && !(await ask({ title: `Turn off ${p.full_name}?`, body: <p>They won’t be able to sign in. What they made stays, and you can turn them back on later.</p>, confirmLabel: 'Turn off' }))) return
     await run({ action: 'update', user_id: p.user_id, active: next }, next ? `${p.full_name} can sign in again.` : `${p.full_name} can no longer sign in.`)
@@ -283,7 +288,7 @@ function Person({ p, stores, members, isOwner, onClose, onChanged }: { p: AppUse
             <h3 id="where-title">Stores</h3>
             {level === 'area' && <p className="muted">A manager reads every store’s sales. A store added here also lets them work in it.</p>}
             {mine.length === 0 ? (
-              <p className="muted">{level === 'store' ? 'Not in any store yet, so they cannot use the app until you add one.' : 'Not in a store of their own.'}</p>
+              <p className="muted">{level === 'store' && !p.is_operations ? 'Not in any store yet, so they cannot use the app until you add one.' : 'Not in a store of their own.'}</p>
             ) : (
               <ul className="people">
                 {mine.map(({ m, s }) => (
@@ -324,6 +329,14 @@ function Person({ p, stores, members, isOwner, onClose, onChanged }: { p: AppUse
             )}
           </section>
         )}
+
+        <section aria-labelledby="ops-title">
+          <h3 id="ops-title">Operations</h3>
+          <p className="muted">{p.is_operations ? 'Can run store closures: upload a closing store’s stock, choose which stores take it, and send them the requests.' : 'Turn this on for the person who runs store closures. It sits on top of their access above, and they can have it with no store of their own.'}</p>
+          <div className="actions quick">
+            <button type="button" className="btn" disabled={busy} aria-pressed={!!p.is_operations} onClick={() => void toggleOps()}>{p.is_operations ? 'Remove operations access' : 'Give operations access'}</button>
+          </div>
+        </section>
 
         <section aria-labelledby="login-title">
           <h3 id="login-title">Login</h3>
