@@ -5,11 +5,14 @@ import { demoClosuresApi } from './demoClosures'
 import { supabaseClosuresApi } from './supabaseClosures'
 
 export type ClosureStatus = 'draft' | 'sent' | 'cancelled'
+/** A closure moves a closing store's stock; a push sends chosen items to stores, from a sending store or from none (the stores are asked to order them). */
+export type ClosureKind = 'closure' | 'push'
 export type RequestStatus = 'sent' | 'accepted' | 'declined' | 'received' | 'cancelled'
 
 export interface ClosureRow {
   id: string
-  closing_store_id: string
+  closing_store_id: string | null // the closing store; for a push, the sending store, or none
+  kind: ClosureKind
   name: string
   status: ClosureStatus
   source_file: string
@@ -22,8 +25,8 @@ export interface AllocRow { closure_id: string; store_id: string; item_code: str
 export interface RequestRow {
   id: string
   closure_id: string
-  from_store_id: string
-  from_store_name: string
+  from_store_id: string | null
+  from_store_name: string // empty when there is no sending store: the store is asked to order the items
   to_store_id: string
   round: number
   status: RequestStatus
@@ -63,7 +66,9 @@ export interface ClosuresApi {
   /** The status of every request, to show how far each closure has got. */
   requestStatuses(): Promise<{ closure_id: string; status: RequestStatus }[]>
   get(id: string): Promise<ClosureDetail>
-  create(storeId: string, name: string, file: string): Promise<ClosureRow>
+  create(storeId: string | null, name: string, file: string, kind?: ClosureKind): Promise<ClosureRow>
+  /** Add, change or remove (quantity 0) one line of a draft by hand. */
+  setLine(id: string, code: string, qty: number, description?: string): Promise<void>
   addLines(id: string, lines: { code: string; qty: number; description: string }[], onProgress?: (done: number) => void): Promise<void>
   setStores(id: string, stores: string[]): Promise<void>
   need(stores: string[], codes: string[], excludeClosure?: string): Promise<NeedRow[]>
@@ -84,7 +89,7 @@ export interface ClosuresApi {
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: ClosuresApi = {
   opsStores: async () => notConnected(), knownCodes: async () => notConnected(), opsStock: async () => notConnected(), list: async () => notConnected(), opsRequests: async () => notConnected(), requestStatuses: async () => notConnected(), get: async () => notConnected(),
-  create: async () => notConnected(), addLines: async () => notConnected(), setStores: async () => notConnected(), need: async () => notConnected(), saveAlloc: async () => notConnected(),
+  create: async () => notConnected(), setLine: async () => notConnected(), addLines: async () => notConnected(), setStores: async () => notConnected(), need: async () => notConnected(), saveAlloc: async () => notConnected(),
   send: async () => notConnected(), cancelRequest: async () => notConnected(), deleteClosure: async () => notConnected(), reoffer: async () => notConnected(),
   incoming: async () => notConnected(), respond: async () => notConnected(), markCopied: async () => notConnected(), markReceived: async () => notConnected(),
   subscribe: () => notConnected(),

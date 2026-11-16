@@ -91,8 +91,8 @@ export function buildNotices(i: NoticeInput): Notice[] {
   for (const t of i.transfers ?? []) {
     out.push({
       key: `transfer:${t.id}`, level: 'warn', group: 'Transfers',
-      title: `Stock from ${t.from_store_name || 'a closing store'}${at(t.store_id)} to answer`,
-      detail: `${plural(t.lines, 'item')}, ${plural(t.units, 'unit')} offered. Accept it, lower it or decline it.`,
+      title: t.from_store_name ? `Stock from ${t.from_store_name}${at(t.store_id)} to answer` : `Operations asks you${at(t.store_id)} to order items`,
+      detail: `${plural(t.lines, 'item')}, ${plural(t.units, 'unit')} ${t.from_store_name ? 'offered' : 'to order'}. Accept it, lower it or decline it.`,
       go: { view: 'transfers', storeId: t.store_id },
     })
   }
@@ -103,9 +103,9 @@ export function buildNotices(i: NoticeInput): Notice[] {
     if (dayCount(new Date(r.at), i.now) >= OPS_DAYS) continue
     out.push({
       key: `closure:${r.id}:${r.status}`, level: r.status === 'declined' ? 'warn' : 'info', group: 'Closures',
-      title: `${r.to_store_name || 'A store'} ${r.status} stock from ${r.from_store_name || 'a closing store'}`,
+      title: r.from_store_name ? `${r.to_store_name || 'A store'} ${r.status} stock from ${r.from_store_name}` : `${r.to_store_name || 'A store'} ${r.status} your request to order items`,
       detail: r.status === 'declined' ? `${r.closure_name}.${r.decline_reason ? ` They said: ${r.decline_reason}.` : ''} Offer it to another store.`
-        : r.status === 'accepted' ? `${r.closure_name}. They will copy it into NAV and tell you when it arrives.` : `${r.closure_name}. The transfer is done.`,
+        : r.status === 'accepted' ? `${r.closure_name}. They will copy it into NAV and tell you when it is ${r.from_store_name ? 'received' : 'done'}.` : `${r.closure_name}. It is ${r.from_store_name ? 'received' : 'done'}.`,
       go: { view: 'closures' },
     })
   }

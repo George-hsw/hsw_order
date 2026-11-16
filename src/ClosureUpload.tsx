@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { useToast } from './Toast'
-import { closuresApi } from './lib/closures/api'
+import { closuresApi, type ClosureKind } from './lib/closures/api'
 import { readCsv, decodeUtf8 } from './lib/closures/csv'
 import { demoSheetRows } from './lib/closures/demoClosures'
+import { FIRST_ROW, rowsFromText } from './lib/closures/manual'
 import { parseClosure, type ClosureParse } from './lib/closures/parse'
 import { blocked, checkClosure } from './lib/closures/validate'
 import type { Check } from './lib/sales/validate'
@@ -12,7 +13,7 @@ import { DEMO } from './lib/supabase'
 export interface OpsStore { id: string; name: string; code: string; active: boolean }
 interface Props { stores: OpsStore[]; onDone: (closureId: string) => void; onCancel: () => void }
 
-interface Read { file: string; rows: Row[]; notes: string[]; parsed: ClosureParse; checks: Check[] }
+interface Read { file: string; rows: Row[]; notes: string[]; parsed: ClosureParse; checks: Check[]; firstRow: number }
 
 /** Excel or CSV bytes to rows. An Excel file uses the first sheet that has a header row we can read, else the first visible one. */
 function rowsOf(file: string, bytes: Uint8Array): { rows: Row[]; notes: string[] } {
@@ -45,10 +46,13 @@ function Checks({ checks }: { checks: Check[] }) {
   )
 }
 
-/** Start a closure: choose the closing store, upload its stock sheet, check it, and save it as a draft to plan from. */
+/** Start a closure or a push: choose the store, upload a sheet or type the items, check them, and save as a draft to plan from. */
 export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   const toast = useToast()
   const input = useRef<HTMLInputElement>(null)
+  const [kind, setKind] = useState<ClosureKind>('closure')
+  const [mode, setMode] = useState<'sheet' | 'hand'>('sheet')
+  const [typed, setTyped] = useState('')
   const [storeId, setStoreId] = useState('')
   const [name, setName] = useState('')
   const [over, setOver] = useState(false)
@@ -58,13 +62,13 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   const [saving, setSaving] = useState<number | null>(null) // lines saved so far while saving
   const store = stores.find((s) => s.id === storeId)
 
-  const check = async (file: string, rows: Row[], notes: string[], forStore: string) => {
-    const parsed = parseClosure(rows)
+  const check = async (file: string, rows: Row[], notes: string[], forStore: string, firstRow = 1) => {
+    const parsed = parseClosure(rows, firstRow)
     const codes = parsed.lines.map((l) => l.code)
     const [known, stock] = await Promise.all([closuresApi.knownCodes(codes), forStore ? closuresApi.opsStock(forStore, codes) : Promise.resolve(new Map<string, { inventory: number; cost: number }>())])
     const checks = checkClosure(parsed, { knownCodes: known, systemQty: new Map([...stock].map(([c, v]) => [c, v.inventory])) })
     notes.forEach((n) => checks.unshift({ label: 'File reads cleanly', ok: false, blocking: false, detail: n }))
-    setRead({ file, rows, notes, parsed, checks })
+    setRead({ file, rows, notes, parsed, checks, firstRow })
   }
 
   const pick = async (file: File | undefined) => {
@@ -84,19 +88,27 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   const changeStore = (id: string) => {
     setStoreId(id)
     const s = stores.find((x) => x.id === id)
-    if (s && !name.trim()) setName(`${s.name} closure`)
-    if (read) void check(read.file, read.rows, read.notes, id).catch(() => undefined) // the sheet's quantities are compared with the chosen store's stock
+    if (s && !name.trim()) setName(kind === 'push' ? `Push from ${s.name}` : `${s.name} closure`)
+    if (read) void check(read.file, read.rows, read.notes, id, read.firstRow).catch(() => undefined) // the sheet's quantities are compared with the chosen store's stock
+  }
+
+  const needsStore = kind === 'closure' && !store // a closure needs its closing store; a push may have no sending store
+  const fallbackName = kind === 'push' ? 'Push to stores' : `${store?.name ?? 'Store'} closure`
+
+  const checkTyped = async () => {
+    setError(''); setRead(null); setReading(true)
+    try { await check('typed by hand', rowsFromText(typed), [], storeId, FIRST_ROW) } catch (e) { setError(e instanceof Error ? e.message : 'Could not check the list.') } finally { setReading(false) }
   }
 
   const save = async () => {
-    if (!read || !store || blocked(read.checks)) return
+    if (!read || needsStore || blocked(read.checks)) return
     setSaving(0)
     try {
-      const c = await closuresApi.create(store.id, name.trim() || `${store.name} closure`, read.file)
+      const c = await closuresApi.create(store?.id ?? null, name.trim() || fallbackName, read.file, kind)
       try { await closuresApi.addLines(c.id, read.parsed.lines, (n) => setSaving(n)) } catch (e) { await closuresApi.deleteClosure(c.id).catch(() => undefined); throw e }
       toast.success(`Saved ${read.parsed.lines.length.toLocaleString('en-AU')} items. Now choose the stores.`)
       onDone(c.id)
-    } catch (e) { setSaving(null); toast.error(e instanceof Error ? e.message : 'Could not save the closure. Try again.') }
+    } catch (e) { setSaving(null); toast.error(e instanceof Error ? e.message : 'Could not save it. Try again.') }
   }
 
   const stop = !!read && blocked(read.checks)
@@ -105,18 +117,37 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   return (
     <div className="viz-stack">
       <section className="sheet viz-card">
-        <div className="viz-head"><div><h2>Start a closure</h2><p className="muted">Choose the store that is closing and upload its stock sheet. The file is read and checked in your browser. Only the item numbers and quantities are saved, never the file.</p></div></div>
+        <div className="viz-head"><div><h2>{kind === 'push' ? 'Start a push' : 'Start a closure'}</h2><p className="muted">{kind === 'push'
+          ? 'Send chosen items to stores. Upload a sheet or type the items. If no store is sending them, the stores are asked to order them. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'
+          : 'Choose the store that is closing and upload its stock sheet, or type the items. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'}</p></div></div>
+        <div className="segmented" role="group" aria-label="What you are starting">
+          <button type="button" aria-pressed={kind === 'closure'} onClick={() => { setKind('closure'); setRead(null) }}>Store closing</button>
+          <button type="button" aria-pressed={kind === 'push'} onClick={() => { setKind('push'); setRead(null) }}>Push items to stores</button>
+        </div>
         <div className="grid">
-          <label>Closing store
+          <label>{kind === 'push' ? 'Sending store' : 'Closing store'}{kind === 'push' && <small> optional</small>}
             <select name="closingStore" value={storeId} onChange={(e) => changeStore(e.target.value)}>
-              <option value="">Choose a store</option>
+              <option value="">{kind === 'push' ? 'No sending store (ask stores to order)' : 'Choose a store'}</option>
               {[...stores].sort((a, b) => Number(a.active) - Number(b.active) || a.name.localeCompare(b.name)).map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? '' : ' (closed)'}</option>)}
             </select>
           </label>
           <label>Name <small>shown in the list</small>
-            <input name="closureName" autoComplete="off" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="Parramatta closure" />
+            <input name="closureName" autoComplete="off" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'push' ? 'Spring range push' : 'Parramatta closure'} />
           </label>
         </div>
+        <div className="segmented" role="group" aria-label="How to add the items">
+          <button type="button" aria-pressed={mode === 'sheet'} onClick={() => { setMode('sheet'); setRead(null) }}>Upload a sheet</button>
+          <button type="button" aria-pressed={mode === 'hand'} onClick={() => { setMode('hand'); setRead(null) }}>Add by hand</button>
+        </div>
+        {mode === 'hand' ? (
+          <div>
+            <label>Items
+              <textarea name="typedItems" rows={8} autoComplete="off" spellCheck={false} value={typed} onChange={(e) => { setTyped(e.target.value); setRead(null) }} placeholder={'One item per line: the item number, then the quantity\nANA01093 12\nANA01096 5'} />
+            </label>
+            <p className="muted">You can paste lines from Excel. Item numbers keep any zeros at the start.</p>
+            <div className="actions"><button type="button" className="btn" onClick={() => void checkTyped()} disabled={reading || saving !== null || !typed.trim()}>{reading ? 'Checking…' : 'Check the list'}</button></div>
+          </div>
+        ) : (
         <div className={`drop${over ? ' over' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
           onDrop={(e) => { e.preventDefault(); setOver(false); void pick(e.dataTransfer.files[0]) }}>
@@ -128,6 +159,7 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
           <input ref={input} type="file" accept=".xlsx,.csv" hidden aria-label="Choose the stock sheet" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = '' }} />
           <p className="muted">An Excel (.xlsx) or CSV file with an item number column and a quantity column.</p>
         </div>
+        )}
         {error && <p className="note bad" role="alert">{error}</p>}
       </section>
 
@@ -149,9 +181,9 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
           {saving !== null && <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={read.parsed.lines.length} aria-valuenow={saving}><span style={{ transform: `scaleX(${read.parsed.lines.length ? saving / read.parsed.lines.length : 0})` }} /></div>}
           <div className="actions">
             <button type="button" className="btn" onClick={onCancel} disabled={saving !== null}>Cancel</button>
-            <button type="button" className="btn primary" onClick={() => void save()} disabled={stop || !store || saving !== null}>{saving !== null ? 'Saving…' : 'Save and choose stores'}</button>
+            <button type="button" className="btn primary" onClick={() => void save()} disabled={stop || needsStore || saving !== null}>{saving !== null ? 'Saving…' : 'Save and choose stores'}</button>
           </div>
-          {!store && !stop && <p className="muted">Choose the closing store above to continue.</p>}
+          {needsStore && !stop && <p className="muted">Choose the closing store above to continue.</p>}
         </section>
       )}
       {!read && <div className="actions"><button type="button" className="btn" onClick={onCancel}>Back to closures</button></div>}

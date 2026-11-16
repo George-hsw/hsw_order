@@ -30,7 +30,8 @@ export function colOfAny(header: Row, aliases: string[]): number {
 
 const isTotals = (code: string) => /^(grand\s+|sub\s*)?totals?\b/i.test(code)
 
-export function parseClosure(rows: Row[]): ClosureParse {
+/** `firstRow` is the sheet row number of rows[0]'s successor minus one: 1 for a sheet (rows[0] is row 1); 0 when rows[0] is a header added to typed lines. */
+export function parseClosure(rows: Row[], firstRow = 1): ClosureParse {
   const out: ClosureParse = { headerRow: -1, lines: [], dataRows: 0, skipped: [], badQty: [], checks: [] }
   let cCode = -1, cQty = -1, cDesc = -1
   for (let i = 0; i < Math.min(rows.length, 30); i++) {
@@ -46,7 +47,7 @@ export function parseClosure(rows: Row[]): ClosureParse {
   for (let i = out.headerRow + 1; i < rows.length; i++) {
     const r = rows[i]
     if (!r || r.every((c) => text(c) === '')) continue
-    const row = i + 1
+    const row = i + firstRow
     const raw = r[cCode]
     const code = text(raw)
     if (!code) { out.skipped.push({ row, code: '', reason: 'no item code' }); continue }

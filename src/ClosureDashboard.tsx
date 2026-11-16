@@ -31,9 +31,10 @@ type View = 'store' | 'item'
 function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; stores: OpsStore[]; names: Record<string, string>; onBack: () => void; reload: () => void }) {
   const toast = useToast()
   const [ask, confirmDialog] = useConfirm()
-  const closing = useMemo(() => d.lines.map((l) => ({ code: l.item_code, qty: l.qty })), [d.lines])
-  const cost = useMemo(() => new Map(d.lines.map((l) => [l.item_code, l.unit_cost])), [d.lines])
-  const info = useMemo(() => new Map(d.lines.map((l) => [l.item_code, l])), [d.lines])
+  const [lines, setLines] = useState(d.lines) // the list, which can be added to, changed or trimmed by hand while this is a draft
+  const closing = useMemo(() => lines.map((l) => ({ code: l.item_code, qty: l.qty })), [lines])
+  const cost = useMemo(() => new Map(lines.map((l) => [l.item_code, l.unit_cost])), [lines])
+  const info = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
   const closingStore = stores.find((s) => s.id === d.closure.closing_store_id)
   const candidates = useMemo(() => stores.filter((s) => s.active && s.id !== d.closure.closing_store_id).sort((a, b) => a.name.localeCompare(b.name)), [stores, d.closure.closing_store_id])
   const storeName = (sid: string) => stores.find((s) => s.id === sid)?.name ?? 'A store'
@@ -47,6 +48,10 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [sending, setSending] = useState(false)
   const [openItem, setOpenItem] = useState<string | null>(null)
+  const [newCode, setNewCode] = useState('')
+  const [newQty, setNewQty] = useState('')
+  const [listBusy, setListBusy] = useState(false)
+  const [listChanged, setListChanged] = useState(false) // items changed since the suggestions were worked out
   const [savedStores, setSavedStores] = useState<string[]>(d.participants) // the stores last saved with the suggestions
   const planned = savedStores.length > 0 // the stores have been chosen and suggestions made at least once
   const dirty = useRef(new Set<string>())
@@ -101,7 +106,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
       const n = await closuresApi.need(stores2, codes, d.closure.id)
       const res = allocate(closing, n.map((x) => ({ store: x.store_id, code: x.item_code, shortfall: x.shortfall })), stores2)
       const old = [...latest.current].flatMap(([s, m]) => [...m.keys()].map((c) => key(s, c)))
-      setNeed(n); setAlloc(res.alloc); setSuggested(copy(res.alloc)); latest.current = res.alloc
+      setNeed(n); setAlloc(res.alloc); setSuggested(copy(res.alloc)); latest.current = res.alloc; setListChanged(false)
       const rows = new Map<string, { store_id: string; item_code: string; qty: number; suggested_qty: number }>()
       for (const k of old) { const [s, c] = k.split('|'); rows.set(k, { store_id: s, item_code: c, qty: 0, suggested_qty: 0 }) }
       for (const [s, m] of res.alloc) for (const [c, q] of m) rows.set(key(s, c), { store_id: s, item_code: c, qty: q, suggested_qty: q })
@@ -131,6 +136,24 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
     try { await closuresApi.send(d.closure.id); toast.success(`Sent to ${toStores.length} ${toStores.length === 1 ? 'store' : 'stores'}.`); reload() } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not send. Try again.') } finally { setSending(false) }
   }
 
+  // Add, change or remove one item by hand. The database refuses a quantity below what is already shared out to stores.
+  const changeLine = async (code: string, qty: number): Promise<boolean> => {
+    setListBusy(true)
+    try {
+      await flush()
+      await closuresApi.setLine(d.closure.id, code, qty)
+      setLines((await closuresApi.get(d.closure.id)).lines)
+      setListChanged(true)
+      return true
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not change the list.'); return false } finally { setListBusy(false) }
+  }
+  const addLine = async () => {
+    const code = newCode.trim()
+    const qty = whole(newQty)
+    if (!code || qty < 1) return toast.error('Enter an item number and a quantity of 1 or more.')
+    if (await changeLine(code, (info.get(code)?.qty ?? 0) + qty)) { setNewCode(''); setNewQty(''); toast.success(`Added ${qty} of ${code}.`) }
+  }
+
   const remove = async () => {
     if (!(await ask({ title: 'Delete this draft?', body: <p>The uploaded list and the quantities are removed. Nothing has been sent to any store.</p>, confirmLabel: 'Delete draft', danger: true }))) return
     try { await closuresApi.deleteClosure(d.closure.id); toast.success('Draft deleted.'); onBack() } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not delete it.') }
@@ -144,8 +167,8 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
     <>
       <div className="pagehead">
         <div>
-          <h1>{d.closure.name || `${closingStore?.name ?? 'Store'} closure`}</h1>
-          <p className="muted">{closingStore?.name ?? 'Closing store'}, {sum.items} items, {sum.units.toLocaleString('en-AU')} units. Started {whenText(d.closure.created_at)}{d.closure.created_by ? ` by ${names[d.closure.created_by.toLowerCase()] ?? d.closure.created_by}` : ''}. <span className="chip warn">Draft</span></p>
+          <h1>{d.closure.name || (d.closure.kind === 'push' ? 'Push to stores' : `${closingStore?.name ?? 'Store'} closure`)}</h1>
+          <p className="muted">{closingStore?.name ?? (d.closure.kind === 'push' ? 'No sending store, so stores are asked to order' : 'Closing store')}, {sum.items} items, {sum.units.toLocaleString('en-AU')} units. Started {whenText(d.closure.created_at)}{d.closure.created_by ? ` by ${names[d.closure.created_by.toLowerCase()] ?? d.closure.created_by}` : ''}. <span className="chip warn">Draft</span></p>
         </div>
         <div className="actions">
           <button type="button" className="btn" onClick={onBack}>All closures</button>
@@ -169,12 +192,39 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
           {stale && <p className="note">The stores have changed since the last suggestions. Work them out again to include the change.</p>}
         </section>
 
+        <section className="sheet viz-card">
+          <details className="storedetails" open={lines.length === 0 || undefined}>
+            <summary>Items on this list ({lines.length}). Add, change or remove</summary>
+            <form className="addline" onSubmit={(e) => { e.preventDefault(); void addLine() }}>
+              <input name="newItemCode" autoComplete="off" aria-label="Item number to add" placeholder="Item number" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
+              <input name="newItemQty" className="qty" inputMode="numeric" autoComplete="off" aria-label="Quantity to add" placeholder="Qty" value={newQty} onChange={(e) => setNewQty(e.target.value)} />
+              <button type="submit" className="btn" disabled={listBusy}>Add item</button>
+            </form>
+            {lines.length > 0 && (
+              <div className="tablewrap">
+                <table className="book items">
+                  <thead><tr><th>Item</th><th className="r">Quantity</th><th><span className="visually-hidden">Remove</span></th></tr></thead>
+                  <tbody>{lines.map((l) => (
+                    <tr key={l.item_code}>
+                      <td data-label="Item"><b className="num">{l.item_code}</b><small className="sub">{l.description}</small></td>
+                      <td data-label="Quantity" className="r"><input key={l.item_code + ':' + l.qty} className="qty" inputMode="numeric" autoComplete="off" aria-label={`Quantity of ${l.item_code}`} defaultValue={l.qty} disabled={listBusy}
+                        onBlur={(e) => { const q = whole(e.target.value); if (q !== l.qty) void changeLine(l.item_code, q).then((ok) => { if (!ok) e.target.value = String(l.qty) }) }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} /></td>
+                      <td className="rowactions"><button type="button" className="btn" disabled={listBusy} aria-label={`Remove ${l.item_code}`} onClick={() => void changeLine(l.item_code, 0)}>Remove</button></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+          </details>
+          {listChanged && planned && <p className="note">The list has changed since the suggestions were worked out. Work them out again to include the change.</p>}
+        </section>
+
         {planned && (
           <>
             <div className="kpis">
               <StatTile label="Units going to stores" value={`${sum.allocated.toLocaleString('en-AU')} of ${sum.units.toLocaleString('en-AU')}`} ly={`${sum.pctAllocated}% of the stock`} />
-              <StatTile label="Value going, at cost" value={money(sum.valueAllocated)} ly={`of ${money(sum.valueTotal)}`} />
-              <StatTile label="Left over" value={sum.left.toLocaleString('en-AU')} ly={`${money(sum.valueLeft)} at cost`} />
+              {sum.valueTotal > 0 && <StatTile label="Value going, at cost" value={money(sum.valueAllocated)} ly={`of ${money(sum.valueTotal)}`} />}
+              <StatTile label="Left over" value={sum.left.toLocaleString('en-AU')} ly={sum.valueTotal > 0 ? `${money(sum.valueLeft)} at cost` : 'units'} />
               <StatTile label="Stores asked" value={String(storeRows.filter((r) => r.units > 0).length)} ly={`of ${picked.size} taking part`} />
             </div>
 

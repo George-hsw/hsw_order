@@ -145,6 +145,10 @@ table.items td.desc { overflow-wrap: anywhere; }
 table.items td.desc small { display: block; }
 table.items input { font-size: var(--text-sm); }
 input.qty { text-align: right; }
+/* The add-an-item row on a draft: the item number takes the room, the quantity stays narrow, the button sits beside them, and it wraps on a phone. */
+form.addline { display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; margin: var(--space-sm) 0; }
+form.addline input { width: auto; text-align: left; flex: 1 1 160px; min-width: 0; }
+form.addline input.qty { flex: 0 0 96px; text-align: right; }
 .chk.ok { color: var(--color-success); } .chk.warn { color: var(--color-warn); } .chk.error { color: var(--color-error); font-weight: 600; }
 td.x .btn { min-height: var(--hit); width: var(--hit); padding: 0; border: 0; box-shadow: none; background: none; font-size: var(--text-lg); color: var(--color-muted); }
 td.x .btn:hover { color: var(--color-error); }

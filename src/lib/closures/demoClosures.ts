@@ -18,10 +18,11 @@ const lineOf = (closure_id: string, i: { code: string; description: string; pric
 // One closure already sent, so a store user (try ?as=priya) has something waiting and Closures has a history.
 const seedId = 'dc-seed'
 const seedItems = items().slice(0, 4)
-let closures: ClosureRow[] = [{ id: seedId, closing_store_id: DEMO_CLOSING_STORE, name: 'Parramatta closure', status: 'sent', source_file: 'parramatta-stock.xlsx', created_by: 'morgan@hsw.com.au', created_at: iso(30), sent_at: iso(28) }]
+let closures: ClosureRow[] = [{ id: seedId, closing_store_id: DEMO_CLOSING_STORE, name: 'Parramatta closure', kind: 'closure', status: 'sent', source_file: 'parramatta-stock.xlsx', created_by: 'morgan@hsw.com.au', created_at: iso(30), sent_at: iso(28) }]
 let lines: ClosureLineRow[] = seedItems.map((i, k) => lineOf(seedId, i, [12, 8, 10, 6][k]))
 let participants = new Map<string, string[]>([[seedId, ['demo-0', 'demo-1', 'demo-2']]])
 let alloc: AllocRow[] = []
+const sourceName = (c: ClosureRow) => stores().find((s) => s.id === c.closing_store_id)?.name ?? '' // '' when a push has no sending store
 const closingName = () => stores().find((s) => s.id === DEMO_CLOSING_STORE)?.name ?? 'Closing store'
 let requests: RequestRow[] = [
   { id: 'dr-1', closure_id: seedId, from_store_id: DEMO_CLOSING_STORE, from_store_name: closingName(), to_store_id: 'demo-0', round: 1, status: 'sent', decline_reason: '', sent_at: iso(28), sent_by: 'morgan@hsw.com.au', responded_at: null, responded_by: null, copied_at: null, received_at: null, received_by: null },
@@ -59,10 +60,24 @@ export const demoClosuresApi: ClosuresApi = {
     const reqs = requests.filter((r) => r.closure_id === id)
     return wait({ closure, lines: lines.filter((l) => l.closure_id === id), participants: participants.get(id) ?? [], alloc: alloc.filter((a) => a.closure_id === id), requests: reqs, requestLines: requestLines.filter((l) => reqs.some((r) => r.id === l.request_id)) })
   },
-  async create(storeId, name, file) {
-    const c: ClosureRow = { id: uid('dc-'), closing_store_id: storeId, name, status: 'draft', source_file: file, created_by: 'morgan@hsw.com.au', created_at: new Date().toISOString(), sent_at: null }
+  async create(storeId, name, file, kind = 'closure') {
+    const c: ClosureRow = { id: uid('dc-'), closing_store_id: storeId, kind, name, status: 'draft', source_file: file, created_by: 'morgan@hsw.com.au', created_at: new Date().toISOString(), sent_at: null }
     closures = [c, ...closures]
     return wait(c)
+  },
+  async setLine(id, code, qty, description = '') {
+    const c = closures.find((x) => x.id === id)
+    if (!c) throw new Error('That closure does not exist')
+    if (c.status !== 'draft') throw new Error('This list has been sent, so it can no longer change')
+    if (!Number.isInteger(qty) || qty < 0) throw new Error('The quantity must be a whole number, zero or more')
+    const given = alloc.filter((a) => a.closure_id === id && a.item_code === code).reduce((n, a) => n + a.qty, 0)
+    if (qty < given) throw new Error(`${given} units of ${code} are already shared out to stores. Lower their quantities first.`)
+    if (qty === 0) { lines = lines.filter((l) => !(l.closure_id === id && l.item_code === code)); await wait(null); return }
+    const item = items().find((i) => i.code === code.trim())
+    if (!item) throw new Error('That item number is not in the item list: ' + code)
+    const have = lines.find((l) => l.closure_id === id && l.item_code === item.code)
+    lines = have ? lines.map((l) => (l === have ? { ...l, qty } : l)) : [...lines, lineOf(id, { code: item.code, description: description || item.description, price: item.price }, qty)]
+    await wait(null)
   },
   async addLines(id, newLines, onProgress) {
     const byCode = new Map(items().map((i) => [i.code, i]))
@@ -103,7 +118,7 @@ export const demoClosuresApi: ClosuresApi = {
     for (const store of new Set(mine.map((a) => a.store_id))) {
       const rid = uid('dr-')
       ids.push(rid)
-      requests = [...requests, { id: rid, closure_id: id, from_store_id: c.closing_store_id, from_store_name: stores().find((s) => s.id === c.closing_store_id)?.name ?? '', to_store_id: store, round: 1, status: 'sent', decline_reason: '', sent_at: new Date().toISOString(), sent_by: 'morgan@hsw.com.au', responded_at: null, responded_by: null, copied_at: null, received_at: null, received_by: null }]
+      requests = [...requests, { id: rid, closure_id: id, from_store_id: c.closing_store_id, from_store_name: sourceName(c), to_store_id: store, round: 1, status: 'sent', decline_reason: '', sent_at: new Date().toISOString(), sent_by: 'morgan@hsw.com.au', responded_at: null, responded_by: null, copied_at: null, received_at: null, received_by: null }]
       for (const a of mine.filter((x) => x.store_id === store)) { const l = lines.find((x) => x.closure_id === id && x.item_code === a.item_code)!; requestLines = [...requestLines, { request_id: rid, item_code: a.item_code, description: l.description, qty_requested: a.qty, qty_accepted: null, unit_cost: l.unit_cost }] }
     }
     closures = closures.map((x) => (x.id === id ? { ...x, status: 'sent', sent_at: new Date().toISOString() } : x))
@@ -134,7 +149,7 @@ export const demoClosuresApi: ClosuresApi = {
     for (const store of new Set(rows.map((r) => r.store_id))) {
       const rid = uid('dr-'); ids.push(rid)
       const round = Math.max(0, ...requests.filter((r) => r.closure_id === id && r.to_store_id === store).map((r) => r.round)) + 1
-      requests = [...requests, { id: rid, closure_id: id, from_store_id: c.closing_store_id, from_store_name: closingName(), to_store_id: store, round, status: 'sent', decline_reason: '', sent_at: new Date().toISOString(), sent_by: 'morgan@hsw.com.au', responded_at: null, responded_by: null, copied_at: null, received_at: null, received_by: null }]
+      requests = [...requests, { id: rid, closure_id: id, from_store_id: c.closing_store_id, from_store_name: sourceName(c), to_store_id: store, round, status: 'sent', decline_reason: '', sent_at: new Date().toISOString(), sent_by: 'morgan@hsw.com.au', responded_at: null, responded_by: null, copied_at: null, received_at: null, received_by: null }]
       for (const r of rows.filter((x) => x.store_id === store)) { const l = lines.find((x) => x.closure_id === id && x.item_code === r.item_code)!; requestLines = [...requestLines, { request_id: rid, item_code: r.item_code, description: l.description, qty_requested: r.qty, qty_accepted: null, unit_cost: l.unit_cost }] }
     }
     emit()

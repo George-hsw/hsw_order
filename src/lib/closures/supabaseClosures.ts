@@ -83,10 +83,14 @@ export const supabaseClosuresApi: ClosuresApi = {
     }
   },
 
-  async create(storeId, name, file) {
-    const { data, error } = await db().rpc('create_closure', { p_store: storeId, p_name: name, p_file: file })
+  async create(storeId, name, file, kind = 'closure') {
+    const { data, error } = await db().rpc('create_closure', { p_store: storeId, p_name: name, p_file: file, p_kind: kind })
     fail(error)
     return data as ClosureRow
+  },
+
+  async setLine(id, code, qty, description = '') {
+    fail((await db().rpc('set_closure_line', { p_closure: id, p_code: code, p_qty: qty, p_description: description })).error)
   },
 
   async addLines(id, lines, onProgress) {

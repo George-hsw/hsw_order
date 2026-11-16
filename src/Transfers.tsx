@@ -43,7 +43,7 @@ export default function Transfers({ stores, multi, names }: Props) {
       <div className="pagehead">
         <div>
           <h1>Transfers</h1>
-          <p className="muted">Stock offered by stores that are closing. Answer each one: accept it, lower the quantities, or decline it. Then copy it into NAV, and mark it received when it arrives.{waiting > 0 ? ` ${waiting} ${waiting === 1 ? 'is' : 'are'} waiting for you.` : ''}</p>
+          <p className="muted">Stock offered by stores that are closing, and items operations asks you to order. Answer each one: accept it, lower the quantities, or decline it. Then copy it into NAV, and mark it received when it arrives.{waiting > 0 ? ` ${waiting} ${waiting === 1 ? 'is' : 'are'} waiting for you.` : ''}</p>
         </div>
         {multi && (
           <div className="actions">
@@ -60,14 +60,14 @@ export default function Transfers({ stores, multi, names }: Props) {
       {data.loading && !data.data ? <Loading /> : data.failed && !data.data ? (
         <div className="state error" role="alert"><p>Your transfers did not load</p><p className="muted">Check your connection and try again.</p><div className="actions"><button type="button" className="btn" onClick={data.retry}>Try again</button></div></div>
       ) : shown.length === 0 ? (
-        <div className="state"><p>No transfers waiting</p><p className="muted">When a store closes, operations may offer you some of its stock. It shows here, and in the bell, as soon as it is sent.</p></div>
+        <div className="state"><p>No transfers waiting</p><p className="muted">When a store closes, operations may offer you some of its stock, or ask you to order some items. It shows here, and in the bell, as soon as it is sent.</p></div>
       ) : (
         <div className="tablewrap">
           <table className="book transfers">
             <thead><tr><th>From</th>{multi && <th>To</th>}<th>Status</th><th className="r">Offered</th><th>Sent</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
             <tbody>{shown.map((r) => (
               <tr key={r.id} className={awaitingAnswer(r) ? 'ordering' : undefined}>
-                <td data-label="From"><b>{r.from_store_name || 'A closing store'}</b>{r.round > 1 && <small className="sub">Offered again</small>}</td>
+                <td data-label="From"><b>{r.from_store_name || 'Operations'}</b>{r.round > 1 && <small className="sub">Offered again</small>}</td>
                 {multi && <td data-label="To">{storeName(r.to_store_id)}</td>}
                 <td data-label="Status"><span className={REQUEST_CHIP[r.status]}>{awaitingAnswer(r) ? 'Needs your answer' : REQUEST_LABEL[r.status]}</span></td>
                 <td data-label="Offered" className="r">{units(r.id)} {units(r.id) === 1 ? 'unit' : 'units'}<small className="sub">{money(value(r.id))} at cost</small></td>
@@ -111,15 +111,16 @@ function RequestModal({ req, lines, storeName, multi, names, onClose, onChanged 
     if (!(await ask({ title: 'Decline this request?', body: <p>Operations is told, and the stock is offered to other stores. You cannot change your answer afterwards.</p>, confirmLabel: 'Decline it', danger: true }))) return
     await run(() => closuresApi.respond(req.id, false, null, reason.trim()), 'Declined. Operations has been told.')
   }
+  const ordering = !req.from_store_name // no sending store: operations asks this store to order the items
   const copyForNav = async () => {
     const text = transferNavText(lines)
     if (!(await copyText(text))) return toast.error('Could not copy. Select the lines and copy them by hand.')
     await closuresApi.markCopied(req.id).catch(() => undefined)
-    toast.success(`Copied ${lines.filter((l) => (l.qty_accepted ?? 0) > 0).length} lines. Paste them into a NAV transfer order. The transfer’s from and to are entered by hand.`)
+    toast.success(`Copied ${lines.filter((l) => (l.qty_accepted ?? 0) > 0).length} lines. ${ordering ? 'Paste them into a NAV purchase order.' : 'Paste them into a NAV transfer order. The transfer’s from and to are entered by hand.'}`)
     onChanged()
   }
   const received = async () => {
-    if (!(await ask({ title: 'Mark it received?', body: <p>Do this once the stock has arrived and the transfer is done in NAV. It ends the request.</p>, confirmLabel: 'Mark received' }))) return
+    if (!(await ask({ title: ordering ? 'Mark it done?' : 'Mark it received?', body: <p>{ordering ? 'Do this once the items are ordered in NAV. It ends the request.' : 'Do this once the stock has arrived and the transfer is done in NAV. It ends the request.'}</p>, confirmLabel: ordering ? 'Mark done' : 'Mark received' }))) return
     await run(() => closuresApi.markReceived(req.id), 'Marked received.')
   }
 
@@ -127,7 +128,7 @@ function RequestModal({ req, lines, storeName, multi, names, onClose, onChanged 
     <Modal labelledBy="transfer-title" onClose={() => { if (!busy) onClose() }}>
       <div className="modalbox wide panel">
         <button type="button" className="modal-x" aria-label="Close" onClick={onClose} disabled={busy}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg></button>
-        <h2 id="transfer-title">Stock from {req.from_store_name || 'a closing store'}</h2>
+        <h2 id="transfer-title">{ordering ? 'Operations asks you to order these' : `Stock from ${req.from_store_name}`}</h2>
         <p className="muted">{multi ? `For ${storeName}. ` : ''}Sent {dateText(req.sent_at)}{req.sent_by ? ` by ${person(req.sent_by)}` : ''}. <span className={REQUEST_CHIP[req.status]}>{REQUEST_LABEL[req.status]}</span></p>
 
         <div className="tablewrap">
@@ -169,10 +170,10 @@ function RequestModal({ req, lines, storeName, multi, names, onClose, onChanged 
           </>)}
           {req.status === 'accepted' && (<>
             <button type="button" className="btn" onClick={() => void copyForNav()} disabled={busy}>{req.copied_at ? 'Copy for NAV again' : 'Copy for NAV'}</button>
-            <button type="button" className="btn primary" onClick={() => void received()} disabled={busy}>Mark received</button>
+            <button type="button" className="btn primary" onClick={() => void received()} disabled={busy}>{ordering ? 'Mark done' : 'Mark received'}</button>
           </>)}
         </div>
-        {req.status === 'accepted' && <p className="muted">Copy for NAV gives the item numbers and quantities. In NAV, make the transfer order from {req.from_store_name || 'the closing store'} to {storeName}, then paste the lines.{req.copied_at ? ` Copied ${dateText(req.copied_at)}.` : ''}</p>}
+        {req.status === 'accepted' && <p className="muted">Copy for NAV gives the item numbers and quantities. {ordering ? 'In NAV, order these items for ' + storeName + ', then paste the lines.' : `In NAV, make the transfer order from ${req.from_store_name} to ${storeName}, then paste the lines.`}{req.copied_at ? ` Copied ${dateText(req.copied_at)}.` : ''}</p>}
       </div>
       {confirmDialog}
     </Modal>

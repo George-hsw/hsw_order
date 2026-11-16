@@ -20,7 +20,8 @@ export default function Closures({ names }: { names: Record<string, string> }) {
   if (stores.loading) return <Loading />
   if (stores.failed || !stores.data) return <div className="state error" role="alert"><p>The stores did not load</p><div className="actions"><button type="button" className="btn" onClick={stores.retry}>Try again</button></div></div>
   const storeList = stores.data
-  const storeName = (id: string) => storeList.find((s) => s.id === id)?.name ?? 'A store'
+  const storeName = (id: string | null) => (id ? storeList.find((s) => s.id === id)?.name ?? 'A store' : 'Operations') // a push may have no sending store
+  const titleOf = (c: { name: string; kind: string; closing_store_id: string | null }) => c.name || (c.kind === 'push' ? 'Push to stores' : `${storeName(c.closing_store_id)} closure`)
 
   if (screen.kind === 'upload') return <ClosureUpload stores={storeList} onCancel={back} onDone={(id) => setScreen({ kind: 'open', id })} />
   if (screen.kind === 'open') {
@@ -34,9 +35,9 @@ export default function Closures({ names }: { names: Record<string, string> }) {
       <div className="pagehead">
         <div>
           <h1>Closures</h1>
-          <p className="muted">When a store closes, upload its stock, choose which stores take it, and send each store a request to accept. Stores see theirs under Transfers.</p>
+          <p className="muted">When a store closes, upload its stock, choose which stores take it, and send each store a request to accept. You can also push chosen items to stores. Stores see theirs under Transfers.</p>
         </div>
-        <div className="actions"><button type="button" className="btn primary" onClick={() => setScreen({ kind: 'upload' })}>New closure</button></div>
+        <div className="actions"><button type="button" className="btn primary" onClick={() => setScreen({ kind: 'upload' })}>New closure or push</button></div>
       </div>
 
       {list.loading ? <Loading /> : list.failed ? (
@@ -51,14 +52,14 @@ export default function Closures({ names }: { names: Record<string, string> }) {
               const p = closureProgress(statuses.filter((s) => s.closure_id === c.id))
               return (
                 <tr key={c.id}>
-                  <td data-label="Closure"><b>{c.name || `${storeName(c.closing_store_id)} closure`}</b><small className="sub">{storeName(c.closing_store_id)}</small></td>
+                  <td data-label="Closure"><b>{titleOf(c)}</b>{c.kind === 'push' && <> <span className="chip">Push</span></>}<small className="sub">{storeName(c.closing_store_id)}</small></td>
                   <td data-label="Status">
                     {c.status === 'draft' ? <span className="chip warn">Draft</span>
                       : c.status === 'cancelled' ? <span className="chip">Cancelled</span>
                       : <><span className="chip paid">Sent</span><small className="sub">{p.total - p.waiting - p.cancelled} of {p.total - p.cancelled} answered{p.received ? `, ${p.received} received` : ''}</small></>}
                   </td>
                   <td data-label="Started">{when(c.created_at)}<small className="sub">{names[c.created_by.toLowerCase()] ?? c.created_by}</small></td>
-                  <td className="rowactions"><button type="button" className="btn" aria-label={`Open ${c.name || storeName(c.closing_store_id)}`} onClick={() => setScreen({ kind: 'open', id: c.id })}>Open</button></td>
+                  <td className="rowactions"><button type="button" className="btn" aria-label={`Open ${titleOf(c)}`} onClick={() => setScreen({ kind: 'open', id: c.id })}>Open</button></td>
                 </tr>
               )
             })}</tbody>

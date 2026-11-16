@@ -183,6 +183,15 @@ describe('stock offered by a closing store', () => {
     const n = buildNotices({ ...base, stores: [{ id: 's1', name: 'Alpha' }, { id: 's2', name: 'Beta' }], transfers: [{ id: 'r1', store_id: 's2', from_store_name: 'Parramatta', lines: 2, units: 5 }] })
     expect(n.find((x) => x.key === 'transfer:r1')?.title).toBe('Stock from Parramatta at Beta to answer')
   })
+  it('asks a store to order items when there is no sending store', () => {
+    const n = buildNotices({ ...base, transfers: [{ id: 'r1', store_id: 's1', from_store_name: '', lines: 2, units: 9 }] })
+    const t = n.filter((x) => x.group === 'Transfers')
+    expect(t[0]).toMatchObject({ title: 'Operations asks you to order items', go: { view: 'transfers', storeId: 's1' } })
+    expect(t[0].detail).toContain('9 units to order')
+    const ops = buildNotices({ ...base, stores: [], opsRequests: [{ id: 'q', closure_name: 'Spring push', from_store_name: '', to_store_name: 'Artarmon', status: 'accepted', decline_reason: '', at: new Date(2026, 10, 11, 9).toISOString() }] })
+    expect(ops[0].title).toBe('Artarmon accepted your request to order items')
+  })
+
   it('says nothing when there are none', () => {
     expect(buildNotices({ ...base }).some((x) => x.group === 'Transfers')).toBe(false)
     expect(buildNotices({ ...base, transfers: [] }).some((x) => x.group === 'Transfers')).toBe(false)
