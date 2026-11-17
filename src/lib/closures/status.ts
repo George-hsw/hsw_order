@@ -1,6 +1,7 @@
 // What a request is up to, in words and counts, and what is left of a closing store's stock. Pure functions; the database enforces the same rules
 // (reoffer_lines in migration 032), so these only show people what it will allow.
 import type { ClosureLineRow, RequestLineRow, RequestRow, RequestStatus } from './api'
+import { JOURNAL_HEADER, NAV_UOM, ausDate, clean, fmtQty } from '../stocktake'
 
 export const REQUEST_LABEL: Record<RequestStatus, string> = {
   sent: 'Waiting for the store', accepted: 'Accepted', declined: 'Declined', received: 'Received', cancelled: 'Taken back',
@@ -56,4 +57,28 @@ export function transferNavText(lines: Pick<RequestLineRow, 'item_code' | 'qty_a
     .sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
     .map((l) => `${l.code}\t${l.qty}`)
     .join('\n')
+}
+
+/**
+ * The stock adjustment a store pastes into NAV for stock it receives: tab-separated item journal lines in the same columns as a stock take
+ * adjustment (date, barcode left for NAV, item number, description, EA, quantity, reason code). The quantity is positive, since the stock is
+ * added. The reason code is left blank, for the store to fill in.
+ */
+export function transferJournalText(lines: Pick<RequestLineRow, 'item_code' | 'description' | 'qty_accepted' | 'qty_requested'>[], date = new Date(), withHeader = false): string {
+  const when = ausDate(date)
+  const rows = lines
+    .map((l) => ({ l, qty: l.qty_accepted ?? l.qty_requested }))
+    .filter((x) => x.qty > 0)
+    .sort((a, b) => (a.l.item_code < b.l.item_code ? -1 : a.l.item_code > b.l.item_code ? 1 : 0))
+    .map(({ l, qty }) => [when, '', l.item_code, clean(l.description), NAV_UOM, fmtQty(qty), ''].join('\t'))
+  return [...(withHeader ? [JOURNAL_HEADER.join('\t')] : []), ...rows].join('\n')
+}
+
+/** What a store sees for a request: it copies the adjustment into NAV, then marks it done. */
+export function storeStatus(r: Pick<RequestRow, 'status' | 'copied_at'>): { label: string; chip: string } {
+  if (r.status === 'sent') return { label: 'To copy into NAV', chip: 'chip warn' }
+  if (r.status === 'accepted') return r.copied_at ? { label: 'Copied, to mark done', chip: 'chip quote' } : { label: 'To copy into NAV', chip: 'chip warn' }
+  if (r.status === 'received') return { label: 'Done', chip: 'chip paid' }
+  if (r.status === 'declined') return { label: 'Declined', chip: 'chip bad' }
+  return { label: 'Taken back', chip: 'chip' }
 }

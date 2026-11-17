@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { awaitingAnswer, canTakeBack, closureProgress, heldBy, leftOverAfter, transferNavText } from './status'
+import { awaitingAnswer, canTakeBack, closureProgress, heldBy, leftOverAfter, transferNavText, storeStatus, transferJournalText } from './status'
 
 const req = (id: string, status: 'sent' | 'accepted' | 'declined' | 'received' | 'cancelled') => ({ id, status })
 const line = (request_id: string, item_code: string, qty_requested: number, qty_accepted: number | null = null) => ({ request_id, item_code, qty_requested, qty_accepted })
@@ -51,5 +51,26 @@ describe('Copy for NAV (transfer)', () => {
   it('uses the quantity asked for when nothing has been accepted yet, and keeps leading zeros', () => {
     expect(transferNavText([line('a', '00123', 7)])).toBe('00123\t7')
     expect(transferNavText([])).toBe('')
+  })
+})
+
+describe('the stock adjustment a store pastes into NAV', () => {
+  const date = new Date(2026, 10, 17)
+  const ln = (code: string, qty_requested: number, qty_accepted: number | null = null, description = 'Box') => ({ item_code: code, description, qty_requested, qty_accepted })
+  it('uses the stock take journal columns, with a positive quantity and no reason code', () => {
+    expect(transferJournalText([ln('B2', 5, 3), ln('A1', 4)], date)).toBe('17/11/2026\t\tA1\tBox\tEA\t4\t\n17/11/2026\t\tB2\tBox\tEA\t3\t')
+  })
+  it('leaves out zeros, keeps leading zeros, and can add the header', () => {
+    expect(transferJournalText([ln('00123', 2), ln('C3', 6, 0)], date)).toBe('17/11/2026\t\t00123\tBox\tEA\t2\t')
+    expect(transferJournalText([ln('A1', 1)], date, true).split('\n')[0]).toBe('Posting Date\tBarcode\tItem No.\tDescription\tUnit of Measure\tQuantity\tReason Code')
+    expect(transferJournalText([], date)).toBe('')
+  })
+})
+
+describe('what a store sees for a request', () => {
+  it('to copy, then copied, then done', () => {
+    expect(storeStatus({ status: 'sent', copied_at: null }).label).toBe('To copy into NAV')
+    expect(storeStatus({ status: 'accepted', copied_at: '2026-11-17' }).label).toBe('Copied, to mark done')
+    expect(storeStatus({ status: 'received', copied_at: '2026-11-17' }).label).toBe('Done')
   })
 })

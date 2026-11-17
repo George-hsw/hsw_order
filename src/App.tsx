@@ -173,7 +173,7 @@ function Shell({ session }: { session: Session }) {
   }
   const openDocument = (d: DocRow) => { setOpenDoc(d); setBuilderKey((k) => k + 1); setView('new') }
   const tabBtn = (t: Tab, label: string) => (
-    <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}{t === 'transfers' && waiting > 0 && <span className="tabbadge" role="status" aria-label={`${waiting} waiting for your answer`}>{waiting}</span>}</button>
+    <button key={t} type="button" className="tab" data-tour={t} aria-current={view === t ? 'page' : undefined} onClick={() => goTab(t)}>{label}{t === 'transfers' && waiting > 0 && <span className="tabbadge" role="status" aria-label={`${waiting} to copy into NAV`}>{waiting}</span>}</button>
   )
   const area = view === 'home' ? null : areaOf(view)
   const works = isAdmin || active.length > 0
@@ -181,11 +181,10 @@ function Shell({ session }: { session: Session }) {
   // Transfers waiting for this person's stores to answer: the number on the Transfers tab, kept current as requests change.
   const storeKey = active.map((s) => s.id).join(',')
   const [waiting, setWaiting] = useState(0)
-  const [going, setGoing] = useState(0) // transfers still going: waiting for an answer, or accepted and not yet received. The Transfers tab shows only while there is one.
   useEffect(() => {
-    if (!storeKey) { setWaiting(0); setGoing(0); return }
+    if (!storeKey) { setWaiting(0); return }
     let live = true
-    const load = () => { closuresApi.incoming(storeKey.split(',')).then((r) => { if (live) { setWaiting(r.requests.filter((x) => x.status === 'sent').length); setGoing(r.requests.filter((x) => x.status === 'sent' || x.status === 'accepted').length) } }).catch(() => undefined) }
+    const load = () => { closuresApi.incoming(storeKey.split(',')).then((r) => { if (live) { setWaiting(r.requests.filter((x) => x.status === 'sent').length) } }).catch(() => undefined) }
     load()
     const off = closuresApi.subscribe(load)
     return () => { live = false; off() }
@@ -201,7 +200,7 @@ function Shell({ session }: { session: Session }) {
           {area && (
             <nav aria-label="Main">
               <button type="button" className="tab" data-tour="home" onClick={goHome}>Home</button>
-              {visibleTabs(area, works, isOps).filter((t) => t.tab !== 'transfers' || going > 0 || view === 'transfers').map((t, _, all) => tabBtn(t.tab, t.tab === 'closures' && all.some((x) => x.tab === 'transfers') ? 'All transfers' : t.label))}
+              {visibleTabs(area, works, isOps).map((t, _, all) => tabBtn(t.tab, t.tab === 'closures' && all.some((x) => x.tab === 'transfers') ? 'All transfers' : t.label))}
             </nav>
           )}
           <div className="who">

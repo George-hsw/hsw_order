@@ -91,8 +91,8 @@ export function buildNotices(i: NoticeInput): Notice[] {
   for (const t of i.transfers ?? []) {
     out.push({
       key: `transfer:${t.id}`, level: 'warn', group: 'Transfers',
-      title: t.from_store_name ? `Stock from ${t.from_store_name}${at(t.store_id)} to answer` : `Operations asks you${at(t.store_id)} to order items`,
-      detail: `${plural(t.lines, 'item')}, ${plural(t.units, 'unit')} ${t.from_store_name ? 'offered' : 'to order'}. Accept it, lower it or decline it.`,
+      title: t.from_store_name ? `Stock transfer from ${t.from_store_name}${at(t.store_id)} to copy` : `Management asks you${at(t.store_id)} to order items`,
+      detail: `${plural(t.lines, 'item')}, ${plural(t.units, 'unit')} ${t.from_store_name ? 'to receive' : 'to order'}. Copy it into NAV, then mark it done.`,
       go: { view: 'transfers', storeId: t.store_id },
     })
   }

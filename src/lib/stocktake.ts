@@ -76,11 +76,11 @@ export function byImpact(lines: CountLine[]): CountLine[] {
   return [...lines].sort((a, b) => adjustValue(b) - adjustValue(a) || Math.abs(variance(b)) - Math.abs(variance(a)) || a.item_code.localeCompare(b.item_code))
 }
 
-const JOURNAL_HEADER = ['Posting Date', 'Barcode', 'Item No.', 'Description', 'Unit of Measure', 'Quantity', 'Reason Code']
-const NAV_UOM = 'EA'
+export const JOURNAL_HEADER = ['Posting Date', 'Barcode', 'Item No.', 'Description', 'Unit of Measure', 'Quantity', 'Reason Code']
+export const NAV_UOM = 'EA'
 const NAV_REASON = '40' // the reason code for a stock take adjustment
-const clean = (s: string) => [...s].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('') // no tabs or line breaks inside a cell
-const ausDate = (d: Date) => d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+export const clean = (s: string) => [...s].map((c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('') // no tabs or line breaks inside a cell
+export const ausDate = (d: Date) => d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 /**
  * Tab-separated item journal lines for one side, in the journal's column order: today's date, (barcode left for NAV), item number, description,
