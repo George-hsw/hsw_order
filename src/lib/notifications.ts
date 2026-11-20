@@ -82,7 +82,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
     out.push({
       key: `co:${n.id}`, level: 'bad', group: 'Customers',
       title: `${n.customer_name} is waiting on an order${at(n.store_id)}`,
-      detail: `${n.doc_number}: ${n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}. Order it, then mark it ordered.`,
+      detail: `${n.doc_number}: ${n.lines.map((l) => `${l.qty} × ${l.code ? l.code + " " : ""}${l.description}`).join(', ')}. Order it, then mark it ordered.`,
       go: first ? { view: 'order', storeId: n.store_id, vendor: first.vendor! } : { view: 'docs' },
     })
   }

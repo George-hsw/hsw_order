@@ -101,6 +101,14 @@ export const demoApi: OrdersApi = {
     return wait(undefined)
   },
 
+  async receiveOrder(orderId, recv, note) {
+    const at = new Date().toISOString()
+    const o = orders.find((x) => x.id === orderId)
+    if (o) { o.received_at = at; o.received_by = 'demo'; o.receive_note = note || null }
+    lines.set(orderId, (lines.get(orderId) ?? []).map((l) => ({ ...l, qty_received: recv.find((r) => r.id === l.id)?.qty_received ?? l.qty })))
+    return wait(undefined)
+  },
+
   async listOrders(storeIds) {
     const out: OrderSummary[] = orders.filter((o) => storeIds.includes(o.store_id)).map((o) => ({ ...o, ...totals(lines.get(o.id) ?? []) }))
     return wait(out.sort((a, b) => b.created_at.localeCompare(a.created_at)))

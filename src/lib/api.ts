@@ -45,6 +45,8 @@ export interface OrdersApi {
   setStatus(orderId: string, status: OrderStatus, navRef?: string): Promise<OrderRow>
   /** Deletes an order that has not been ordered in NAV (open or copied). Its lines go with it. */
   deleteOrder(orderId: string): Promise<void>
+  /** A store marks an ordered order as received. lines: the quantity that actually arrived per order line (left out = all of it). */
+  receiveOrder(orderId: string, lines: { id: string; qty_received: number }[], note: string): Promise<void>
   listOrders(storeIds: string[]): Promise<OrderSummary[]>
   orderLines(orderId: string): Promise<OrderLine[]>
   /** Latest sync result per store (admin). */
@@ -102,7 +104,7 @@ export interface OrdersApi {
 const notConnected = (): never => { throw new Error('The back end is not connected yet.') }
 const offline: OrdersApi = {
   vendors: async () => notConnected(), range: async () => notConnected(), findOrder: async () => notConnected(), openOrder: async () => notConnected(), drafts: async () => notConnected(), saveLine: async () => notConnected(),
-  subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(),
+  subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(), receiveOrder: async () => notConnected(),
   orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(), blockedItems: async () => notConnected(), setBlocked: async () => notConnected(),
   listCounts: async () => notConnected(), openCount: async () => notConnected(), countLines: async () => notConnected(), saveCountLine: async () => notConnected(), subscribeCount: () => notConnected(),
   setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),

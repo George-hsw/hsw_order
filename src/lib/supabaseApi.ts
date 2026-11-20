@@ -15,7 +15,12 @@ const db = () => {
 
 const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen,promotion'
-const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
+/** Actual stock: inventory less what has been sold but not yet posted in NAV. */
+export const actualStock = (s: StockRow): StockRow => {
+  const n = Number(s.qty_sold_not_posted ?? 0)
+  return n ? { ...s, inventory: Number(s.inventory) - n, qty_sold_not_posted: n } : s
+}
+const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,qty_sold_not_posted,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
 // A vendor's range changes only when the nightly sync runs. So it is kept in memory for a few minutes, and on the device for as long as the store's last
 // sync is the one it was read after: opening a vendor again, or reopening the app, then needs no round trip for it at all.
@@ -60,7 +65,7 @@ export const supabaseApi: OrdersApi = {
     const rows = await readAll<Row>((from, to, count) =>
       db().from('store_stock').select(STOCK_COLUMNS + ',items!inner(' + ITEM_COLUMNS + ')', countOpt(count))
         .eq('store_id', storeId).eq('vendor_no', vendor).order('item_code').range(from, to))
-    const products = rows.map(({ items, ...stock }) => ({ item: items, stock }))
+    const products = rows.map(({ items, ...stock }) => ({ item: items, stock: actualStock(stock) }))
     rangeCache.set(key, { at: Date.now(), sync, products })
     if (sync) void persistSet('range|' + key, sync, products)
     return products
@@ -119,6 +124,11 @@ export const supabaseApi: OrdersApi = {
 
   async deleteOrder(orderId) {
     const { error } = await db().rpc('delete_order', { p_order: orderId })
+    if (error) throw new Error(error.message)
+  },
+
+  async receiveOrder(orderId, lines, note) {
+    const { error } = await db().rpc('receive_order', { p_order: orderId, p_lines: lines, p_note: note })
     if (error) throw new Error(error.message)
   },
 
@@ -361,6 +371,6 @@ export const supabaseApi: OrdersApi = {
     const rows = await readAll<Row>((from, to, count) =>
       db().from('store_stock').select(STOCK_COLUMNS + ',items!inner(' + ITEM_COLUMNS + ')', countOpt(count))
         .eq('store_id', storeId).eq('items.category', category).order('item_code').range(from, to))
-    return rows.map(({ items, ...stock }) => ({ item: items, stock }))
+    return rows.map(({ items, ...stock }) => ({ item: items, stock: actualStock(stock) }))
   },
 }

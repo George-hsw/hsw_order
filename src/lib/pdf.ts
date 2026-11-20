@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { Logo } from './logo'
-import { dateAU, isPlaceholder, money, type Computed, type QuoteInput, type Settings } from './quote'
+import { dateAU, hasMeasurement, isPlaceholder, measurementText, money, type Computed, type QuoteInput, type Settings } from './quote'
 
 // Plain, document-style layout modelled on the hsw.com.au order invoice: big logo, grey title,
 // company block, Billing / Shipping details, a small facts grid, ruled item list, right-aligned totals.
@@ -150,6 +150,8 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
     })
     y += 3
   }
+  const measured = q.measurePrint ? (q.measurements ?? []).filter(hasMeasurement) : []
+  if (measured.length) block('Measurements', measured.map((m) => measurementText(m, q.measureUnit)))
   if (q.notes.trim()) block('Notes', [q.notes.trim()])
   if (isOrder) block('Your order', [
     'We will contact you when your order arrives. Please bring this order number when you collect it.',

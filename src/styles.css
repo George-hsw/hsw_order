@@ -288,6 +288,12 @@ tr.inactive { opacity: 0.6; }
   table.book.reports td[data-label="Quotes"], table.book.reports td[data-label="Invoices"] { grid-column: span 3; order: 2; }
   table.book.reports td[data-label="Invoiced"], table.book.reports td[data-label="Quote deposits"], table.book.reports td[data-label="Received"], table.book.reports td[data-label="Still due"] { grid-column: span 3; order: 3; }
   table.book.reports td[data-label="Person"]::before { display: none; }
+  table.book.labels td[data-label="Description"] { grid-column: 1 / -1; order: 1; font-weight: 600; }
+  table.book.labels td[data-label="Description"]::before { display: none; }
+  table.book.labels td[data-label="Item"], table.book.labels td[data-label="Was"], table.book.labels td[data-label="Price"] { grid-column: span 3; order: 2; }
+  table.book.labels td[data-label="Discount %"], table.book.labels td[data-label="Now"], table.book.labels td[data-label="Labels"] { grid-column: span 2; order: 3; }
+  table.book.labels tr:not(:has(td[data-label="Discount %"])) td[data-label="Labels"] { grid-column: 1 / -1; }
+  table.book.labels td.rowactions { grid-column: 1 / -1; order: 4; }
 
   /* Stores: name and Open, then code, people and ABN, then the managers */
   table.book.stores td[data-label="Store"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
@@ -309,7 +315,7 @@ tr.inactive { opacity: 0.6; }
   table.book.closures td[data-label="Closure"]::before { display: none; }
   table.book.transfers td[data-label="From"] { grid-column: span 4; order: 1; font-size: var(--text-md); }
   table.book.transfers td.rowactions { grid-column: span 2; order: 2; }
-  table.book.transfers td[data-label="To"], table.book.transfers td[data-label="Status"], table.book.transfers td[data-label="Offered"], table.book.transfers td[data-label="Sent"] { grid-column: span 3; order: 3; }
+  table.book.transfers td[data-label="To"], table.book.transfers td[data-label="Status"], table.book.transfers td[data-label="Offered"], table.book.transfers td[data-label="Quantity"], table.book.transfers td[data-label="Sent"] { grid-column: span 3; order: 3; }
   table.book.transfers td[data-label="From"]::before { display: none; }
   table.book.tlines td[data-label="Item"] { grid-column: 1 / -1; order: 1; font-size: var(--text-md); }
   table.book.tlines td[data-label="Offered"], table.book.tlines td[data-label="You take"], table.book.tlines td[data-label="Accepted"] { grid-column: span 3; order: 2; }
@@ -1091,3 +1097,14 @@ progress.countbar::-moz-progress-bar { background: var(--color-link); }
 .modalbox h2:focus { outline: none; }
 @media (max-width: 44rem) { .modal-x { width: var(--hit); height: var(--hit); } }
 @media (min-width: 64rem) { .pricehits.tocount { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); column-gap: var(--space-lg); } }
+
+/* Label sheet: one cell per space on the A4 sheet. Filled spaces are the labels waiting, dashed ones are already used. */
+.sheetmap { display: grid; gap: var(--space-3xs); max-width: 16rem; margin-top: var(--space-xs); }
+.sheetmap i { display: block; height: var(--space-md); border-radius: var(--radius-pill); border: var(--rule-hair) solid var(--color-field); background: var(--color-paper-2); }
+.sheetmap i.on { background: var(--color-accent); border-color: var(--color-accent-edge); }
+.sheetmap i.used { background: var(--color-paper-3); border-style: dashed; }
+
+/* Measurements on a quote: width, height and depth sit on one row, and each measurement is set apart by a hairline. */
+.measure { padding-bottom: var(--space-md); border-bottom: var(--rule-hair) solid var(--color-rule); margin-bottom: var(--space-md); }
+.measure > label, .measure > .dims, .measure > .actions { grid-column: 1 / -1; }
+.measure .dims { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-sm); }

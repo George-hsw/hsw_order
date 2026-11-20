@@ -11,8 +11,8 @@ import { useToast } from './Toast'
 import { findByScan, indexBarcodes, indexItems, loadPriceList, searchItems, type PriceList } from './lib/items'
 import { buildPdf } from './lib/pdf'
 import {
-  MAX_LINES, compute, dateAU, emptyLine, emptyQuote, firstNameOf, money, parseDate,
-  type Item, type Line, type QuoteInput, type Settings, type Store,
+  MAX_LINES, compute, dateAU, emptyLine, emptyMeasurement, emptyQuote, firstNameOf, money, parseDate,
+  type Item, type Line, type Measurement, type QuoteInput, type Settings, type Store,
 } from './lib/quote'
 import { loadLogo, type Logo } from './lib/logo'
 import { DEMO, isoDate, supabase, type DocRow, type PaymentRow, type StoreRow } from './lib/supabase'
@@ -60,6 +60,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   // quote into an invoice unfreezes the form (the deposit moves across to the new invoice when it is saved).
   const [payments, setPayments] = useState<PaymentRow[]>(openDoc?.payments ?? [])
   const [paying, setPaying] = useState(false)
+  const numberRef = useRef('') // the number the system assigned on first save
   const convertFrom = useRef<string | null>(null) // the quote being turned into this invoice
   const locked = payments.length > 0 && quote.docType === savedType
   const [priceList, setPriceList] = useState<PriceList | null>(null)
@@ -106,6 +107,11 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     () => compute(quoteEff, itemIndex, stores, settings, priceList?.items.length ?? 0),
     [quoteEff, itemIndex, stores, settings, priceList],
   )
+  /** The quote with its assigned number (a new one gets its number when first saved). */
+  const finalCompute = (placeholder = '') => {
+    const q = quoteEff.number.trim() ? quoteEff : { ...quoteEff, number: numberRef.current || placeholder }
+    return { q, c: compute(q, itemIndex, stores, settings, priceList?.items.length ?? 0) }
+  }
   const matches = useMemo(() => searchItems(priceList?.items ?? [], find), [priceList, find])
   const isInvoice = quote.docType === 'Tax Invoice'
   const isOrder = quote.docType === 'Customer Order'
@@ -163,6 +169,10 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     if (it) addFromSearch(it)
     else if (matches.length === 1) addFromSearch(matches[0])
   }
+  const setMeasure = (i: number, patch: Partial<Measurement>) =>
+    setQuote((q) => ({ ...q, measurements: q.measurements.map((m, n) => (n === i ? { ...m, ...patch } : m)) }))
+  const addMeasure = () => setQuote((q) => ({ ...q, measurements: [...q.measurements, emptyMeasurement()] }))
+  const removeMeasure = (i: number) => setQuote((q) => ({ ...q, measurements: q.measurements.filter((_, n) => n !== i) }))
   const clearLine = (i: number) => setLine(i, emptyLine())
   const visible = (() => {
     const used = quote.lines.map((l) => !!(l.code.trim() || l.ownDescription.trim() || l.qty || l.ownPrice))
@@ -173,23 +183,31 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   /** Saves to Supabase. Returns the document id, or null (and shows why). */
   const save = async (): Promise<boolean> => {
     if (locked) return true
-    if (DEMO) { toast.success('Demo mode: not saved.'); return true }
+    if (DEMO) { if (!quote.number.trim() && !numberRef.current) numberRef.current = '1001'; toast.success('Demo mode: not saved.'); return true }
     if (!supabase || !selRow) { toast.error('Pick a store first.'); return false }
-    if (!c.docNumber || !quote.customer.name.trim()) {
-      toast.error('Enter the number and customer name before saving.'); return false
+    if (!quote.customer.name.trim()) {
+      toast.error('Enter the customer name before saving.'); return false
     }
+    // A new document gets the store's next number now, so abandoned drafts never use one up.
+    if (!docId && !quote.number.trim() && !numberRef.current) {
+      const { data: n, error: nErr } = await supabase.rpc('next_doc_number', { p_store: selRow.id })
+      if (nErr || n == null) { toast.error(nErr?.message ?? 'Could not get the next number.'); return false }
+      numberRef.current = String(n)
+    }
+    const { q: fq, c: fc } = finalCompute()
+    if (fq.number !== quote.number) setQuote((x) => ({ ...x, number: fq.number }))
     const row = {
-      store_id: selRow.id, doc_type: quote.docType, doc_number: c.docNumber,
+      store_id: selRow.id, doc_type: quote.docType, doc_number: fc.docNumber,
       customer_name: quote.customer.name.trim(), customer_email: quote.customer.email.trim() || null,
-      total_cents: c.totalCents, due_date: isInvoice ? isoDate(c.secondDate) : null,
-      payload: quote, created_by: email,
+      total_cents: fc.totalCents, due_date: isInvoice ? isoDate(fc.secondDate) : null,
+      payload: { ...quote, number: fq.number }, created_by: email,
     }
-    const q = docId
+    const dq = docId
       ? supabase.from('documents').update(row).eq('id', docId).select('id').single()
       : supabase.from('documents').insert({ ...row, ...(isOrder ? { fulfilment: 'to_order' } : {}), ...(convertFrom.current ? { from_quote: convertFrom.current } : {}) } as typeof row).select('id').single()
-    const { data, error } = await q
+    const { data, error } = await dq
     if (error) {
-      toast.error(error.code === '23505' ? `${c.docNumber} already exists for this store, so use a different number.` : error.message)
+      toast.error(error.code === '23505' ? `${fc.docNumber} already exists for this store. Try saving again.` : error.message)
       return false
     }
     docIdRef.current = data.id
@@ -197,7 +215,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     setDocId(data.id); setSavedType(quote.docType)
     try { localStorage.removeItem(draftKey); localStorage.removeItem(`${draftKey}:at`) } catch { /* ignore */ }
     void clearRemoteDraft()
-    toast.success(`Saved ${c.docNumber}.`)
+    toast.success(`Saved ${fc.docNumber}.`)
     onSaved()
     return true
   }
@@ -226,12 +244,13 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     const ok = await save()
     setBusy(false)
     if (ok) {
-      buildPdf(quoteEff, c, settings, logo).save(`${c.fileName || 'quote'}.pdf`)
-      setDownloadedStamp(JSON.stringify(quoteEff))
+      const f = finalCompute()
+      buildPdf(f.q, f.c, settings, logo).save(`${f.c.fileName || 'quote'}.pdf`)
+      setDownloadedStamp(JSON.stringify(f.q))
       setEmailOpen(true)
     }
   }
-  const preview = () => c.ready ? window.open(URL.createObjectURL(buildPdf(quoteEff, c, settings, logo).output('blob')), '_blank') : showProblems()
+  const preview = () => { if (!c.ready) return showProblems(); const f = finalCompute('DRAFT'); window.open(URL.createObjectURL(buildPdf(f.q, f.c, settings, logo).output('blob')), '_blank') }
   /** Saves, builds the PDF and sends it through the send-document function. */
   const sendEmail = async (to: 'customer' | 'store', toEmail: string, message: string): Promise<boolean> => {
     if (!c.ready) { showProblems(); return false }
@@ -241,7 +260,8 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
       return true
     }
     if (!supabase || !docIdRef.current) return false
-    const pdf = buildPdf(quoteEff, c, settings, logo).output('datauristring').split(',')[1]
+    const f = finalCompute()
+    const pdf = buildPdf(f.q, f.c, settings, logo).output('datauristring').split(',')[1]
     const { data, error } = await supabase.functions.invoke('send-document', {
       body: { document_id: docIdRef.current, to, to_email: toEmail, message, pdf_base64: pdf },
     })
@@ -281,7 +301,8 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   const prepareEmail = async (): Promise<{ fileName: string; blob: Blob } | null> => {
     if (!c.ready) { showProblems(); return null }
     if (!(await save())) return null
-    return { fileName: `${c.fileName || 'quote'}.pdf`, blob: buildPdf(quoteEff, c, settings, logo).output('blob') }
+    const f = finalCompute()
+    return { fileName: `${f.c.fileName || 'quote'}.pdf`, blob: buildPdf(f.q, f.c, settings, logo).output('blob') }
   }
   const openEmail = () => (c.ready ? setEmailOpen(true) : showProblems())
   const newQuote = async () => {
@@ -326,10 +347,9 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                     {storeRows.map((s) => <option key={s.id}>{s.name}</option>)}
                   </select>
                 </label>
-                <label>Number <small>digits only, e.g. 1001</small>
-                  <input name="number" inputMode="numeric" value={quote.number} onChange={(e) => set('number', e.target.value)} />
+                <label>Document no. <small>numbered by the system</small>
+                  <input readOnly value={c.docNumber || 'Assigned when saved'} />
                 </label>
-                <label>Document no. <small>made from the number</small><input readOnly value={c.docNumber} /></label>
                 <label>Date
                   <input name="date" type="date" value={quote.date} onChange={(e) => set('date', e.target.value)} />
                 </label>
@@ -433,6 +453,43 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                 <p className="muted">Deposits and payments are recorded from the Documents list once the invoice is saved. The franchise owner is emailed each time.</p>
               </section>
             )}
+
+            <section className="block">
+              <h2>Measurements <small>taken for the customer, saved with this {isInvoice ? 'invoice' : isOrder ? 'order' : 'quote'}</small></h2>
+              {quote.measurements.map((m, i) => (
+                <div className="grid measure" key={i}>
+                  <label>Where or what
+                    <input name={`m-where-${i}`} autoComplete="off" value={m.where} onChange={(e) => setMeasure(i, { where: e.target.value })} />
+                  </label>
+                  <div className="dims">
+                  <label>Width ({quote.measureUnit})
+                    <input name={`m-width-${i}`} inputMode="decimal" autoComplete="off" value={m.width} onChange={(e) => setMeasure(i, { width: e.target.value })} />
+                  </label>
+                  <label>Height ({quote.measureUnit})
+                    <input name={`m-height-${i}`} inputMode="decimal" autoComplete="off" value={m.height} onChange={(e) => setMeasure(i, { height: e.target.value })} />
+                  </label>
+                  <label>Depth ({quote.measureUnit})
+                    <input name={`m-depth-${i}`} inputMode="decimal" autoComplete="off" value={m.depth} onChange={(e) => setMeasure(i, { depth: e.target.value })} />
+                  </label>
+                  </div>
+                  <label>Note
+                    <input name={`m-note-${i}`} autoComplete="off" value={m.note} onChange={(e) => setMeasure(i, { note: e.target.value })} />
+                  </label>
+                  <div className="actions"><button type="button" className="btn" onClick={() => removeMeasure(i)}>Remove</button></div>
+                </div>
+              ))}
+              <div className="actions">
+                <button type="button" className="btn" onClick={addMeasure}>Add a measurement</button>
+                <label className="inline">Unit
+                  <select name="measureUnit" value={quote.measureUnit} onChange={(e) => set('measureUnit', e.target.value as QuoteInput['measureUnit'])}>
+                    <option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option>
+                  </select>
+                </label>
+                {quote.measurements.length > 0 && (
+                  <label className="inline"><input type="checkbox" name="measurePrint" checked={quote.measurePrint} onChange={(e) => set('measurePrint', e.target.checked)} /> Print on the customer’s copy</label>
+                )}
+              </div>
+            </section>
 
             <section className="block">
               <h2>Notes for the customer <small>printed: measurements, colours, lead times</small></h2>

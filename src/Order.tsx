@@ -30,7 +30,7 @@ const PAGE = 100 // rows shown at a time: a vendor can have hundreds of items
 type CatLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; vendors: VendorOption[]; syncedAt?: string }
 type OrderLoad = { phase: 'loading' } | { phase: 'error' } | { phase: 'ready'; order: OrderRow | null } // null: nothing saved yet, so no order exists
 interface Sheet { product: Product; base: number; focusQty: boolean; conflict?: OrderLine | null }
-type Show = 'all' | 'ordered' | 'not' | 'low' | 'new' | 'promo'
+type Show = 'all' | 'ordered' | 'not' | 'low' | 'new' | 'promo' | 'unposted'
 
 // The last vendor list and needs-ordering list for each person and store: opening Order again shows them at once, then refreshes them.
 const vendorMemo = new Map<string, { vendors: VendorOption[]; syncedAt?: string; drafts: OrderSummary[] }>()
@@ -210,6 +210,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const lowCount = useMemo(() => range.filter(isLow).length, [range, insightOf]) // eslint-disable-line react-hooks/exhaustive-deps
   const newCount = useMemo(() => range.filter(isNew).length, [range]) // eslint-disable-line react-hooks/exhaustive-deps
   const promoCount = useMemo(() => range.filter((p) => !!p.item.promotion).length, [range])
+  const unpostedCount = useMemo(() => range.filter((p) => (p.stock?.qty_sold_not_posted ?? 0) > 0).length, [range])
 
   // The suggested order: the rules in lib/suggest.ts over each orderable item's weekly sales, stock, what is on order and what customers are waiting for.
   const suggestions = useMemo(() => {
@@ -241,15 +242,20 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   }, [range])
   useEffect(() => { setStatus('') }, [vendor])
 
+  // Ex-APL items are left out unless the Status filter is set to EX-APL, or the item is already on this order.
+  const isHiddenExApl = (p: Product) => status === '' && (p.item.status ?? '').trim().toUpperCase() === 'EX-APL' && !lineOf.has(p.item.code)
+  const exAplHidden = useMemo(() => range.filter(isHiddenExApl).length, [range, status, lineOf]) // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useMemo(() => {
     const hit = find.trim() ? new Set(searchItems(range.map((p) => p.item), find, 100000).map((i) => i.code)) : null
     const shown = range.filter((p) => {
       if (hit && !hit.has(p.item.code)) return false
       if (status && (p.item.status ?? '').trim().toUpperCase() !== status) return false
+      if (isHiddenExApl(p)) return false
       const on = lineOf.has(p.item.code)
       if (show === 'low') return isLow(p)
       if (show === 'new') return isNew(p)
       if (show === 'promo') return !!p.item.promotion
+      if (show === 'unposted') return (p.stock?.qty_sold_not_posted ?? 0) > 0
       return show === 'all' || (show === 'ordered' ? on : !on)
     })
     return sortProducts(stockBelow(shown, below.trim() === '' ? null : parseQty(below)), sortBy)
@@ -500,7 +506,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                   <li key={n.id}>
                     <div className="who-line">
                       <b>{n.doc_number}</b>
-                      <span className="muted">{n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}</span>
+                      <span className="muted">{n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.code ? l.code + " " : ""}${l.description}`).join(', ')}</span>
                     </div>
                     <div className="person-actions">
                       {[...new Set(n.lines.map((l) => l.vendor).filter((v): v is string => !!v && vendors.some((x) => x.vendor === v)))].map((v) => (
@@ -548,7 +554,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
               <ul>
                 {vendorNeeds.map((n) => (
                   <li key={n.id}>
-                    <span>{n.doc_number}, {n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.description}`).join(', ')}</span>
+                    <span>{n.doc_number}, {n.customer_name}: {n.lines.map((l) => `${l.qty} × ${l.code ? l.code + " " : ""}${l.description}`).join(', ')}</span>
                     <button type="button" className="btn" onClick={() => void markOrdered(n)}>Mark ordered</button>
                   </li>
                 ))}
@@ -583,11 +589,12 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                   </div>
                   <div className="filters">
                     <div className="segmented" role="group" aria-label="Show items">
-                      <button type="button" aria-pressed={show === 'all'} onClick={() => setShow('all')}>All ({range.length})</button>
+                      <button type="button" aria-pressed={show === 'all'} onClick={() => setShow('all')}>All ({range.length - exAplHidden})</button>
                       <button type="button" aria-pressed={show === 'ordered'} onClick={() => setShow('ordered')}>On order ({orderedCount})</button>
-                      <button type="button" aria-pressed={show === 'not'} onClick={() => setShow('not')}>Not ordered ({range.length - orderedCount})</button>
+                      <button type="button" aria-pressed={show === 'not'} onClick={() => setShow('not')}>Not ordered ({range.length - orderedCount - exAplHidden})</button>
                       {enough && <button type="button" aria-pressed={show === 'low'} onClick={() => setShow('low')}>Low stock ({lowCount})</button>}
                       {newCount > 0 && <button type="button" aria-pressed={show === 'new'} onClick={() => setShow('new')}>New ({newCount})</button>}
+                      {unpostedCount > 0 && <button type="button" aria-pressed={show === 'unposted'} onClick={() => setShow('unposted')}>Sold not posted ({unpostedCount})</button>}
                       {promoCount > 0 && <button type="button" aria-pressed={show === 'promo'} onClick={() => setShow('promo')}>Promotion ({promoCount})</button>}
                     </div>
                     <label className="inline">In stock below
@@ -603,7 +610,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                     {statuses.length > 1 && (
                       <label className="inline">Status
                         <select name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-                          <option value="">Any</option>
+                          <option value="">Any (Ex-APL hidden)</option>
                           {statuses.map(([k, n]) => <option key={k} value={k}>{k} ({n})</option>)}
                         </select>
                       </label>
@@ -670,7 +677,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                                   {warnings.map((w) => <Tag key={w.text} tone={w.level} tip={w.text}>{w.text.split(/[.:]/)[0]}</Tag>)}
                                 </span>
                               </td>
-                              <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}{cover && <small className={'cover ' + cover} tabIndex={0} role="note" data-tip={COVER_HELP[cover]} aria-label={`${COVER_LABEL[cover]}: ${COVER_HELP[cover]}`}>{COVER_LABEL[cover]}</small>}</td>
+                              <td data-label="In stock" className="r">{p.stock?.inventory ?? '–'}{(p.stock?.qty_sold_not_posted ?? 0) > 0 && <small className="muted" title="Already taken off: sold at the till but not yet posted in NAV"> −{p.stock?.qty_sold_not_posted} not posted</small>}{cover && <small className={'cover ' + cover} tabIndex={0} role="note" data-tip={COVER_HELP[cover]} aria-label={`${COVER_LABEL[cover]}: ${COVER_HELP[cover]}`}>{COVER_LABEL[cover]}</small>}</td>
                               <td data-label="On order" className="r">{p.stock?.qty_on_po ?? '–'}</td>
                               {SHOW_SALES && <td data-label="Sold last week" className="r">{p.stock?.sales_qty ?? '–'}</td>}
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>

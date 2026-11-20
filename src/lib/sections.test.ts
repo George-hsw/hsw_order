@@ -31,7 +31,7 @@ describe('sections', () => {
   })
   it('operations see Transfer, stores see Stock transfers', () => {
     const transfer = AREAS.find((a) => a.id === 'transfer')!
-    expect(areaText(transfer, true).label).toBe('Transfer')
+    expect(areaText(transfer, true).label).toBe('Send to stores')
     expect(areaText(transfer, false).label).toBe('Stock transfers')
     expect(areaText(AREAS[0], true).label).toBe('Quote')
   })

@@ -43,6 +43,16 @@ export interface Line {
   discPct: string // raw input 0-100; blank = full price
 }
 
+/** One measurement taken for the customer (width, height and depth in the quote's unit). */
+export interface Measurement { where: string; width: string; height: string; depth: string; note: string }
+export const emptyMeasurement = (): Measurement => ({ where: '', width: '', height: '', depth: '', note: '' })
+/** The printed line for a measurement: "Pantry: W 900 × H 2100 × D 400 mm (note)". */
+export function measurementText(m: Measurement, unit: string): string {
+  const dims = [['W', m.width], ['H', m.height], ['D', m.depth]].filter(([, v]) => v.trim()).map(([k, v]) => `${k} ${v.trim()}`).join(' × ')
+  return [m.where.trim() || 'Measurement', dims ? `${dims} ${unit}` : ''].filter(Boolean).join(': ') + (m.note.trim() ? ` (${m.note.trim()})` : '')
+}
+export const hasMeasurement = (m: Measurement) => !!(m.where.trim() || m.width.trim() || m.height.trim() || m.depth.trim() || m.note.trim())
+
 export interface QuoteInput {
   docType: DocType
   storeName: string
@@ -68,6 +78,9 @@ export interface QuoteInput {
   paid: string
   dueDate: string // yyyy-mm-dd, blank = settings days
   notes: string
+  measurements: Measurement[]
+  measureUnit: 'mm' | 'cm' | 'm'
+  measurePrint: boolean // print the measurements on the customer's copy (off = kept on the document for staff)
 }
 
 export const MAX_LINES = 20
@@ -95,6 +108,9 @@ export const emptyQuote = (): QuoteInput => ({
   paid: '',
   dueDate: '',
   notes: '',
+  measurements: [],
+  measureUnit: 'mm',
+  measurePrint: false,
 })
 
 export type LineState = 'empty' | 'ok' | 'warn' | 'error'
@@ -234,7 +250,6 @@ export function compute(
   const problems: string[] = []
   if (!q.storeName.trim()) problems.push('Pick a store')
   else if (!storeCode) problems.push('Store has no code in settings')
-  if (!number) problems.push('Enter a number')
   if (!q.customer.name.trim()) problems.push('Enter the customer name')
   if (!q.customer.phone.trim()) problems.push('Enter the customer phone number')
   if (!EMAIL_RE.test(q.customer.email.trim())) problems.push(q.customer.email.trim() ? 'The customer email is not valid' : 'Enter the customer email')

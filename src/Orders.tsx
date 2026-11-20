@@ -11,7 +11,7 @@ import { ORDER_STATUS_LABEL, type OrderLine, type OrderStatus, type OrderSummary
 
 interface Props { multi: boolean; stores: StoreRow[]; names: Record<string, string>; refreshKey: number }
 
-type StatusFilter = 'all' | OrderStatus
+type StatusFilter = 'all' | OrderStatus | 'received'
 const when = (iso: string) => new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
 
 /** Every order for the store, newest first. Open one to see its lines or copy it for NAV again. */
@@ -45,10 +45,24 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
       load()
     } catch (e) { trackError('orders', e); toast.error('Could not delete the order. Try again.') }
   }
+  const markReceived = async (o: OrderSummary) => {
+    if (!(await ask({
+      title: `Mark the ${o.vendor_no} order received?`,
+      body: <p>This records that {o.stores?.name ?? 'the store'} received it. It does not change anything in NAV.</p>,
+      confirmLabel: 'Mark received',
+    }))) return
+    try {
+      await api.receiveOrder(o.id, [], '')
+      toast.success(`${o.vendor_no} order marked received.`)
+      track('order_received', { vendor: o.vendor_no }, o.store_id)
+      setOpenId(null)
+      load()
+    } catch (e) { trackError('orders', e); toast.error(e instanceof Error ? e.message : 'Could not mark it received. Try again.') }
+  }
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase()
     return (orders ?? []).filter((o) =>
-      (status === 'all' || o.status === status) &&
+      (status === 'all' || (status === 'received' ? !!o.received_at : o.status === status && !o.received_at)) &&
       (!term || [o.nav_ref, o.vendor_no, who(o.created_by), o.stores?.name].some((v) => v?.toLowerCase().includes(term))))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, status, q, names])
@@ -66,8 +80,8 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
       <div className="filters">
         <input type="search" name="orderSearch" aria-label="Search orders" placeholder="Search by vendor, NAV number, person or store…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="segmented" role="group" aria-label="Status">
-          {(['all', 'open', 'copied', 'ordered'] as const).map((s) => (
-            <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === 'all' ? 'All' : s === 'ordered' ? 'Ordered' : ORDER_STATUS_LABEL[s]}</button>
+          {(['all', 'open', 'copied', 'ordered', 'received'] as const).map((s) => (
+            <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === 'all' ? 'All' : s === 'ordered' ? 'On the way' : s === 'received' ? 'Received' : ORDER_STATUS_LABEL[s]}</button>
           ))}
         </div>
       </div>
@@ -91,12 +105,13 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
                   {multi && <td data-label="Store">{o.stores?.name ?? ''}</td>}
                   <td data-label="Vendor"><b>{o.vendor_no}</b></td>
                   <td data-label="By">{who(o.created_by)}</td>
-                  <td data-label="Status"><StatusChip status={o.status} /></td>
+                  <td data-label="Status"><StatusChip status={o.status} received={!!o.received_at} /></td>
                   <td data-label="Lines" className="r num">{o.lines}</td>
                   <td data-label="Units" className="r num">{o.units}</td>
                   <td data-label="Cost" className="r num">{money(o.cost)}</td>
                   <td data-label="NAV order">{o.nav_ref ? <span className="num">{o.nav_ref}</span> : <span className="muted">Not yet</span>}</td>
                   <td className="rowactions">
+                    {o.status === 'ordered' && !o.received_at && <button type="button" className="btn primary" onClick={() => markReceived(o)}>Mark received</button>}
                     <button type="button" className="btn" onClick={() => setOpenId(o.id)}>Open</button>
                     {o.status !== 'ordered' && <button type="button" className="btn danger" onClick={() => remove(o)}>Delete</button>}
                   </td>
@@ -107,14 +122,14 @@ export default function Orders({ multi, stores, names, refreshKey }: Props) {
         </div>
       )}
 
-      {open && <OrderDetail order={open} who={who} onClose={() => setOpenId(null)} />}
+      {open && <OrderDetail order={open} who={who} onClose={() => setOpenId(null)} onMarkReceived={() => markReceived(open)} />}
       {confirmDialog}
     </>
   )
 }
 
 /** One order's lines, with a copy button for each vendor. Read only: an open order is changed on the Order tab. */
-function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: string | null) => string; onClose: () => void }) {
+function OrderDetail({ order, who, onClose, onMarkReceived }: { order: OrderSummary; who: (e: string | null) => string; onClose: () => void; onMarkReceived: () => void }) {
   const toast = useToast()
   const [lines, setLines] = useState<OrderLine[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -130,6 +145,8 @@ function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: st
     else toast.error('Could not copy. Select the lines and copy them by hand.')
   }
 
+  const received = !!order.received_at
+
   return (
     <Modal labelledBy="order-title" onClose={onClose}>
       <div className="modalbox wide panel">
@@ -137,8 +154,9 @@ function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: st
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
         </button>
         <h2 id="order-title">{order.stores?.name} · {order.vendor_no} · {when(order.created_at)}</h2>
-        <p className="muted"><StatusChip status={order.status} /> Started by {who(order.created_by)}{order.nav_ref ? <> · NAV order <span className="num">{order.nav_ref}</span></> : null}</p>
+        <p className="muted"><StatusChip status={order.status} received={received} /> Started by {who(order.created_by)}{order.nav_ref ? <> · NAV order <span className="num">{order.nav_ref}</span></> : null}</p>
 
+        {received && <p className="muted">Received {when(order.received_at!)} by {who(order.received_by ?? null)}.</p>}
         {failed ? (
           <div className="state error"><p>The lines did not load</p></div>
         ) : !lines ? (
@@ -168,7 +186,10 @@ function OrderDetail({ order, who, onClose }: { order: OrderSummary; who: (e: st
             </section>
           ))
         )}
-        <div className="actions"><button type="button" className="btn primary" onClick={onClose}>Close</button></div>
+        <div className="actions">
+          {order.status === 'ordered' && !received && <button type="button" className="btn primary" onClick={onMarkReceived}>Mark received</button>}
+          <button type="button" className="btn" onClick={onClose}>Close</button>
+        </div>
       </div>
     </Modal>
   )

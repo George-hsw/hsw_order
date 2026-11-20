@@ -36,6 +36,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
   const closing = useMemo(() => lines.map((l) => ({ code: l.item_code, qty: l.qty })), [lines])
   const cost = useMemo(() => new Map(lines.map((l) => [l.item_code, l.unit_cost])), [lines])
   const info = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
+  const isPush = d.closure.kind === 'push' // a push has no stock pool: every chosen store is asked for its own quantity
   const closingStore = stores.find((s) => s.id === d.closure.closing_store_id)
   const candidates = useMemo(() => stores.filter((s) => s.active && s.id !== d.closure.closing_store_id).sort((a, b) => a.name.localeCompare(b.name)), [stores, d.closure.closing_store_id])
   const storeName = (sid: string) => stores.find((s) => s.id === sid)?.name ?? 'A store'
@@ -85,7 +86,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
   const setQty = (store: string, code: string, qty: number) => {
     const closingQty = info.get(code)?.qty ?? 0
     const others = [...latest.current].reduce((n, [s, m]) => n + (s === store ? 0 : m.get(code) ?? 0), 0)
-    const next = Math.max(0, Math.min(qty, closingQty - others)) // never more than the sheet holds
+    const next = isPush ? Math.max(0, qty) : Math.max(0, Math.min(qty, closingQty - others)) // a closure never gives out more than the sheet holds; a push has no pool
     setAlloc((prev) => { const a = copy(prev); const m = a.get(store) ?? new Map<string, number>(); if (next > 0) m.set(code, next); else m.delete(code); a.set(store, m); latest.current = a; return a })
     dirty.current.add(key(store, code))
     setSaving('idle')
@@ -115,8 +116,31 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not work out the suggestions. Try again.') } finally { setWorking(false) }
   }
 
+  // A push: every chosen store is asked for the listed quantity of every item. Each store's quantity can then be changed below.
+  const fillSame = async () => {
+    if (picked.size === 0) return toast.error('Choose at least one store.')
+    if (lines.length === 0) return toast.error('Add at least one item first.')
+    if (alloc.size && [...alloc.values()].some((m) => m.size) && !(await ask({ title: 'Replace the quantities?', body: <p>Every chosen store will be given the listed quantity again, replacing any change you made by hand.</p>, confirmLabel: 'Replace them' }))) return
+    setWorking(true)
+    try {
+      const stores2 = [...picked]
+      await closuresApi.setStores(d.closure.id, stores2)
+      setSavedStores(stores2)
+      const res: Alloc = new Map(stores2.map((s) => [s, new Map(lines.map((l) => [l.item_code, l.qty]))]))
+      const old = [...latest.current].flatMap(([s, m]) => [...m.keys()].map((c) => key(s, c)))
+      setNeed(await closuresApi.need(stores2, codes, d.closure.id).catch(() => []))
+      setAlloc(res); setSuggested(copy(res)); latest.current = res; setListChanged(false)
+      const rows = new Map<string, { store_id: string; item_code: string; qty: number; suggested_qty: number }>()
+      for (const k of old) { const [s, c] = k.split('|'); rows.set(k, { store_id: s, item_code: c, qty: 0, suggested_qty: 0 }) }
+      for (const [s, m] of res) for (const [c, q] of m) rows.set(key(s, c), { store_id: s, item_code: c, qty: q, suggested_qty: q })
+      await closuresApi.saveAlloc(d.closure.id, [...rows.values()])
+      setSaving('saved')
+      toast.success(`${lines.length} ${lines.length === 1 ? 'item' : 'items'} for ${stores2.length} ${stores2.length === 1 ? 'store' : 'stores'}.`)
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not set the quantities. Try again.') } finally { setWorking(false) }
+  }
+
   const sum = useMemo(() => summary(alloc, closing, cost), [alloc, closing, cost])
-  const problems = useMemo(() => reconcile(alloc, closing), [alloc, closing])
+  const problems = useMemo(() => (isPush ? [] : reconcile(alloc, closing)), [alloc, closing, isPush])
   const storeRows = useMemo(() => byStore(alloc, needLines, suggested).filter((r) => r.lines.some((l) => l.qty > 0 || l.suggested > 0)), [alloc, needLines, suggested])
   const itemRows = useMemo(() => byItem(alloc, needLines, closing), [alloc, needLines, closing])
   const stale = [...picked].sort().join() !== [...savedStores].sort().join() && planned
@@ -128,7 +152,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
     const lines = toStores.map(([s, m]) => `${storeName(s)}: ${[...m.values()].reduce((x, q) => x + q, 0)} units, ${money([...m].reduce((x, [c, q]) => x + q * (cost.get(c) ?? 0), 0))}`)
     if (!(await ask({
       title: `Send to ${toStores.length} ${toStores.length === 1 ? 'store' : 'stores'}?`,
-      body: <><p>Each store is asked to accept, lower or decline its share, and is told straight away. You cannot change the quantities after this, but you can take back a request that has not been answered and offer what is left to other stores.</p><ul className="uncounted">{lines.map((l) => <li key={l}>{l}</li>)}</ul><p>Stock figures are as at the last nightly sync, so a store’s need may have changed since.</p></>,
+      body: <><p>{isPush ? 'Each store is asked to buy these items and is told straight away.' : 'Each store is asked to accept, lower or decline its share, and is told straight away.'} You cannot change the quantities after this, but you can take back a request that has not been answered and offer what is left to other stores.</p><ul className="uncounted">{lines.map((l) => <li key={l}>{l}</li>)}</ul><p>Stock figures are as at the last nightly sync, so a store’s need may have changed since.</p></>,
       confirmLabel: 'Send the requests',
     }))) return
     setSending(true)
@@ -166,17 +190,17 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
       <div className="pagehead">
         <div>
           <h1>{d.closure.name || (d.closure.kind === 'push' ? 'Push to stores' : `${closingStore?.name ?? 'Store'} closing`)}</h1>
-          <p className="muted">{closingStore?.name ?? (d.closure.kind === 'push' ? 'No sending store, so stores are asked to order' : 'Closing store')}, {sum.items} items, {sum.units.toLocaleString('en-AU')} units. Started {whenText(d.closure.created_at)}{d.closure.created_by ? ` by ${names[d.closure.created_by.toLowerCase()] ?? d.closure.created_by}` : ''}. <span className="chip warn">Draft</span></p>
+          <p className="muted">{isPush ? `${sum.items} ${sum.items === 1 ? 'item' : 'items'} to send to stores${closingStore ? `, from ${closingStore.name}` : ''}` : `${closingStore?.name ?? 'Closing store'}, ${sum.items} items, ${sum.units.toLocaleString('en-AU')} units`}. Started {whenText(d.closure.created_at)}{d.closure.created_by ? ` by ${names[d.closure.created_by.toLowerCase()] ?? d.closure.created_by}` : ''}. <span className="chip warn">Draft</span></p>
         </div>
         <div className="actions">
-          <button type="button" className="btn" onClick={onBack}>All transfers</button>
+          <button type="button" className="btn" onClick={onBack}>{isPush ? 'All sends' : 'All transfers'}</button>
           <button type="button" className="btn danger" onClick={() => void remove()}>Delete draft</button>
         </div>
       </div>
 
       <div className="viz-stack">
         <section className="sheet viz-card">
-          <div className="viz-head"><div><h2>Which stores take part</h2><p className="muted">Only these stores are offered the stock. {asAt}</p></div></div>
+          <div className="viz-head"><div><h2>{isPush ? 'Which stores' : 'Which stores take part'}</h2><p className="muted">{isPush ? 'Choose every store, or only some. Each chosen store is asked to buy the items.' : <>Only these stores are offered the stock. {asAt}</>}</p></div></div>
           <div className="storepick" role="group" aria-label="Stores that take part">
             {candidates.map((s) => (
               <label key={s.id} className="inline"><input type="checkbox" name={`take-${s.id}`} checked={picked.has(s.id)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(s.id); else n.delete(s.id); return n })} /> {s.name}</label>
@@ -185,19 +209,21 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
           <div className="actions quick">
             <button type="button" className="btn" onClick={() => setPicked(new Set(candidates.map((s) => s.id)))}>Choose all</button>
             <button type="button" className="btn" onClick={() => setPicked(new Set())}>Choose none</button>
-            <button type="button" className={'btn' + (planned ? '' : ' primary')} onClick={() => void suggest()} disabled={working || picked.size === 0}>{working ? 'Working it out…' : planned ? 'Work out the suggestions again' : 'Work out the suggestions'}</button>
+            {isPush
+              ? <button type="button" className={'btn' + (planned ? '' : ' primary')} onClick={() => void fillSame()} disabled={working || picked.size === 0}>{working ? 'Setting quantities…' : planned ? 'Give every store the listed quantity again' : 'Give every store the listed quantity'}</button>
+              : <button type="button" className={'btn' + (planned ? '' : ' primary')} onClick={() => void suggest()} disabled={working || picked.size === 0}>{working ? 'Working it out…' : planned ? 'Work out the suggestions again' : 'Work out the suggestions'}</button>}
           </div>
-          {stale && <p className="note">The stores have changed since the last suggestions. Work them out again to include the change.</p>}
+          {stale && <p className="note">The stores have changed since the quantities were set. {isPush ? 'Set them again' : 'Work out the suggestions again'} to include the change.</p>}
         </section>
 
         <section className="sheet viz-card">
           <details className="storedetails" open={lines.length === 0 || undefined}>
-            <summary>Items on this list ({lines.length}). Add, change or remove</summary>
+            <summary>Items on this list ({lines.length}). Add, change or remove{isPush ? '. The quantity is what each store is asked for' : ''}</summary>
             <ItemPicker disabled={listBusy} onAdd={(item, qty) => addLine(item.code, qty)} />
             {lines.length > 0 && (
               <div className="tablewrap">
                 <table className="book items">
-                  <thead><tr><th>Item</th><th className="r">Quantity</th><th><span className="visually-hidden">Remove</span></th></tr></thead>
+                  <thead><tr><th>Item</th><th className="r">{isPush ? 'Per store' : 'Quantity'}</th><th><span className="visually-hidden">Remove</span></th></tr></thead>
                   <tbody>{lines.map((l) => (
                     <tr key={l.item_code}>
                       <td data-label="Item"><b className="num">{l.item_code}</b><small className="sub">{l.description}</small></td>
@@ -210,22 +236,31 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
               </div>
             )}
           </details>
-          {listChanged && planned && <p className="note">The list has changed since the suggestions were worked out. Work them out again to include the change.</p>}
+          {listChanged && planned && <p className="note">The list has changed since the quantities were set. {isPush ? 'Set them again' : 'Work out the suggestions again'} to include the change.</p>}
         </section>
 
         {planned && (
           <>
             <div className="kpis">
-              <StatTile label="Units going to stores" value={`${sum.allocated.toLocaleString('en-AU')} of ${sum.units.toLocaleString('en-AU')}`} ly={`${sum.pctAllocated}% of the stock`} />
-              {sum.valueTotal > 0 && <StatTile label="Value going, at cost" value={money(sum.valueAllocated)} ly={`of ${money(sum.valueTotal)}`} />}
-              <StatTile label="Left over" value={sum.left.toLocaleString('en-AU')} ly={sum.valueTotal > 0 ? `${money(sum.valueLeft)} at cost` : 'units'} />
+              {isPush ? (
+                <>
+                  <StatTile label="Units asked for" value={sum.allocated.toLocaleString('en-AU')} ly={`${sum.items} ${sum.items === 1 ? 'item' : 'items'}`} />
+                  {sum.valueAllocated > 0 && <StatTile label="Value, at cost" value={money(sum.valueAllocated)} ly="all stores together" />}
+                </>
+              ) : (
+                <>
+                  <StatTile label="Units going to stores" value={`${sum.allocated.toLocaleString('en-AU')} of ${sum.units.toLocaleString('en-AU')}`} ly={`${sum.pctAllocated}% of the stock`} />
+                  {sum.valueTotal > 0 && <StatTile label="Value going, at cost" value={money(sum.valueAllocated)} ly={`of ${money(sum.valueTotal)}`} />}
+                  <StatTile label="Left over" value={sum.left.toLocaleString('en-AU')} ly={sum.valueTotal > 0 ? `${money(sum.valueLeft)} at cost` : 'units'} />
+                </>
+              )}
               <StatTile label="Stores asked" value={String(storeRows.filter((r) => r.units > 0).length)} ly={`of ${picked.size} taking part`} />
             </div>
 
             {problems.length > 0 && <div className="state error" role="alert"><p>This cannot be sent yet</p><ul className="warnlist">{problems.slice(0, 5).map((p) => <li key={p.code + (p.store ?? '')}>{p.message}</li>)}</ul></div>}
 
             <section className="sheet viz-card">
-              <div className="viz-head"><div><h2>Who gets what</h2><p className="muted">Change any quantity. A store’s need is worked out from its sales and stock, so a quantity above it is marked. {saving === 'saving' ? 'Saving…' : saving === 'saved' ? 'Saved.' : ''}</p></div></div>
+              <div className="viz-head"><div><h2>Who gets what</h2><p className="muted">Change any quantity, or set one to 0 to leave a store out for that item. {isPush ? 'A store’s need is shown beside it for guidance.' : 'A store’s need is worked out from its sales and stock, so a quantity above it is marked.'} {saving === 'saving' ? 'Saving…' : saving === 'saved' ? 'Saved.' : ''}</p></div></div>
               <div className="segmented" role="group" aria-label="How to see the quantities">
                 <button type="button" aria-pressed={view === 'store'} onClick={() => setView('store')}>By store</button>
                 <button type="button" aria-pressed={view === 'item'} onClick={() => setView('item')}>By item ({sum.items})</button>
@@ -238,16 +273,16 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
                       <h3>{storeName(r.store)} <small className="muted">{r.units} {r.units === 1 ? 'unit' : 'units'}, {money(r.lines.reduce((x, l) => x + l.qty * (cost.get(l.code) ?? 0), 0))}</small></h3>
                       <div className="tablewrap">
                         <table className="book alloc">
-                          <thead><tr><th>Item</th><th className="r">Available</th><th className="r">Store needs</th><th className="r">Suggested</th><th className="r">Sending</th></tr></thead>
+                          <thead><tr><th>Item</th>{!isPush && <th className="r">Available</th>}<th className="r">Store needs</th>{!isPush && <th className="r">Suggested</th>}<th className="r">{isPush ? 'Asking' : 'Sending'}</th></tr></thead>
                           <tbody>{r.lines.map((l) => (
                             <tr key={l.code}>
                               <td data-label="Item"><b className="num">{l.code}</b><small className="sub">{info.get(l.code)?.description}</small></td>
-                              <td data-label="Available" className="r">{info.get(l.code)?.qty}</td>
+                              {!isPush && <td data-label="Available" className="r">{info.get(l.code)?.qty}</td>}
                               <td data-label="Store needs" className="r">{l.shortfall}</td>
-                              <td data-label="Suggested" className="r">{l.suggested}</td>
+                              {!isPush && <td data-label="Suggested" className="r">{l.suggested}</td>}
                               <td data-label="Sending" className="r">
                                 <input className="qty" inputMode="numeric" autoComplete="off" aria-label={`Units of ${l.code} for ${storeName(r.store)}`} value={l.qty} onChange={(e) => setQty(r.store, l.code, whole(e.target.value))} onFocus={(e) => e.target.select()} />
-                                {l.over && l.qty > 0 && <span className="chip warn">Above need</span>}
+                                {!isPush && l.over && l.qty > 0 && <span className="chip warn">Above need</span>}
                               </td>
                             </tr>
                           ))}</tbody>
@@ -259,14 +294,14 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
               ) : (
                 <div className="tablewrap">
                   <table className="book items">
-                    <thead><tr><th>Item</th><th className="r">Available</th><th>Going to</th><th className="r">Left over</th><th><span className="visually-hidden">Place</span></th></tr></thead>
+                    <thead><tr><th>Item</th>{!isPush && <th className="r">Available</th>}<th>{isPush ? 'Asking' : 'Going to'}</th>{!isPush && <th className="r">Left over</th>}<th><span className="visually-hidden">Place</span></th></tr></thead>
                     <tbody>{itemRows.map((r) => (
                       <tr key={r.code} className={r.overAllocated ? 'inactive' : undefined}>
                         <td data-label="Item"><b className="num">{r.code}</b><small className="sub">{info.get(r.code)?.description}</small></td>
-                        <td data-label="Available" className="r">{r.closing}</td>
+                        {!isPush && <td data-label="Available" className="r">{r.closing}</td>}
                         <td data-label="Going to">{r.stores.filter((s) => s.qty > 0).length ? r.stores.filter((s) => s.qty > 0).map((s) => <div key={s.store}>{storeName(s.store)} <b>{s.qty}</b></div>) : <span className="muted">No one yet</span>}</td>
-                        <td data-label="Left over" className="r">{r.left > 0 ? <span className="chip warn">{r.left}</span> : r.left}</td>
-                        <td className="rowactions"><button type="button" className="btn" onClick={() => setOpenItem(r.code)} aria-label={`Place ${r.code}`}>{r.left > 0 ? 'Place' : 'Change'}</button></td>
+                        {!isPush && <td data-label="Left over" className="r">{r.left > 0 ? <span className="chip warn">{r.left}</span> : r.left}</td>}
+                        <td className="rowactions"><button type="button" className="btn" onClick={() => setOpenItem(r.code)} aria-label={`Place ${r.code}`}>{!isPush && r.left > 0 ? 'Place' : 'Change'}</button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -279,7 +314,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
         <div className="actions">
           <button type="button" className="btn primary" onClick={() => void send()} disabled={!hasPlan || problems.length > 0 || sending || working}>{sending ? 'Sending…' : asking ? `Send to ${asking} ${asking === 1 ? 'store' : 'stores'}` : 'Send to stores'}</button>
         </div>
-        {!planned && <p className="muted">Choose the stores and work out the suggestions to see who gets what.</p>}
+        {!planned && <p className="muted">{isPush ? 'Choose the stores and set the quantities to see who gets what.' : 'Choose the stores and work out the suggestions to see who gets what.'}</p>}
       </div>
 
       {openItem && (
@@ -287,7 +322,7 @@ function Planner({ d, stores, names, onBack, reload }: { d: ClosureDetail; store
           <div className="modalbox wide panel">
             <button type="button" className="modal-x" aria-label="Close" onClick={() => setOpenItem(null)}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg></button>
             <h2 id="place-title">{openItem}</h2>
-            <p className="muted">{info.get(openItem)?.description}. The closing store has {info.get(openItem)?.qty}, and {itemRows.find((r) => r.code === openItem)?.left ?? 0} {(itemRows.find((r) => r.code === openItem)?.left ?? 0) === 1 ? 'is' : 'are'} left over.</p>
+            <p className="muted">{info.get(openItem)?.description}.{isPush ? ' Set how many each store is asked for.' : <> The closing store has {info.get(openItem)?.qty}, and {itemRows.find((r) => r.code === openItem)?.left ?? 0} {(itemRows.find((r) => r.code === openItem)?.left ?? 0) === 1 ? 'is' : 'are'} left over.</>}</p>
             <ul className="people">
               {candidates.filter((s) => picked.has(s.id)).map((s) => {
                 const sf = need.find((n) => n.store_id === s.id && n.item_code === openItem)

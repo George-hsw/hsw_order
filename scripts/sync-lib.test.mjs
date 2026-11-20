@@ -43,6 +43,7 @@ describe('stock', () => {
     expect(s).not.toHaveProperty('sales_qty') // never overwrite uploaded sales
   })
   it('falls back to MOQ 1 and cost 0 when neither has them', () => {
+    expect(toStock({ Item_No: 'A1', Location_Code: '14122', Inventory: 6, Qty_Sold_not_Posted: 2 }, STOCK_FIELDS, items).qty_sold_not_posted).toBe(2)
     expect(toStock({ Item_No: 'ZZ', Location_Code: '1' }, STOCK_FIELDS, new Map())).toMatchObject({ moq: 1, store_cost: 0 })
   })
   it('groups by store, and keeps out unknown locations, variants and unknown items', () => {

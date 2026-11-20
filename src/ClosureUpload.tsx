@@ -51,7 +51,7 @@ function Checks({ checks }: { checks: Check[] }) {
 export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   const toast = useToast()
   const input = useRef<HTMLInputElement>(null)
-  const [kind, setKind] = useState<ClosureKind>('closure')
+  const [kind, setKind] = useState<ClosureKind>('push')
   const [mode, setMode] = useState<'sheet' | 'hand'>('sheet')
   const [handLines, setHandLines] = useState<HandLine[]>([]) // items chosen by hand, in the order they were added
   const [storeId, setStoreId] = useState('')
@@ -123,20 +123,22 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
   return (
     <div className="viz-stack">
       <section className="sheet viz-card">
-        <div className="viz-head"><div><h2>{kind === 'push' ? 'Start a push' : 'Start a transfer'}</h2><p className="muted">{kind === 'push'
-          ? 'Send chosen items to stores. Upload a sheet or type the items. If no store is sending them, the stores are asked to order them. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'
+        <div className="viz-head"><div><h2>{kind === 'push' ? 'Send items to stores' : 'Start a store closing'}</h2><p className="muted">{kind === 'push'
+          ? 'Make a list of the items stores should buy: upload a sheet, or search and add them. Next you choose all stores or only some, and the quantity each is asked for. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'
           : 'Choose the store that is closing and upload its stock sheet, or type the items. A sheet is read and checked in your browser, and only the item numbers and quantities are saved, never the file.'}</p></div></div>
         <div className="segmented" role="group" aria-label="What you are starting">
+          <button type="button" aria-pressed={kind === 'push'} onClick={() => { setKind('push'); setStoreId(''); setRead(null) }}>Send items to stores</button>
           <button type="button" aria-pressed={kind === 'closure'} onClick={() => { setKind('closure'); setRead(null) }}>Store closing</button>
-          <button type="button" aria-pressed={kind === 'push'} onClick={() => { setKind('push'); setRead(null) }}>Push items to stores</button>
         </div>
         <div className="grid">
-          <label>{kind === 'push' ? 'Sending store' : 'Closing store'}{kind === 'push' && <small> optional</small>}
-            <select name="closingStore" value={storeId} onChange={(e) => changeStore(e.target.value)}>
-              <option value="">{kind === 'push' ? 'No sending store (ask stores to order)' : 'Choose a store'}</option>
-              {[...stores].sort((a, b) => Number(a.active) - Number(b.active) || a.name.localeCompare(b.name)).map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? '' : ' (closed)'}</option>)}
-            </select>
-          </label>
+          {kind === 'closure' && (
+            <label>Closing store
+              <select name="closingStore" value={storeId} onChange={(e) => changeStore(e.target.value)}>
+                <option value="">Choose a store</option>
+                {[...stores].sort((a, b) => Number(a.active) - Number(b.active) || a.name.localeCompare(b.name)).map((s) => <option key={s.id} value={s.id}>{s.name}{s.active ? '' : ' (closed)'}</option>)}
+              </select>
+            </label>
+          )}
           <label>Name <small>shown in the list</small>
             <input name="closureName" autoComplete="off" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'push' ? 'Spring range push' : 'Parramatta closing'} />
           </label>
@@ -199,12 +201,12 @@ export default function ClosureUpload({ stores, onDone, onCancel }: Props) {
           {saving !== null && <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={read.parsed.lines.length} aria-valuenow={saving}><span style={{ transform: `scaleX(${read.parsed.lines.length ? saving / read.parsed.lines.length : 0})` }} /></div>}
           <div className="actions">
             <button type="button" className="btn" onClick={onCancel} disabled={saving !== null}>Cancel</button>
-            <button type="button" className="btn primary" onClick={() => void save()} disabled={stop || needsStore || saving !== null}>{saving !== null ? 'Saving…' : 'Save and choose stores'}</button>
+            <button type="button" className="btn primary" onClick={() => void save()} disabled={stop || needsStore || saving !== null}>{saving !== null ? 'Saving…' : 'Next: choose stores'}</button>
           </div>
           {needsStore && !stop && <p className="muted">Choose the closing store above to continue.</p>}
         </section>
       )}
-      {!read && <div className="actions"><button type="button" className="btn" onClick={onCancel}>Back to transfers</button></div>}
+      {!read && <div className="actions"><button type="button" className="btn" onClick={onCancel}>Back</button></div>}
     </div>
   )
 }

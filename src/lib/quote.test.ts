@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compute, emptyQuote, firstNameOf, type Item, type Settings, type Store } from './quote'
+import { compute, emptyMeasurement, emptyQuote, firstNameOf, hasMeasurement, measurementText, type Item, type Settings, type Store } from './quote'
 
 const stores: Store[] = [
   { name: 'Mornington', address: '1128 Nepean Hwy', suburb: 'Mornington VIC 3931', phone: '', code: 'MOR', email: '' },
@@ -154,5 +154,17 @@ describe('firstNameOf', () => {
     expect(firstNameOf('jo smith')).toBe('Jo')
     expect(firstNameOf('Jo-Anne McDonald')).toBe('Jo-Anne')
     expect(firstNameOf('  ')).toBe('there')
+  })
+})
+
+describe('measurements', () => {
+  it('prints width, height and depth in the chosen unit', () => {
+    expect(measurementText({ where: 'Pantry', width: '900', height: '2100', depth: '400', note: 'left wall' }, 'mm')).toBe('Pantry: W 900 × H 2100 × D 400 mm (left wall)')
+    expect(measurementText({ where: '', width: '1.2', height: '', depth: '', note: '' }, 'm')).toBe('Measurement: W 1.2 m')
+  })
+  it('an empty row is not a measurement', () => expect(hasMeasurement(emptyMeasurement())).toBe(false))
+  it('a new quote has none, and an old saved one without the field still opens', () => {
+    expect(emptyQuote().measurements).toEqual([])
+    expect(emptyQuote().measurePrint).toBe(false)
   })
 })

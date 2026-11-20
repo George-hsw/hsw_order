@@ -110,6 +110,7 @@ export interface StockRow {
   qty_on_po: number
   transfer_in: number // Quantity in Transfer In: already on its way to the store
   unavailable: number // Unavailable Qty
+  qty_sold_not_posted?: number // Qty. Sold not Posted: sold but not yet posted in NAV
   moq: number
   store_cost: number
   sales_qty: number // units sold last week (information only)
@@ -131,6 +132,9 @@ export interface OrderRow {
   created_at: string
   copied_at: string | null
   ordered_at: string | null
+  received_at?: string | null // the goods have arrived at the store
+  received_by?: string | null
+  receive_note?: string | null
   stores?: { name: string } | null
 }
 
@@ -145,6 +149,7 @@ export interface OrderLine {
   vendor_item_no: string | null // for Copy for NAV
   uom: string | null // unit of measure, for Copy for NAV
   description: string
+  qty_received?: number | null // set when the order is marked received
   revision: number
   updated_by: string | null
   updated_at: string

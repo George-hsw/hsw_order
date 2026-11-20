@@ -56,15 +56,17 @@ Deno.serve(async (req) => {
       return data?.active ? data : null
     }
 
+    // Marks the login as holding a temporary password (the database remembers which, and locks the login out of the data until it is changed).
+    const tempPassword = async (userId: string) => {
+      const { error } = await admin.rpc('set_temp_password', { p_user: userId })
+      if (error) throw error
+    }
+
     // A new login for a person (b.full_name, b.password), with their app_users row. role: made an admin, or a manager, straight away.
     const newLogin = async (email: string, role: { admin?: boolean; area?: boolean }): Promise<{ userId: string; pw: { password: string; generated: boolean } } | { error: string }> => {
       const fullName = String(b.full_name ?? '').trim().slice(0, 80)
       if (!fullName) return { error: 'Enter the person’s name.' }
-      // A shared store login and a person must never share an address, or the two would be confused.
-      const { data: stores } = await admin.from('stores').select('email')
-      if ((stores ?? []).some((s) => String(s.email ?? '').toLowerCase() === email))
-        return { error: 'That address is a store’s own email. Use a personal email for a person.' }
-
+      // A login may use a store's own email: that is how a store gets its shared login.
       const pw = chosenPassword()
       if ('error' in pw) return { error: pw.error }
 
@@ -84,6 +86,7 @@ Deno.serve(async (req) => {
         user_id: userId, email, full_name: fullName, active: true, is_admin: !!role.admin, sees_all_sales: !!role.area, password_set_at: new Date().toISOString(),
       })
       if (error) throw error
+      await tempPassword(userId!)
       return { userId: userId!, pw }
     }
 
@@ -229,7 +232,7 @@ Deno.serve(async (req) => {
       if ('error' in pw) return json({ error: pw.error }, 400)
       const { error } = await admin.auth.admin.updateUserById(person.user_id, { password: pw.password })
       if (error) throw error
-      await admin.from('app_users').update({ password_set_at: new Date().toISOString() }).eq('user_id', person.user_id)
+      await tempPassword(person.user_id) // the person must choose their own at the next sign-in; until then the database gives them no access
       return json({ ok: true, generated: pw.generated, password: pw.generated ? pw.password : undefined })
     }
 

@@ -71,7 +71,7 @@ export const demoClosuresApi: ClosuresApi = {
     if (c.status !== 'draft') throw new Error('This list has been sent, so it can no longer change')
     if (!Number.isInteger(qty) || qty < 0) throw new Error('The quantity must be a whole number, zero or more')
     const given = alloc.filter((a) => a.closure_id === id && a.item_code === code).reduce((n, a) => n + a.qty, 0)
-    if (qty < given) throw new Error(`${given} units of ${code} are already shared out to stores. Lower their quantities first.`)
+    if (qty < given && c.kind === 'closure') throw new Error(`${given} units of ${code} are already shared out to stores. Lower their quantities first.`)
     if (qty === 0) { lines = lines.filter((l) => !(l.closure_id === id && l.item_code === code)); await wait(null); return }
     const item = items().find((i) => i.code === code.trim())
     if (!item) throw new Error('That item number is not in the item list: ' + code)
@@ -104,7 +104,7 @@ export const demoClosuresApi: ClosuresApi = {
     const total = new Map<string, number>()
     for (const a of next.values()) total.set(a.item_code, (total.get(a.item_code) ?? 0) + a.qty)
     const bad = [...total].filter(([code, q]) => q > (lines.find((l) => l.closure_id === id && l.item_code === code)?.qty ?? 0)).map(([code]) => code)
-    if (bad.length) throw new Error('These items are given out above what the sheet holds: ' + bad.slice(0, 5).join(', '))
+    if (bad.length && closures.find((x) => x.id === id)?.kind === 'closure') throw new Error('These items are given out above what the sheet holds: ' + bad.slice(0, 5).join(', '))
     alloc = [...alloc.filter((a) => a.closure_id !== id), ...next.values()]
     await wait(null, 60)
   },

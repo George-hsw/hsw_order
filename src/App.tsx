@@ -3,11 +3,13 @@ import Loading from './Loading'
 import type { Session } from '@supabase/supabase-js'
 import Analytics from './Analytics'
 import Home from './Home'
+import ChangePassword from './ChangePassword'
 import Login from './Login'
 import Notifications from './Notifications'
 import Order from './Order'
 import Orders from './Orders'
 import PriceCheck from './PriceCheck'
+import Labels from './Labels'
 import StockCounts from './StockCounts'
 import StockTake from './StockTake'
 import Sales, { type OrderJump } from './Sales'
@@ -46,6 +48,14 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
+  // A temporary password (a new login, or one an admin reset): the person must choose their own before anything else.
+  const [mustChange, setMustChange] = useState<boolean | undefined>(undefined) // undefined = still checking
+  const userId = session?.user.id
+  useEffect(() => {
+    if (DEMO || !supabase || !userId) { setMustChange(undefined); return }
+    supabase.from('app_users').select('must_change_password').eq('user_id', userId).maybeSingle()
+      .then(({ data }) => setMustChange(data?.must_change_password === true))
+  }, [userId])
 
   if (DEMO && location.search.includes('login')) return <Login /> // preview the sign-in screen
   if (DEMO) { const as = new URLSearchParams(location.search).get('as'); return <Shell session={{ user: { email: as ? `${as}@hsw.com.au` : ADMIN_EMAIL } } as Session} /> } // ?as=priya: see the demo as a store manager, not the admin
@@ -59,6 +69,8 @@ export default function App() {
   }
   if (session === undefined) return <main className="container page"><Loading /></main>
   if (!session) return <Login />
+  if (mustChange === undefined) return <main className="container page"><Loading /></main>
+  if (mustChange) return <ChangePassword />
   return <Shell session={session} />
 }
 
@@ -223,6 +235,7 @@ function Shell({ session }: { session: Session }) {
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'count' ? <StockTake multi={multi} stores={active} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} />
           : view === 'counts' ? <StockCounts multi={multi} stores={active} names={names} />
+          : view === 'labels' ? <Labels />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onQuote={quoteFrom} onOrder={(j) => { setJump(j); setView('order') }} onSales={(storeId, code) => { setSalesStart({ storeId, code }); setView('sales') }} />
           : view === 'closures' && isOps ? <Suspense fallback={<Loading />}><Closures names={names} /></Suspense>
           : view === 'transfers' && works ? <Suspense fallback={<Loading />}><Transfers stores={active} multi={multi} names={names} /></Suspense>

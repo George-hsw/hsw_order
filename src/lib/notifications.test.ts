@@ -26,7 +26,7 @@ describe('buildNotices', () => {
     const n = buildNotices(base({ customerOrders: [{ id: 'd1', store_id: 's1', doc_number: 'CO-1', customer_name: 'Mia Chen', created_at: '', lines: [{ code: 'A', qty: 2, description: 'Tumbler', vendor: 'ANAS001' }] }] }))
     expect(n).toHaveLength(1)
     expect(n[0]).toMatchObject({ level: 'bad', key: 'co:d1', go: { view: 'order', vendor: 'ANAS001', storeId: 's1' } })
-    expect(n[0].detail).toContain('2 × Tumbler')
+    expect(n[0].detail).toContain('2 × A Tumbler')
   })
 
   it('low stock and new items are counted per vendor and open the Order tab filtered', () => {
