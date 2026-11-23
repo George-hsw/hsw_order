@@ -37,6 +37,7 @@ const Reports = lazy(() => import('./Reports'))
 const Tansel = lazy(() => import('./Tansel')) // carries the Tansel packer table, so it loads only when opened
 const Closures = lazy(() => import('./Closures')) // operations only: carries the sheet reader
 const Transfers = lazy(() => import('./Transfers'))
+const Holds = lazy(() => import('./Holds')) // operations only
 
 type View = 'home' | Tab
 
@@ -235,9 +236,10 @@ function Shell({ session }: { session: Session }) {
           : view === 'orders' ? <Orders multi={multi} stores={active} names={names} refreshKey={refresh} />
           : view === 'count' ? <StockTake multi={multi} stores={active} canManage={(storeId) => isAdmin || (members ?? []).some((m) => m.user_id === session.user.id && m.store_id === storeId && m.role === 'manager')} />
           : view === 'counts' ? <StockCounts multi={multi} stores={active} names={names} />
-          : view === 'labels' ? <Labels />
+          : view === 'labels' ? <Labels stores={active} names={names} />
           : view === 'price' ? <PriceCheck stores={active} multi={multi} onQuote={quoteFrom} onOrder={(j) => { setJump(j); setView('order') }} onSales={(storeId, code) => { setSalesStart({ storeId, code }); setView('sales') }} />
           : view === 'closures' && isOps ? <Suspense fallback={<Loading />}><Closures names={names} /></Suspense>
+          : view === 'holds' && isOps ? <Suspense fallback={<Loading />}><Holds /></Suspense>
           : view === 'transfers' && works ? <Suspense fallback={<Loading />}><Transfers stores={active} multi={multi} names={names} /></Suspense>
           : view === 'tansel' ? <Suspense fallback={<Loading />}><Tansel stores={active} multi={multi} draftKey={`hsw-quote-draft:${email}`} onQuote={quoteFrom} /></Suspense>
           : view === 'sales' ? (salesStores === null ? <Loading /> : <Sales key={salesStart ? `${salesStart.storeId}:${salesStart.code}` : 'sales'} start={salesStart} email={email} isAdmin={isAdmin} seesAll={isAdmin || isArea} stores={salesStores} allStores={isAdmin ? allStores : salesStores} onOrder={works ? (j) => { setJump(j); setView('order') } : undefined} />)

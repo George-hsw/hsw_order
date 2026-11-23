@@ -1,3 +1,4 @@
+import type { LabelJob } from './labels'
 import { codeLines, type CustomerOrderNeed } from './customerOrders'
 import type { Counted, OverdueInvoice } from './notifications'
 import { DEFAULT_COVER } from './insights'
@@ -342,6 +343,22 @@ export const supabaseApi: OrdersApi = {
     return data as CountRow
   },
 
+  async listLabelJobs(storeId) {
+    const { data, error } = await db().from('label_jobs').select('*').eq('store_id', storeId).order('printed_at', { ascending: false }).limit(100)
+    if (error) throw new Error(error.message)
+    return (data ?? []) as LabelJob[]
+  },
+  async saveLabelJob(job) {
+    const row = { store_id: job.store_id, template: job.template, start_at: job.start_at, barcode: job.barcode, teal: job.teal, lines: job.lines, label_count: job.label_count }
+    const q = job.id ? db().from('label_jobs').update({ ...row, printed_at: new Date().toISOString() }).eq('id', job.id) : db().from('label_jobs').insert(row)
+    const { data, error } = await q.select('*').single()
+    if (error) throw new Error(error.message)
+    return data as LabelJob
+  },
+  async deleteLabelJob(id) {
+    const { error } = await db().from('label_jobs').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  },
   async deleteCount(countId) {
     const { error } = await db().rpc('delete_count', { p_count: countId })
     if (error) throw new Error(error.message)

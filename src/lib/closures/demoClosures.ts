@@ -1,6 +1,6 @@
 // A made-up closure setup for `npm run demo`, kept in memory (it resets on reload). Nothing here is real.
 import { demoItems, demoStock, demoStores } from '../demo'
-import type { AllocRow, ClosureDetail, ClosureLineRow, ClosureRow, ClosuresApi, NeedRow, RequestLineRow, RequestRow } from './api'
+import type { AllocRow, ClosureDetail, HoldRow, ClosureLineRow, ClosureRow, ClosuresApi, NeedRow, RequestLineRow, RequestRow } from './api'
 
 const wait = <T>(v: T, ms = 120) => new Promise<T>((r) => setTimeout(() => r(v), ms))
 const iso = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 36e5).toISOString()
@@ -46,6 +46,8 @@ const leftOf = (closureId: string, code: string) => {
   const used = requests.filter((r) => r.closure_id === closureId).flatMap((r) => requestLines.filter((l) => l.request_id === r.id && l.item_code === code).map((l) => (r.status === 'sent' ? l.qty_requested : r.status === 'accepted' || r.status === 'received' ? l.qty_accepted ?? l.qty_requested : 0))).reduce((a, b) => a + b, 0)
   return sheet - used
 }
+
+let holdRows: HoldRow[] = [{ store_id: 'demo-0', item_code: seedItems[0].code, min_qty: 6, set_by: 'morgan@hsw.com.au', set_at: iso(10) }]
 
 export const demoClosuresApi: ClosuresApi = {
   async opsStores() { return wait(stores().map((s) => ({ id: s.id, name: s.name, code: s.code, active: s.id === DEMO_CLOSING_STORE ? false : s.active }))) },
@@ -155,6 +157,14 @@ export const demoClosuresApi: ClosuresApi = {
     emit()
     return wait(ids)
   },
+  async holds(storeIds) { return wait(holdRows.filter((h) => !storeIds || storeIds.includes(h.store_id))) },
+  async setHold(storeIds, code, minQty) {
+    if (!items().some((i) => i.code === code.trim())) throw new Error(`That item number is not in the item list: ${code}`)
+    if (!Number.isInteger(minQty) || minQty < 1) throw new Error('The minimum must be a whole number, 1 or more')
+    holdRows = [...holdRows.filter((h) => !(storeIds.includes(h.store_id) && h.item_code === code.trim())), ...storeIds.map((s) => ({ store_id: s, item_code: code.trim(), min_qty: minQty, set_by: 'demo@hsw.com.au', set_at: new Date().toISOString() }))]
+    emit(); return wait(undefined)
+  },
+  async removeHold(storeId, code) { holdRows = holdRows.filter((h) => !(h.store_id === storeId && h.item_code === code)); emit(); return wait(undefined) },
   async incoming(storeIds) {
     const reqs = requests.filter((r) => storeIds.includes(r.to_store_id)).sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1))
     return wait({ requests: reqs, lines: requestLines.filter((l) => reqs.some((r) => r.id === l.request_id)) })

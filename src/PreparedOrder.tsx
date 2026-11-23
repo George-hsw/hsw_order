@@ -4,7 +4,7 @@ import { money } from './lib/order'
 import { movCheck } from './lib/mov'
 import MovFlag from './MovFlag'
 
-export interface PrepLine { code: string; description: string; qty: number; cost: number; why: string; brief: string; hold: boolean; stock: number; moq: number }
+export interface PrepLine { code: string; description: string; qty: number; cost: number; why: string; brief: string; hold: boolean; source: 'push' | 'hold' | null; stock: number; sold: number; soldWeeks: number; onOrder: number; moq: number }
 
 const toQty = (text: string) => { const n = parseInt(text.replace(/\D/g, ''), 10); return Number.isFinite(n) ? n : 0 }
 
@@ -55,7 +55,7 @@ export default function PreparedOrder({ vendor, weeks, orderCost, lines, loading
           {mov && !mov.met && <MovFlag check={mov} total={orderCost + cost} />}
           <div className="tablewrap">
             <table className="book prep">
-              <thead><tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">MOQ</th><th className="r">Suggested</th><th className="r">Order qty</th><th className="r">Cost</th></tr></thead>
+              <thead><tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">Sold</th><th className="r">On order</th><th className="r">MOQ</th><th className="r">Suggested</th><th className="r">Order qty</th><th className="r">Cost</th></tr></thead>
               <tbody>
                 {lines.map((l) => {
                   const q = toQty(valueOf(l))
@@ -66,11 +66,13 @@ export default function PreparedOrder({ vendor, weeks, orderCost, lines, loading
                       </td>
                       <td data-label="Description" className="desc">
                         {l.description}
-                        <small className="muted">{l.brief}{l.hold && <span className="chk warn"> Your call: one MOQ lasts a long time</span>}</small>
+                        <small className="muted">{l.source && <span className="chk warn">{l.source === 'push' ? 'Asked by operations. ' : 'Always in stock. '}</span>}{l.brief}{l.hold && <span className="chk warn"> Your call: one MOQ lasts a long time</span>}</small>
                         <button type="button" className="quiet why" aria-expanded={open === l.code} onClick={() => setOpen(open === l.code ? null : l.code)}>{open === l.code ? 'Hide the working' : 'Why?'}</button>
                         {open === l.code && <small className="muted">{l.why}</small>}
                       </td>
                       <td data-label="In stock" className="r">{l.stock}</td>
+                      <td data-label={`Sold, ${l.soldWeeks} wks`} className="r">{l.sold}</td>
+                      <td data-label="On order" className="r">{l.onOrder}</td>
                       <td data-label="MOQ" className="r">{l.moq}</td>
                       <td data-label="Suggested" className="r">{l.qty}</td>
                       <td data-label="Order qty" className="r">

@@ -69,8 +69,9 @@ Deno.serve(async (req) => {
 
     const isInvoice = doc.doc_type === 'Tax Invoice'
     const isOrder = doc.doc_type === 'Customer Order'
-    const label = isInvoice ? 'tax invoice' : isOrder ? 'customer order' : 'quote'
-    const subject = `${isInvoice ? 'Tax invoice' : isOrder ? 'Customer order' : 'Quote'} ${doc.doc_number} from Howards Storage World ${store.name}`
+    const isMeasure = doc.doc_type === 'Measurements'
+    const label = isInvoice ? 'tax invoice' : isOrder ? 'customer order' : isMeasure ? 'measurement record' : 'quote'
+    const subject = `${isInvoice ? 'Tax invoice' : isOrder ? 'Customer order' : isMeasure ? 'Measurement record' : 'Quote'} ${doc.doc_number} from Howards Storage World ${store.name}`
     const note = String(b.message ?? '').trim().slice(0, 1500)
 
     let balanceLine = ''
@@ -93,8 +94,8 @@ Deno.serve(async (req) => {
   <p>Please find your ${label} <b>${esc(doc.doc_number)}</b> attached as a PDF.</p>
   ${note ? `<p style="white-space:pre-wrap">${esc(note)}</p>` : ''}
   <table style="border-collapse:collapse;margin:8px 0">
-    <tr><td style="padding:4px 12px 4px 0;color:#6D6E71">${isInvoice ? 'Invoice' : isOrder ? 'Customer order' : 'Quote'}</td><td style="padding:4px 0">${esc(doc.doc_number)}</td></tr>
-    <tr><td style="padding:4px 12px 4px 0;color:#6D6E71">Total (incl GST)</td><td style="padding:4px 0"><b>${aud(doc.total_cents)}</b></td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#6D6E71">${isInvoice ? 'Invoice' : isOrder ? 'Customer order' : isMeasure ? 'Measurement record' : 'Quote'}</td><td style="padding:4px 0">${esc(doc.doc_number)}</td></tr>
+    ${isMeasure ? '' : `<tr><td style="padding:4px 12px 4px 0;color:#6D6E71">Total (incl GST)</td><td style="padding:4px 0"><b>${aud(doc.total_cents)}</b></td></tr>`}
     ${balanceLine}
   </table>
   <p>If you have any questions, reply to this email${store.phone ? ` or call us on ${esc(store.phone)}` : ''}.</p>

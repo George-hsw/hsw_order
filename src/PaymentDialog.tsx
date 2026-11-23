@@ -5,7 +5,7 @@ import { money } from './lib/quote'
 import { DEMO, isoDate, supabase, type PaymentRow } from './lib/supabase'
 
 /** The parts of a saved document the payment dialog needs, so the Builder can use it before the list is loaded. */
-export interface PayDoc { id: string; doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order'; doc_number: string; customer_name: string; total_cents: number; payments: PaymentRow[] }
+export interface PayDoc { id: string; doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order' | 'Measurements'; doc_number: string; customer_name: string; total_cents: number; payments: PaymentRow[] }
 
 export const paidOf = (d: { payments: { amount_cents: number }[] }) => d.payments.reduce((a, p) => a + p.amount_cents, 0)
 

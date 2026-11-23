@@ -61,3 +61,35 @@ describe('label pdf', () => {
     expect(doc.getNumberOfPages()).toBe(2)
   })
 })
+
+describe('a kept print can be printed again', () => {
+  it('survives being saved as JSON and prints the same labels', () => {
+    const printed = expand([item('A', 4), item('B', 2)])
+    const kept = JSON.parse(JSON.stringify(regroup(printed))) as QueueItem[]
+    expect(kept.map((l) => [l.code, l.qty])).toEqual([['A', 4], ['B', 2]])
+    expect(expand(kept)).toHaveLength(printed.length)
+    const again = buildLabelsPdf(expand(kept), templateOf('shelf'), { startAt: 3, barcode: false, teal: false })
+    const first = buildLabelsPdf(printed, templateOf('shelf'), { startAt: 3, barcode: false, teal: false })
+    expect(again.getNumberOfPages()).toBe(first.getNumberOfPages())
+  })
+})
+
+describe('label colours match the Excel templates', () => {
+  const pdfOf = (id: 'shelf' | 'clearance' | 'strip', teal: boolean) =>
+    buildLabelsPdf(expand([item('A', 1, { discount: '40' })]), templateOf(id), { startAt: 1, barcode: false, teal }).output()
+  const YELLOW = /1\. 0\.82 0\. rg/ // FFD100
+  const CHARCOAL = /0\.1 g/ // 1A1A1A
+  const TEAL = /0\.09 0\.42 0\.45 rg/ // 176A72
+  it('a clearance label has the yellow background and the 1A1A1A band', () => {
+    expect(pdfOf('clearance', false)).toMatch(YELLOW)
+    expect(pdfOf('clearance', false)).toMatch(CHARCOAL)
+  })
+  it('a clearance strip has the yellow background and the 1A1A1A block', () => {
+    expect(pdfOf('strip', false)).toMatch(YELLOW)
+    expect(pdfOf('strip', false)).toMatch(CHARCOAL)
+  })
+  it('a shelf label is teal 176A72 only when Teal is chosen', () => {
+    expect(pdfOf('shelf', true)).toMatch(TEAL)
+    expect(pdfOf('shelf', false)).not.toMatch(TEAL)
+  })
+})

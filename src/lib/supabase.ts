@@ -70,7 +70,7 @@ export interface PaymentRow {
 export interface DocRow {
   id: string
   store_id: string
-  doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order'
+  doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order' | 'Measurements'
   fulfilment?: Fulfilment | null // customer orders only: where the order is up to
   doc_number: string
   customer_name: string

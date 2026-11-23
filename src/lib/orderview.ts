@@ -27,9 +27,24 @@ export const COVER_HELP: Record<Cover, string> = {
   covered: 'In stock plus on order is more than the units sold',
 }
 
-/** Red, yellow or green: stock plus what is on order, against the units sold over the weeks measured. Null when the item has not sold, so there is nothing to compare. */
-export function coverStatus(inventory: number | undefined, onOrder: number | undefined, sold: number): Cover | null {
-  if (sold <= 0) return null
+/** What the store sees as In stock: stock already net of sales not yet posted, never below zero. */
+export function shownStock(inventory: number | undefined): number | null {
+  return inventory === undefined ? null : Math.max(0, inventory)
+}
+
+/** True when nothing is in stock and nothing was sold-not-posted, so the Order table shows the purple No stock tag. */
+export function noStock(inventory: number | undefined, soldNotPosted: number | undefined): boolean {
+  return inventory !== undefined && inventory === 0 && !(soldNotPosted ?? 0)
+}
+
+/**
+ * Red, yellow or green: stock plus what is on order, against the units sold over the weeks measured.
+ * Stock below zero (unposted sales are more than the stock) is always short. An item that has not sold is covered if anything is held,
+ * and short if nothing is held, unless it is a plain no-stock item (no colour: the purple tag covers it).
+ */
+export function coverStatus(inventory: number | undefined, onOrder: number | undefined, sold: number, soldNotPosted = 0): Cover | null {
+  if ((inventory ?? 0) < 0) return 'short'
   const have = Math.max(0, inventory ?? 0) + Math.max(0, onOrder ?? 0)
+  if (sold <= 0) return have > 0 ? 'covered' : soldNotPosted > 0 ? 'short' : null
   return have < sold ? 'short' : have === sold ? 'even' : 'covered'
 }

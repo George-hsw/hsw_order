@@ -61,7 +61,7 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
         </p>
 
         <dl className="facts">
-          <div><dt>In stock</dt><dd className="num">{num(stock?.inventory)}</dd></div>
+          <div><dt>In stock</dt><dd className="num">{num(stock && Math.max(0, stock.inventory))}</dd></div>
           <div><dt>On order</dt><dd className="num">{num(stock?.qty_on_po)}</dd></div>
           <div><dt>Transfer in</dt><dd className="num">{num(stock?.transfer_in)}</dd></div>
           {(stock?.unavailable ?? 0) > 0 && <div><dt>Unavailable</dt><dd className="num">{stock!.unavailable}</dd></div>}
@@ -79,7 +79,7 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
           ) : (
             <>
               <p>{weekLabel(sales.data[0])}: sold <b className="num">{sales.data[0].qty}</b> ({money2(sales.data[0].net_sales)}){sales.data[0].store_rank ? `, ${ordinal(sales.data[0].store_rank)} in this store` : ''}{sales.data[0].business_rank ? `, ${ordinal(sales.data[0].business_rank)} in the business` : ''}.
-                {sales.data[0].stores_stocking > 0 && <> The average store that stocks it sold {(sales.data[0].group_qty / sales.data[0].stores_stocking).toFixed(1)}.</>}
+                {sales.data[0].stores_stocking > 0 && <> The average store that stocks it sold {Math.round(sales.data[0].group_qty / sales.data[0].stores_stocking)}.</>}
                 {sales.data[0].potential_loss > 0 && <> Estimated sales lost while out of stock: {money2(sales.data[0].potential_loss)}.</>}</p>
               <table className="salesmini">
                 <thead><tr><th>Week</th><th className="r">Sold</th><th className="r">Sales</th><th className="r">Lost</th></tr></thead>

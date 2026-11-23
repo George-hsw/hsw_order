@@ -38,6 +38,21 @@ export interface QueueItem {
 
 export const MAX_QTY = 99
 
+/** A print kept in the history: what was printed and how, so it can be changed or printed again. */
+export interface LabelJob {
+  id: string
+  store_id: string
+  template: TemplateId
+  start_at: number
+  barcode: boolean
+  teal: boolean
+  lines: QueueItem[]
+  label_count: number
+  printed_by: string
+  printed_at: string
+}
+export type LabelJobInput = Omit<LabelJob, 'id' | 'printed_by' | 'printed_at'> & { id?: string }
+
 /** The discount as a number between 0 and 100, or null when it is blank or not a number. */
 export function discountOf(raw: string): number | null {
   const t = raw.trim().replace('%', '')
@@ -97,12 +112,15 @@ export function regroup(labels: QueueItem[]): QueueItem[] {
   return out
 }
 
-// The label colours are those of the printed templates (they are not screen colours).
+// The label colours are those of the printed templates (they are not screen colours), read from the two Excel files' fills:
+// teal 176A72 on a shelf or hook label when Teal is chosen; on a clearance label the whole label is yellow FFD100, its band
+// and block charcoal 1A1A1A, and its text 1A1A1A (yellow on the charcoal).
 type RGB = [number, number, number]
 const TEAL: RGB = [23, 106, 114]
-const CHARCOAL: RGB = [60, 60, 59]
+const CHARCOAL: RGB = [26, 26, 26]
 const YELLOW: RGB = [255, 209, 0]
 const INK: RGB = [0, 0, 0]
+const DARK: RGB = [26, 26, 26]
 const WHITE: RGB = [255, 255, 255]
 const GREY: RGB = [150, 150, 150]
 const aud = (n: number) => `$${n.toFixed(2).replace(/\.00$/, '')}`
@@ -168,19 +186,22 @@ function drawLabel(doc: jsPDF, t: Template, x: number, y: number, l: QueueItem, 
   const disc = discountOf(l.discount) ?? 0
   const now = nowPrice(was, disc)
   const pct = `${Number.isInteger(disc) ? disc : disc.toFixed(1)}%`
+  const cut = () => doc.setDrawColor(...GREY).setLineWidth(0.1).setLineDashPattern([0.8, 0.8], 0).rect(x, y, t.w, t.h).setLineDashPattern([], 0)
+  doc.setFillColor(...YELLOW).rect(x, y, t.w, t.h, 'F') // the yellow background of the whole label
+  cut()
   if (t.id === 'clearance') {
     doc.setFillColor(...CHARCOAL).rect(x, y, t.w, 14, 'F')
     put('CLEARANCE', x + t.w / 2, y + 9.5, 17, true, YELLOW, 'center')
-    put(`${pct} OFF`, x + t.w / 2, y + 28, 26, true, INK, 'center')
-    put('Was', x + PAD + 2, y + 38, 11, false, INK)
+    put(`${pct} OFF`, x + t.w / 2, y + 28, 26, true, DARK, 'center')
+    put('Was', x + PAD + 2, y + 38, 11, false, DARK)
     const wasText = aud(was)
-    put(wasText, x + t.w - PAD - 2, y + 38, 12, false, INK, 'right')
+    put(wasText, x + t.w - PAD - 2, y + 38, 12, false, DARK, 'right')
     const tw = doc.getTextWidth(wasText)
-    doc.setDrawColor(...INK).setLineWidth(0.35).line(x + t.w - PAD - 2 - tw, y + 37, x + t.w - PAD - 2, y + 37) // struck through
-    put('NOW', x + PAD + 2, y + 50, 13, true, INK)
-    put(aud(now), x + t.w - PAD - 2, y + 51, 28, true, INK, 'right')
-    words(doc, l.description, iw, 10, false, 2).forEach((s, i) => put(s, x + t.w / 2, y + 59 + i * 4.2, 10, false, INK, 'center'))
-    put(`While stocks last · ${l.code}`, x + t.w / 2, y + t.h - 3, 7.5, false, INK, 'center')
+    doc.setDrawColor(...DARK).setLineWidth(0.35).line(x + t.w - PAD - 2 - tw, y + 37, x + t.w - PAD - 2, y + 37) // struck through
+    put('NOW', x + PAD + 2, y + 50, 13, true, DARK)
+    put(aud(now), x + t.w - PAD - 2, y + 51, 28, true, DARK, 'right')
+    words(doc, l.description, iw, 10, false, 2).forEach((s, i) => put(s, x + t.w / 2, y + 59 + i * 4.2, 10, false, DARK, 'center'))
+    put(`While stocks last · ${l.code}`, x + t.w / 2, y + t.h - 3, 7.5, false, DARK, 'center')
     return
   }
 
@@ -192,11 +213,11 @@ function drawLabel(doc: jsPDF, t: Template, x: number, y: number, l: QueueItem, 
   put('OFF', x + bw / 2, y + 23, 8, true, YELLOW, 'center')
   const rx = x + bw + PAD
   const rw = t.w - bw - 2 * PAD
-  words(doc, l.description, rw, 8.5, true, 2).forEach((s, i) => put(s, rx, y + 5.5 + i * 3.6, 8.5, true, INK))
+  words(doc, l.description, rw, 8.5, true, 2).forEach((s, i) => put(s, rx, y + 5.5 + i * 3.6, 8.5, true, DARK))
   const wasText = aud(was)
-  put(wasText, rx, y + 15.5, 10, false, INK)
+  put(wasText, rx, y + 15.5, 10, false, DARK)
   const tw = doc.getTextWidth(wasText)
-  doc.setDrawColor(...INK).setLineWidth(0.3).line(rx, y + 14.6, rx + tw, y + 14.6)
-  put(aud(now), x + t.w - PAD, y + 21.5, 20, true, INK, 'right')
-  put(`${l.code} · While stocks last`, rx, y + t.h - 2.2, 6.5, false, INK)
+  doc.setDrawColor(...DARK).setLineWidth(0.3).line(rx, y + 14.6, rx + tw, y + 14.6)
+  put(aud(now), x + t.w - PAD, y + 21.5, 20, true, DARK, 'right')
+  put(`${l.code} · While stocks last`, rx, y + t.h - 2.2, 6.5, false, DARK)
 }

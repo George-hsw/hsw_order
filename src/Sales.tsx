@@ -4,12 +4,13 @@ import { BarList, ChartCard, ColumnChart, Delta, Donut, Legend, Meter, StatTile 
 import SalesItem from './SalesItem'
 import SalesItems from './SalesItems'
 import SalesLeague from './SalesLeague'
+import SalesPeriod from './SalesPeriod'
 import SalesUpload from './SalesUpload'
 import { track } from './lib/analytics/track'
 import { salesApi } from './lib/sales/api'
 import {
-  RANK_LABEL, WEEKDAYS, avgSale, avgSaleLy, change, memberShare, money2, pctText, rangeText, rankText, sameWeek, weekKey, weekLabel,
-  type RankMetric, type StoreWeek, type WeekDates, type WeekRef,
+  PERIODS, PERIOD_LABEL, RANK_LABEL, WEEKDAYS, avgSale, avgSaleLy, change, memberShare, money2, pctText, rangeText, rankText, resolvePeriod, sameWeek, weekKey, weekLabel,
+  type PeriodKey, type RankMetric, type StoreWeek, type WeekDates, type WeekRef,
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
@@ -31,6 +32,9 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
     return stores[0]?.id ?? ''
   })
   const [week, setWeek] = useState<WeekRef | null>(null)
+  const [period, setPeriod] = useState<PeriodKey>('week')
+  const [from, setFrom] = useState<number | null>(null) // custom range, as week keys
+  const [to, setTo] = useState<number | null>(null)
   const [itemCode, setItemCode] = useState<string | null>(start?.code ?? null) // an item sent here from the Items list or Price check
   const weeks = useLoad(() => salesApi.weeks(), [])
   const history = useLoad(() => salesApi.history(storeId), [storeId], !!storeId)
@@ -47,6 +51,13 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
 
   const dates = week ? weeks.data?.find((w) => sameWeek(w, week)) : undefined
   const weekOptions: WeekDates[] = useMemo(() => weeks.data ?? [], [weeks.data])
+  const ranged = sub === 'store' || sub === 'all'
+  const periodWeeks = useMemo(() => resolvePeriod(period, weekOptions, { one: week, from: from ?? undefined, to: to ?? undefined }), [period, weekOptions, week, from, to])
+  const weekSelect = (name: string, label: string, value: number | null, onChange: (k: number) => void) => (
+    <select name={name} aria-label={label} value={value ?? ''} onChange={(e) => onChange(Number(e.target.value))} style={{ width: 'auto' }}>
+      {weekOptions.map((w) => <option key={weekKey(w)} value={weekKey(w)}>{weekLabel(w)}{w.week_start ? `, ${rangeText(w.week_start, w.week_end)}` : ''}</option>)}
+    </select>
+  )
 
   const tab = (t: Sub, label: string) => <button type="button" aria-pressed={sub === t} onClick={() => setSub(t)}>{label}</button>
 
@@ -72,11 +83,18 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        {sub !== 'upload' && sub !== 'item' && weekOptions.length > 0 && (
-          <select name="salesWeek" aria-label="Week" value={week ? weekKey(week) : ''} onChange={(e) => { const w = weekOptions.find((x) => weekKey(x) === Number(e.target.value)); if (w) setWeek({ fy: w.fy, week: w.week }) }} style={{ width: 'auto' }}>
-            {weekOptions.map((w) => <option key={weekKey(w)} value={weekKey(w)}>{weekLabel(w)}{w.week_start ? `, ${rangeText(w.week_start, w.week_end)}` : ''}</option>)}
+        {ranged && weekOptions.length > 0 && (
+          <select name="salesPeriod" aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value as PeriodKey)} style={{ width: 'auto' }}>
+            {PERIODS.map((k) => <option key={k} value={k}>{PERIOD_LABEL[k]}</option>)}
           </select>
         )}
+        {ranged && period === 'custom' && weekOptions.length > 0 && (
+          <>
+            <label className="inline">From {weekSelect('salesFrom', 'From week', from ?? weekKey(periodWeeks[0] ?? weekOptions[0]), setFrom)}</label>
+            <label className="inline">To {weekSelect('salesTo', 'To week', to ?? weekKey(periodWeeks.at(-1) ?? weekOptions[0]), setTo)}</label>
+          </>
+        )}
+        {sub !== 'upload' && sub !== 'item' && weekOptions.length > 0 && (!ranged || period === 'week') && weekSelect('salesWeek', 'Week', week ? weekKey(week) : null, (k) => { const w = weekOptions.find((x) => weekKey(x) === k); if (w) setWeek({ fy: w.fy, week: w.week }) })}
       </div>
 
       {sub === 'upload' && isAdmin ? <SalesUpload email={email} stores={allStores} onLoaded={() => { weeks.retry(); history.retry() }} />
@@ -88,9 +106,10 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
         : !weekOptions.length ? (
           <div className="state"><p>No sales loaded yet</p><p className="muted">{isAdmin ? 'Open the Upload view and add this week’s reports.' : 'Head office loads the weekly reports. They will appear here once they do.'}</p></div>
         ) : !week ? null
-        : sub === 'all' && seesAll ? <SalesLeague week={week} stores={allStores} />
+        : sub === 'all' && seesAll ? <SalesLeague weeks={periodWeeks} stores={allStores} />
         : sub === 'items' ? <SalesItems storeId={storeId} week={week} onOrder={onOrder && ((vendor, item) => onOrder({ storeId, vendor, item }))} onTrend={(code) => { setItemCode(code); setSub('item') }} />
-        : <MyStore storeId={storeId} week={week} dates={dates} history={history.data ?? []} onWeek={setWeek} />}
+        : periodWeeks.length > 1 ? <SalesPeriod weeks={periodWeeks} history={history.data ?? []} />
+        : <MyStore storeId={storeId} week={period === 'week' ? week : periodWeeks[0]} dates={dates} history={history.data ?? []} onWeek={setWeek} />}
     </>
   )
 }

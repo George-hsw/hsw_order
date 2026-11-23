@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverStatus, gpPercent, soldOver } from './orderview'
+import { coverStatus, gpPercent, noStock, shownStock, soldOver } from './orderview'
 
 describe('gross profit', () => {
   it('is worked on the price before GST', () => {
@@ -29,9 +29,25 @@ describe('stock colour', () => {
     expect(coverStatus(6, 4, 10)).toBe('even')
     expect(coverStatus(8, 4, 10)).toBe('covered')
   })
-  it('has no colour for an item that has not sold, and ignores negative stock', () => {
-    expect(coverStatus(5, 5, 0)).toBeNull()
-    expect(coverStatus(-3, 0, 2)).toBe('short')
+  it('is short when unposted sales have taken stock below zero', () => {
+    expect(coverStatus(-1, 0, 2)).toBe('short')
+    expect(coverStatus(-1, 10, 0)).toBe('short')
     expect(coverStatus(undefined, undefined, 2)).toBe('short')
+  })
+  it('for an item that has not sold: covered if anything is held, short if sales not posted emptied it, no colour if plain empty', () => {
+    expect(coverStatus(5, 5, 0)).toBe('covered')
+    expect(coverStatus(0, 4, 0)).toBe('covered')
+    expect(coverStatus(0, 0, 0, 3)).toBe('short')
+    expect(coverStatus(0, 0, 0, 0)).toBeNull()
+  })
+  it('shows stock never below zero, and No stock only for zero with nothing unposted', () => {
+    expect(shownStock(-1)).toBe(0)
+    expect(shownStock(4)).toBe(4)
+    expect(shownStock(undefined)).toBeNull()
+    expect(noStock(0, 0)).toBe(true)
+    expect(noStock(0, undefined)).toBe(true)
+    expect(noStock(0, 2)).toBe(false)
+    expect(noStock(-1, 3)).toBe(false)
+    expect(noStock(3, 0)).toBe(false)
   })
 })

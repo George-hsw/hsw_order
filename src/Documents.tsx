@@ -21,15 +21,17 @@ interface Props {
 function statusLabel(d: DocRow): string {
   if (d.status === 'void') return 'Void'
   const paid = paidOf(d)
-  if (paid === 0) return d.doc_type === 'Quote' ? 'Quote' : d.doc_type === 'Customer Order' ? 'Customer order' : 'Open'
+  if (paid === 0) return d.doc_type === 'Quote' ? 'Quote' : d.doc_type === 'Customer Order' ? 'Customer order' : d.doc_type === 'Measurements' ? 'Measurements' : 'Open'
   if (paid >= d.total_cents) return 'Paid in full'
   return d.payments.every((p) => p.kind === 'deposit') ? 'Deposit received' : 'Part paid'
 }
+const docWord = (d: DocRow) => (d.doc_type === 'Customer Order' ? 'customer order' : d.doc_type === 'Measurements' ? 'measurement record' : 'quote')
 const TYPES: { value: string; label: string }[] = [
   { value: '', label: 'All' },
   { value: 'Quote', label: 'Quotes' },
   { value: 'Customer Order', label: 'Customer orders' },
   { value: 'Tax Invoice', label: 'Invoices' },
+  { value: 'Measurements', label: 'Measurements' },
 ]
 
 export default function Documents({ isAdmin, showBy, canPay, names, refreshKey, onOpen }: Props) {
@@ -62,9 +64,9 @@ export default function Documents({ isAdmin, showBy, canPay, names, refreshKey, 
 
   const deleteQuote = async (d: DocRow) => {
     if (!(await ask({
-      title: `Delete ${d.doc_type === 'Customer Order' ? 'customer order' : 'quote'} ${d.doc_number}?`,
-      body: <p>The {d.doc_type === 'Customer Order' ? 'customer order' : 'quote'} for {d.customer_name} ({money(d.total_cents)}) is removed for good. This cannot be undone.</p>,
-      confirmLabel: d.doc_type === 'Customer Order' ? 'Delete customer order' : 'Delete quote',
+      title: `Delete ${docWord(d)} ${d.doc_number}?`,
+      body: <p>The {docWord(d)} for {d.customer_name}{d.doc_type === 'Measurements' ? '' : ` (${money(d.total_cents)})`} is removed for good. This cannot be undone.</p>,
+      confirmLabel: `Delete ${docWord(d)}`,
       danger: true,
     }))) return
     if (DEMO) { toast.info('Demo mode: nothing was deleted.'); return }

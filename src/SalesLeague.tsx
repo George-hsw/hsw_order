@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import Loading from './Loading'
 import { BarList, ChartCard, Delta, Donut, Legend } from './Charts'
 import { salesApi } from './lib/sales/api'
-import { RANK_LABEL, avgSale, change, memberShare, money2, ordinal, pctText, weekKey, type RankMetric, type StoreWeek, type WeekRef } from './lib/sales/model'
+import { RANK_LABEL, avgSale, change, combineLeague, memberShare, money2, ordinal, pctText, periodText, weekKey, type RankMetric, type StoreWeek, type WeekDates } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
 import type { StoreRow } from './lib/supabase'
 import { reveal } from './lib/motion'
@@ -21,20 +21,23 @@ const value = (m: RankMetric, w: StoreWeek): number | null => {
 }
 const text = (m: RankMetric, v: number) => (m === 'sales' || m === 'avg_sale' ? money2(v) : m === 'sqm' ? `${money2(v)} per m²` : m === 'growth' ? pctText(v) : m === 'basket' ? v.toFixed(2) : `${(v * 100).toFixed(1)}%`)
 
-/** Head office only: every store side by side for the week. Stores never get this view; they see their own rank. */
-export default function SalesLeague({ week, stores }: { week: WeekRef; stores: StoreRow[] }) {
-  const league = useLoad(() => salesApi.league(week), [weekKey(week)])
+/** Head office only: every store side by side for the period (one week or several, added up). Stores never get this view; they see their own rank. */
+export default function SalesLeague({ weeks, stores }: { weeks: WeekDates[]; stores: StoreRow[] }) {
+  const league = useLoad(() => Promise.all(weeks.map((w) => salesApi.league(w))).then(combineLeague), [weeks.map(weekKey).join(',')], weeks.length > 0)
   const [metric, setMetric] = useState<RankMetric>('sales')
   const [pick, setPick] = useState<string | null>(null)
   const [group, setGroup] = useState<string | null>(null)
-  const rows = league.data ?? []
+  const [state, setState] = useState('')
+  const all = league.data ?? []
+  const states = useMemo(() => [...new Set(all.map((r) => r.state).filter(Boolean))].sort(), [all])
+  const rows = useMemo(() => (state ? all.filter((r) => r.state === state) : all), [all, state])
   const trading = useMemo(() => rows.filter((r) => r.co_fran !== 'Closed' && r.co_fran !== 'eShop' && r.ty_sales > 0), [rows])
   const bars = useMemo(() => trading.flatMap((r) => { const v = value(metric, r); return v === null ? [] : [{ r, v }] }).sort((a, b) => b.v - a.v), [trading, metric])
   const names = new Map(stores.map((s) => [s.id, s.name]))
 
   if (league.loading) return <Loading />
   if (league.failed) return <div className="state error" role="alert"><p>Could not load the stores</p><div className="actions"><button type="button" className="btn" onClick={league.retry}>Try again</button></div></div>
-  if (!rows.length) return <div className="state"><p>No store results for this week</p></div>
+  if (!all.length) return <div className="state"><p>No store results for {periodText(weeks)}</p></div>
 
   const sum = (f: (w: StoreWeek) => number, filter?: (w: StoreWeek) => boolean) => trading.filter(filter ?? (() => true)).reduce((a, w) => a + f(w), 0)
   const company = sum((w) => w.ty_sales, (w) => w.co_fran === 'Company')
@@ -46,7 +49,15 @@ export default function SalesLeague({ week, stores }: { week: WeekRef; stores: S
 
   return (
     <div className="viz-stack" ref={reveal}>
-      <p className="note">{trading.length} stores traded: {money2(total)} this week, <Delta f={change(total, totalLy)} label="on last year" /></p>
+      <p className="note">{trading.length} stores traded{state ? ` in ${state}` : ''} over {periodText(weeks)}: {money2(total)}, <Delta f={change(total, totalLy)} label="on last year" /></p>
+      {states.length > 1 && (
+        <div className="filters">
+          <select name="leagueState" aria-label="State" value={state} onChange={(e) => { setState(e.target.value); setPick(null) }} style={{ width: 'auto' }}>
+            <option value="">All states</option>
+            {states.map((st) => <option key={st} value={st}>{st}</option>)}
+          </select>
+        </div>
+      )}
       <div className="viz-two wide-left">
         <ChartCard title="Stores ranked" sub={`${RANK_LABEL[metric]}. Press a store to read it.`}
           actions={<select name="leagueMetric" aria-label="Measure" value={metric} onChange={(e) => { setMetric(e.target.value as RankMetric); setPick(null) }} style={{ width: 'auto' }}>{METRICS.map((m) => <option key={m} value={m}>{RANK_LABEL[m]}</option>)}</select>}
@@ -61,7 +72,7 @@ export default function SalesLeague({ week, stores }: { week: WeekRef; stores: S
           )}
         </ChartCard>
 
-        <ChartCard title="Company and franchise" sub="Share of the week’s sales. Press a part to filter the list."
+        <ChartCard title="Company and franchise" sub="Share of the period’s sales. Press a part to filter the list."
           table={{ head: ['', 'Stores', 'Sales'], rows: [['Company', trading.filter((w) => w.co_fran === 'Company').length, money2(company)], ['Franchised', trading.filter((w) => w.co_fran === 'Franchised').length, money2(fran)]] }}>
           <Donut parts={[{ key: 'Company', label: 'Company', value: company, tone: 'ty' }, { key: 'Franchised', label: 'Franchised', value: fran, tone: 'ly' }]} centre={money2(total)} sub="all stores" fmt={money2}
             selected={group} onSelect={(k) => setGroup(group === k ? null : k)} />

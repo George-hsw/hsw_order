@@ -69,7 +69,7 @@ export function useNotices({ isAdmin, isOps = false, stores, refreshKey }: { isA
       const weeks = val<{ week_end: string }[]>(7, [])
       const events = val<{ events: AppEvent[] }>(8, { events: [] }).events
       setAll(buildNotices({
-        now, isAdmin, stores: stores.map((s) => ({ id: s.id, name: s.name })),
+        now, isAdmin, summary: isAdmin || isOps, stores: stores.map((s) => ({ id: s.id, name: s.name })),
         customerOrders: val(0, []), lowStock: val(1, []), orderNeeds: val<OrderNeed[] | null>(9, null), newItems: val(2, []),
         orders: val(3, []), overdue: val(4, []), syncs: val(5, []),
         transfers: waitingTransfers(val<{ requests: RequestRow[]; lines: RequestLineRow[] }>(10, { requests: [], lines: [] })),
@@ -82,7 +82,7 @@ export function useNotices({ isAdmin, isOps = false, stores, refreshKey }: { isA
     })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idKey, isAdmin, refreshKey, tick])
+  }, [idKey, isAdmin, isOps, refreshKey, tick])
 
   // Operations hears of each store's answer and of stock arriving. It loads on its own, and again whenever a request changes.
   const [opsAll, setOpsAll] = useState<Notice[]>([])

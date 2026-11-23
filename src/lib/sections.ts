@@ -1,5 +1,5 @@
 /** The areas of the app, as shown on Home, and the tabs inside each. Adding an area later is one more entry here. */
-export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'count' | 'counts' | 'price' | 'tansel' | 'sales' | 'analytics' | 'stores' | 'users' | 'closures' | 'transfers' | 'labels'
+export type Tab = 'new' | 'docs' | 'reports' | 'order' | 'orders' | 'count' | 'counts' | 'price' | 'tansel' | 'sales' | 'analytics' | 'stores' | 'users' | 'closures' | 'holds' | 'transfers' | 'labels'
 export type AreaId = 'quote' | 'order' | 'transfer' | 'stocktake' | 'price' | 'sales' | 'admin'
 
 export interface Area {
@@ -18,7 +18,7 @@ export const AREAS: Area[] = [
   { id: 'order', label: 'Order', blurb: 'Order stock, and find past orders.',
     tabs: [{ tab: 'order', label: 'Order', needsStore: true }, { tab: 'orders', label: 'Orders', needsStore: true }] },
   { id: 'transfer', label: 'Stock transfers', blurb: 'Stock sent to your store by management, to copy into NAV.', opsLabel: 'Send to stores', opsBlurb: 'Send a list of items to all stores or some, or share a closing store’s stock, and see how stores answer.',
-    tabs: [{ tab: 'transfers', label: 'Stock transfers', needsStore: true }, { tab: 'closures', label: 'Send to stores', needsOps: true }] },
+    tabs: [{ tab: 'transfers', label: 'Stock transfers', needsStore: true }, { tab: 'closures', label: 'Send to stores', needsOps: true }, { tab: 'holds', label: 'Always in stock', needsOps: true }] },
   { id: 'stocktake', label: 'Stock take', blurb: 'Count the whole store, or one vendor or category, and copy the adjustments for NAV.',
     tabs: [{ tab: 'count', label: 'Count' }, { tab: 'counts', label: 'Counts' }] },
   { id: 'price', label: 'Price check', blurb: 'Scan an item for its price and stock, see how it has sold, print a label.',

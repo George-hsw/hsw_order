@@ -30,4 +30,20 @@ describe('buildPdf', () => {
       if (process.env.PDF_OUT) writeFileSync(`${process.env.PDF_OUT}-${docType.replace(' ', '')}.pdf`, Buffer.from(doc.output('arraybuffer')))
     }
   })
+
+  it('renders a measurements record with photos on one page, without items or totals', () => {
+    const jpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='
+    const q = emptyQuote()
+    q.docType = 'Measurements'; q.storeName = 'Mornington'; q.number = '1002'; q.date = '2026-01-10'
+    q.customer = { ...q.customer, name: 'Jo Smith', address: '1 Test St', suburb: 'Mornington VIC 3931' }
+    q.measurements = [{ where: 'Pantry', width: '900', height: '2100', depth: '400', note: 'to the ceiling' }]
+    q.photos = [{ name: 'a.jpg', data: jpeg, w: 400, h: 300 }, { name: 'b.jpg', data: jpeg, w: 300, h: 400 }]
+    const c = compute(q, items, [store], settings, 1)
+    expect(c.ready).toBe(true)
+    const doc = buildPdf(q, c, settings, null)
+    expect(doc.getNumberOfPages()).toBe(1)
+    const text = doc.output()
+    expect(text).toContain('measurement record')
+    expect(text).not.toContain('Grand total')
+  })
 })

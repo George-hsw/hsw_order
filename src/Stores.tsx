@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import { StatTile } from './Charts'
 import StorePanel from './StorePanel'
 import { api } from './lib/api'
 import { isStale } from './lib/order'
+import { salesApi } from './lib/sales/api'
+import { change, money2, weekLabel } from './lib/sales/model'
 import { MAX_STORES, type AppUser, type Member, type StoreRow, type SyncRun } from './lib/supabase'
 
 interface Props {
@@ -20,11 +23,21 @@ export default function Stores({ stores, people, members, onChanged }: Props) {
   const inStore = (id: string) => members.filter((m) => m.store_id === id)
   const managersOf = (id: string) =>
     inStore(id).filter((m) => m.role === 'manager').map((m) => people.find((p) => p.user_id === m.user_id)).filter((p): p is AppUser => !!p && p.active)
+  // The chain at a glance: counts from what is already loaded, and the newest week's sales across the stores.
+  const [chain, setChain] = useState<{ label: string; ty: number; ly: number; stores: number } | null>(null)
+  const noManager = stores.filter((s) => s.active && managersOf(s.id).length === 0).length
+  const syncProblems = runs ? stores.filter((s) => { if (!s.active) return false; const r = runs.find((x) => x.store_id === s.id); return !r || !r.ok || isStale(r.finished_at) }).length : null
   const open = openId && openId !== 'new' ? stores.find((s) => s.id === openId) ?? null : null
 
   useEffect(() => {
     let live = true
     api.syncRuns().then((r) => live && setRuns(r)).catch(() => live && setRunsFailed(true))
+    salesApi.weeks().then(async (w) => {
+      const newest = w[0]
+      if (!newest) return
+      const rows = (await salesApi.league(newest)).filter((r) => r.co_fran !== 'Closed' && r.co_fran !== 'eShop' && r.ty_sales > 0)
+      if (live) setChain({ label: weekLabel(newest), ty: rows.reduce((a, r) => a + r.ty_sales, 0), ly: rows.reduce((a, r) => a + r.ly_sales, 0), stores: rows.length })
+    }).catch(() => { /* the tiles that need sales simply stay out */ })
     return () => { live = false }
   }, [])
 
@@ -48,6 +61,13 @@ export default function Stores({ stores, people, members, onChanged }: Props) {
         <div className="actions">
           <button type="button" className="btn primary" disabled={activeCount >= MAX_STORES} onClick={() => setOpenId('new')}>Add store</button>
         </div>
+      </div>
+
+      <div className="kpis">
+        <StatTile label="Active stores" value={String(activeCount)} ly={`of ${MAX_STORES} allowed`} />
+        <StatTile label="NAV sync needs a look" value={syncProblems === null ? '…' : String(syncProblems)} ly="failed, late or never synced" />
+        <StatTile label="Without a manager" value={String(noManager)} ly="active stores" />
+        {chain && <StatTile label={`Sales, ${chain.label}`} value={money2(chain.ty)} delta={change(chain.ty, chain.ly)} ly={`${chain.stores} stores trading`} />}
       </div>
 
       <div className="tablewrap">

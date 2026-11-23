@@ -22,6 +22,7 @@
   --color-error: oklch(52% 0.19 27); --color-error-soft: oklch(94% 0.03 27);
   --color-success: oklch(46% 0.12 150); --color-success-soft: oklch(92% 0.04 150);
   --color-warn: oklch(46% 0.1 70); --color-warn-soft: oklch(93% 0.06 85);
+  --color-purple: oklch(44% 0.14 300); --color-purple-soft: oklch(93% 0.04 300);
   --color-scrim: oklch(18% 0.006 60 / 0.5); --color-camera: oklch(14% 0.01 220);
 
   /* Myriad Pro is the HSW brand face. It loads from the Adobe Fonts kit named in VITE_ADOBE_FONTS_KIT; until then the free Source Sans 3 stands in. */

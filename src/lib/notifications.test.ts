@@ -197,3 +197,26 @@ describe('stock offered by a closing store', () => {
     expect(buildNotices({ ...base, transfers: [] }).some((x) => x.group === 'Transfers')).toBe(false)
   })
 })
+
+describe('summary notices for operations and admin', () => {
+  const co = (id: string, store: string) => ({ id, store_id: store, doc_number: id, customer_name: 'A', created_at: '', lines: [{ code: 'A', qty: 1, description: 'T', vendor: 'V1' }] })
+  const inv = (n: string, store: string, cents: number) => ({ store_id: store, doc_number: n, customer_name: 'A', balance_cents: cents, due_date: '2026-11-01' })
+  const stores = [{ id: 's1', name: 'Alpha' }, { id: 's2', name: 'Beta' }]
+  it('counts customer orders and overdue invoices instead of listing each', () => {
+    const n = buildNotices(base({ summary: true, stores, customerOrders: [co('c1', 's1'), co('c2', 's2'), co('c3', 's2')], overdue: [inv('I1', 's1', 10000), inv('I2', 's2', 5050)] }))
+    expect(n.map((x) => x.key).sort()).toEqual(['sum:customers', 'sum:overdue'])
+    expect(n.find((x) => x.key === 'sum:customers')!.title).toBe('3 customer orders waiting across 2 stores')
+    expect(n.find((x) => x.key === 'sum:overdue')!.detail).toContain('$150.50')
+  })
+  it('rolls suspicious sign-ins into one security line', () => {
+    const f = (severity: 'high' | 'medium' | 'low', title: string) => ({ severity, title, who: 'x', detail: 'd', at: '2026-11-10T01:00:00Z' }) as never
+    const n = buildNotices(base({ summary: true, isAdmin: true, salesWeekEnds: ['2026-11-08'], findings: [f('high', 'Signed in on 3 devices'), f('medium', 'Signed in on a new device'), f('low', 'x')] }))
+    const s = n.filter((x) => x.group === 'Security')
+    expect(s).toHaveLength(1)
+    expect(s[0].title).toBe('2 things to review in Analytics')
+    expect(s[0].level).toBe('bad')
+  })
+  it('leaves store users with the item-by-item lines', () => {
+    expect(buildNotices(base({ customerOrders: [co('c1', 's1')] })).some((x) => x.key === 'co:c1')).toBe(true)
+  })
+})

@@ -45,6 +45,7 @@ export interface NoticeInput {
   transfers?: TransferRef[] // requests waiting for an answer
   opsRequests?: OpsRequestRef[] // for operations: every request, so a store's answer is heard of
   staleAfterHours?: number
+  summary?: boolean // operations and admin: counts instead of one line per order, invoice or vendor
   // admin extras
   salesWeekEnds?: string[] // week_end (yyyy-mm-dd) of every loaded Sales week
   findings?: Finding[]
@@ -76,8 +77,31 @@ export function buildNotices(i: NoticeInput): Notice[] {
   const multi = i.stores.length > 1
   const at = (storeId: string) => (multi ? ` at ${name.get(storeId) ?? 'a store'}` : '')
 
+  // Operations and admin read a short summary of counts, not one line for every order, invoice or vendor.
+  // Each line opens the screen that holds the detail. Transfers, NAV sync and the Sales report notices stay as they are.
+  if (i.summary) {
+    const storesOf = (ids: string[]) => new Set(ids).size
+    const ofStores = (ids: string[]) => { const n = storesOf(ids); return n > 1 ? ` across ${n} stores` : '' }
+    if (i.customerOrders.length) out.push({ key: 'sum:customers', level: 'bad', group: 'Customers', title: `${plural(i.customerOrders.length, 'customer order')} waiting${ofStores(i.customerOrders.map((c) => c.store_id))}`, detail: 'Each needs ordering, then marking as ordered.', go: { view: 'order' } })
+    if (i.overdue.length) out.push({ key: 'sum:overdue', level: 'bad', group: 'Money', title: `${plural(i.overdue.length, 'invoice')} overdue${ofStores(i.overdue.map((o) => o.store_id))}`, detail: `${money(i.overdue.reduce((a, o) => a + o.balance_cents, 0) / 100)} is past its due date.`, go: { view: 'docs' } })
+    const toOrder = i.orderNeeds?.filter((n) => n.items > 0) ?? []
+    if (toOrder.length) out.push({ key: 'sum:toorder', level: toOrder.some((n) => n.customers > 0) ? 'bad' : 'warn', group: 'Orders', title: `${plural(toOrder.reduce((a, n) => a + n.items, 0), 'item')} to order from ${plural(storesOf(toOrder.map((n) => n.vendor_no)), 'vendor')}${ofStores(toOrder.map((n) => n.store_id))}`, detail: `About ${money(toOrder.reduce((a, n) => a + n.cost, 0))} at cost. Open Order to review the prepared orders.`, go: { view: 'order' } })
+    const copied = i.orders.filter((o) => o.status === 'copied' && o.copied_at && dayCount(new Date(o.copied_at), i.now) >= COPIED_DAYS)
+    if (copied.length) out.push({ key: 'sum:copied', level: 'warn', group: 'Orders', title: `${plural(copied.length, 'order')} copied ${COPIED_DAYS}+ days ago, not marked ordered${ofStores(copied.map((o) => o.store_id))}`, detail: 'The store should enter the NAV order number, or delete the order.', go: { view: 'order' } })
+    const open = i.orders.filter((o) => o.status === 'open')
+    if (open.length) out.push({ key: 'sum:open', level: 'info', group: 'Orders', title: `${plural(open.length, 'order')} being prepared${ofStores(open.map((o) => o.store_id))}`, go: { view: 'order' } })
+    const fresh = i.newItems.reduce((a, l) => a + l.items, 0)
+    if (fresh) out.push({ key: 'sum:new', level: 'info', group: 'Stock', title: `${plural(fresh, 'new item')} from NAV`, go: { view: 'order' } })
+    const sus = (i.findings ?? []).filter((x) => x.severity !== 'low')
+    if (sus.length) {
+      const high = sus.filter((x) => x.severity === 'high').length
+      const logins = sus.filter((x) => /sign/i.test(x.title)).length
+      out.push({ key: `sum:security:${sus.length}:${high}`, level: high ? 'bad' : 'warn', group: 'Security', title: `${plural(sus.length, 'thing')} to review in Analytics`, detail: `${plural(logins, 'suspicious sign-in')}, ${high} high priority. Open Analytics for who and where.`, go: { view: 'analytics' } })
+    }
+  }
+
   // Customers waiting: the most urgent thing a store has.
-  for (const n of i.customerOrders) {
+  for (const n of i.summary ? [] : i.customerOrders) {
     const first = n.lines.find((l) => l.vendor)
     out.push({
       key: `co:${n.id}`, level: 'bad', group: 'Customers',
@@ -113,7 +137,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
   // Money owed.
   const owing = new Map<string, OverdueInvoice[]>()
   for (const o of i.overdue) owing.set(o.store_id, [...(owing.get(o.store_id) ?? []), o])
-  for (const [storeId, list] of owing) {
+  for (const [storeId, list] of i.summary ? [] : owing) {
     const total = list.reduce((a, o) => a + o.balance_cents, 0)
     const oldest = list.slice().sort((a, b) => (a.due_date < b.due_date ? -1 : 1))[0]
     out.push({
@@ -126,7 +150,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
 
   // Stock.
   const biggest = (list: Counted[]) => [...list].sort((a, b) => b.items - a.items || a.vendor_no.localeCompare(b.vendor_no) || a.store_id.localeCompare(b.store_id))
-  const low = biggest(i.orderNeeds ? [] : i.lowStock)
+  const low = biggest(i.orderNeeds || i.summary ? [] : i.lowStock)
   for (const l of low.slice(0, LOW_CAP)) {
     out.push({
       key: `low:${l.store_id}:${l.vendor_no}`, level: 'warn', group: 'Stock',
@@ -137,7 +161,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
   }
   if (low.length > LOW_CAP) out.push({ key: 'low:more', level: 'warn', group: 'Stock', title: `${plural(low.length - LOW_CAP, 'more vendor')} with items running low`, detail: `${low.slice(LOW_CAP).reduce((a, l) => a + l.items, 0)} items in all. Choose a vendor on the Order tab and use its Low stock filter.`, go: { view: 'order' } })
   // What needs ordering, a vendor at a time, biggest first: a customer waiting makes it urgent. The Order page opens on that vendor's prepared order.
-  if (i.orderNeeds) {
+  if (i.orderNeeds && !i.summary) {
     // A suggestion under the vendor's minimum order value is not worth an order yet, so it is held back from the bell. It stays on the Order page, marked.
     // What is already in an open order for that vendor counts towards the minimum. A customer waiting is never held back.
     const openCost = new Map<string, number>()
@@ -174,14 +198,14 @@ export function buildNotices(i: NoticeInput): Notice[] {
   }
 
   // Orders.
-  for (const o of i.orders) {
+  for (const o of i.summary ? [] : i.orders) {
     if (o.status !== 'copied' || !o.copied_at) continue
     const days = dayCount(new Date(o.copied_at), i.now)
     if (days >= COPIED_DAYS) out.push({ key: `copied:${o.store_id}:${o.vendor_no}`, level: 'warn', group: 'Orders', title: `${o.vendor_no} order${at(o.store_id)} was copied ${days} days ago`, detail: 'Enter the NAV order number and mark it ordered, or delete it if it was not used.', go: { view: 'order', storeId: o.store_id, vendor: o.vendor_no } })
   }
 
   // Information.
-  const fresh = biggest(i.newItems)
+  const fresh = biggest(i.summary ? [] : i.newItems)
   for (const l of fresh.slice(0, NEW_CAP)) {
     out.push({ key: `new:${l.store_id}:${l.vendor_no}`, level: 'info', group: 'Stock', title: `${plural(l.items, 'new item')} in ${l.vendor_no}${at(l.store_id)}`, detail: 'NAV marks them as new. See whether the store wants them.', go: { view: 'order', storeId: l.store_id, vendor: l.vendor_no, show: 'new' } })
   }
@@ -191,7 +215,7 @@ export function buildNotices(i: NoticeInput): Notice[] {
   if (i.isAdmin) {
     const missing = i.salesWeekEnds ? salesWeekMissing(i.salesWeekEnds, i.now) : null
     if (missing) out.push({ key: `salesweek:${missing}`, level: 'warn', group: 'Admin', title: 'This week’s Sales reports are not loaded', detail: `The newest week loaded ends before ${missing}. Open Sales, Upload to add the three Power BI files.`, go: { view: 'sales' } })
-    const f = (i.findings ?? []).filter((x) => x.severity !== 'low')
+    const f = (i.summary ? [] : i.findings ?? []).filter((x) => x.severity !== 'low')
     const used = new Set<string>()
     f.slice(0, MAX_FINDINGS).forEach((x) => out.push({ key: ((k) => { let u = k; for (let n = 2; used.has(u); n++) u = `${k}#${n}`; used.add(u); return u })(`finding:${x.who}:${x.title}:${x.at}`), level: x.severity === 'high' ? 'bad' : 'warn', group: 'Admin', title: x.title, detail: `${x.who}. ${x.detail}`, go: { view: 'analytics' } }))
     if (f.length > MAX_FINDINGS) out.push({ key: 'findings:more', level: 'info', group: 'Admin', title: `${f.length - MAX_FINDINGS} more to look at in Analytics`, go: { view: 'analytics' } })

@@ -1,3 +1,4 @@
+import type { LabelJob, LabelJobInput } from './labels'
 import type { Counted, OverdueInvoice } from './notifications'
 import type { OrderNeed } from './suggest'
 import type { CustomerOrderNeed, Fulfilment } from './customerOrders'
@@ -91,6 +92,11 @@ export interface OrdersApi {
   /** Record that one side's journal is entered in NAV. When every side is entered the count is posted. */
   postCountSide(countId: string, side: 'positive' | 'negative', ref: string): Promise<CountRow>
   deleteCount(countId: string): Promise<void>
+  /** Past label prints at a store, newest first. */
+  listLabelJobs(storeId: string): Promise<LabelJob[]>
+  /** Keeps a print: a new one, or (with an id) changes one already kept. */
+  saveLabelJob(job: LabelJobInput): Promise<LabelJob>
+  deleteLabelJob(id: string): Promise<void>
   /** Full count: items with stock on the system nobody has scanned, biggest value first (at most `limit`), and how many there are. */
   uncounted(countId: string, limit: number): Promise<{ items: UncountedItem[]; total: number }>
   /** Full count, managers only: counts every unscanned item as zero. Returns how many lines were added. */
@@ -107,7 +113,7 @@ const offline: OrdersApi = {
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(), receiveOrder: async () => notConnected(),
   orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(), blockedItems: async () => notConnected(), setBlocked: async () => notConnected(),
   listCounts: async () => notConnected(), openCount: async () => notConnected(), countLines: async () => notConnected(), saveCountLine: async () => notConnected(), subscribeCount: () => notConnected(),
-  setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),
+  setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), listLabelJobs: async () => notConnected(), saveLabelJob: async () => notConnected(), deleteLabelJob: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),
   categories: async () => notConnected(), categoryRange: async () => notConnected(),
 }
 

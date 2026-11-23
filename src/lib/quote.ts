@@ -1,7 +1,7 @@
 // Pure quote logic. Mirrors the formulas in HSW_Quote_Invoice_Builder.xlsx
 // (NEW QUOTE + PRINT QUOTE sheets). Money is held in integer cents.
 
-export type DocType = 'Quote' | 'Tax Invoice' | 'Customer Order'
+export type DocType = 'Quote' | 'Tax Invoice' | 'Customer Order' | 'Measurements'
 
 export interface Item {
   code: string
@@ -53,6 +53,10 @@ export function measurementText(m: Measurement, unit: string): string {
 }
 export const hasMeasurement = (m: Measurement) => !!(m.where.trim() || m.width.trim() || m.height.trim() || m.depth.trim() || m.note.trim())
 
+/** A photo of a product or the space, shrunk to a JPEG data URL so it can be saved with the document and printed. */
+export interface Photo { name: string; data: string; w: number; h: number }
+export const MAX_PHOTOS = 8
+
 export interface QuoteInput {
   docType: DocType
   storeName: string
@@ -81,6 +85,7 @@ export interface QuoteInput {
   measurements: Measurement[]
   measureUnit: 'mm' | 'cm' | 'm'
   measurePrint: boolean // print the measurements on the customer's copy (off = kept on the document for staff)
+  photos: Photo[] // Measurements records: photos of the products or the space
 }
 
 export const MAX_LINES = 20
@@ -111,6 +116,7 @@ export const emptyQuote = (): QuoteInput => ({
   measurements: [],
   measureUnit: 'mm',
   measurePrint: false,
+  photos: [],
 })
 
 export type LineState = 'empty' | 'ok' | 'warn' | 'error'
@@ -187,13 +193,14 @@ export function compute(
   const store = stores.find((s) => s.name === q.storeName)
   const storeCode = store ? store.code.trim().toUpperCase() : ''
   const isInvoice = q.docType === 'Tax Invoice'
+  const isMeasure = q.docType === 'Measurements' // a record of measurements and photos: no items, prices or dates to honour
   const number = q.number.trim()
-  const prefix = isInvoice ? 'INV' : q.docType === 'Customer Order' ? 'CO' : 'Q'
+  const prefix = isInvoice ? 'INV' : q.docType === 'Customer Order' ? 'CO' : isMeasure ? 'M' : 'Q'
   const docNumber = !number || !storeCode ? '' : `${prefix}-${storeCode}-${number}`
   const date = parseDate(q.date) ?? startOfToday()
 
   const lines: ResolvedLine[] = []
-  q.lines.forEach((l, index) => {
+  ;(isMeasure ? [] : q.lines).forEach((l, index) => {
     const code = l.code.trim()
     const own = l.ownDescription.trim()
     if (!code && !own) return // not in use
@@ -236,8 +243,8 @@ export function compute(
   })
 
   const itemsCents = lines.reduce((a, l) => a + l.totalCents, 0)
-  const deliveryCents = toCents(num(q.deliveryFee) ?? 0)
-  const installCents = toCents(num(q.installFee) ?? 0)
+  const deliveryCents = isMeasure ? 0 : toCents(num(q.deliveryFee) ?? 0)
+  const installCents = isMeasure ? 0 : toCents(num(q.installFee) ?? 0)
   const totalCents = itemsCents + deliveryCents + installCents
   const gstCents = Math.round(totalCents / 11) // prices include GST, as on hsw.com.au: GST = total / 11
   const paidCents = toCents(num(q.paid) ?? 0) // a deposit taken on a quote shows too
@@ -251,15 +258,21 @@ export function compute(
   if (!q.storeName.trim()) problems.push('Pick a store')
   else if (!storeCode) problems.push('Store has no code in settings')
   if (!q.customer.name.trim()) problems.push('Enter the customer name')
-  if (!q.customer.phone.trim()) problems.push('Enter the customer phone number')
-  if (!EMAIL_RE.test(q.customer.email.trim())) problems.push(q.customer.email.trim() ? 'The customer email is not valid' : 'Enter the customer email')
-  if (!isInvoice && validOverride && secondDate < date) problems.push(q.docType === 'Customer Order' ? 'Expected by is before the order date' : 'Valid until is before the quote date')
-  if (isInvoice && dueOverride && secondDate < date) problems.push('The due date is before the invoice date')
-  if (lines.length === 0) problems.push('Add at least one item')
-  else if (lines.some((l) => l.state === 'error')) problems.push('Fix the red item checks')
-  if (isInvoice && (isPlaceholder(settings.abn) || isPlaceholder(settings.legalName)))
-    problems.push('This store has no ABN / legal name set – ask the admin')
-  if (itemCount === 0) problems.push('The price list is empty')
+  if (isMeasure) {
+    if (!q.customer.address.trim()) problems.push('Enter the customer address')
+    if (q.customer.email.trim() && !EMAIL_RE.test(q.customer.email.trim())) problems.push('The customer email is not valid')
+    if (!q.measurements.some(hasMeasurement) && !(q.photos ?? []).length) problems.push('Add a measurement or a photo')
+  } else {
+    if (!q.customer.phone.trim()) problems.push('Enter the customer phone number')
+    if (!EMAIL_RE.test(q.customer.email.trim())) problems.push(q.customer.email.trim() ? 'The customer email is not valid' : 'Enter the customer email')
+    if (!isInvoice && validOverride && secondDate < date) problems.push(q.docType === 'Customer Order' ? 'Expected by is before the order date' : 'Valid until is before the quote date')
+    if (isInvoice && dueOverride && secondDate < date) problems.push('The due date is before the invoice date')
+    if (lines.length === 0) problems.push('Add at least one item')
+    else if (lines.some((l) => l.state === 'error')) problems.push('Fix the red item checks')
+    if (isInvoice && (isPlaceholder(settings.abn) || isPlaceholder(settings.legalName)))
+      problems.push('This store has no ABN / legal name set – ask the admin')
+    if (itemCount === 0) problems.push('The price list is empty')
+  }
 
   const fileName = docNumber ? `${docNumber} ${q.customer.name.trim()}`.trim() : ''
 

@@ -114,3 +114,40 @@ describe('topSellers', () => {
     expect(divisionLabel('HOME_DECOR')).toBe('Home decor')
   })
 })
+
+import { combineLeague, combineWeeks, periodText, resolvePeriod, type StoreWeek, type WeekDates } from './model'
+
+describe('periods', () => {
+  const wk = (fy: number, week: number, end: string): WeekDates => ({ fy, week, week_start: end.slice(0, 8) + '01', week_end: end })
+  const weeks = [wk(26, 50, '2026-06-28'), wk(27, 1, '2026-07-05'), wk(27, 2, '2026-07-12'), wk(27, 3, '2026-07-19'), wk(27, 4, '2026-07-26'), wk(27, 5, '2026-08-02'), wk(27, 6, '2026-08-09')]
+  it('picks the newest weeks, a month, the year to date and the last year', () => {
+    const k = (ws: WeekDates[]) => ws.map((w) => w.fy * 100 + w.week)
+    expect(k(resolvePeriod('last4', weeks))).toEqual([2703, 2704, 2705, 2706])
+    expect(k(resolvePeriod('month', weeks))).toEqual([2706, 2705].reverse()) // newest ends in August: weeks 5 and 6
+    expect(k(resolvePeriod('lastmonth', weeks))).toEqual([2701, 2702, 2703, 2704])
+    expect(k(resolvePeriod('fytd', weeks))).toEqual([2701, 2702, 2703, 2704, 2705, 2706])
+    expect(k(resolvePeriod('lastfy', weeks))).toEqual([2650])
+    expect(k(resolvePeriod('custom', weeks, { from: 2704, to: 2702 }))).toEqual([2702, 2703, 2704])
+    expect(k(resolvePeriod('week', weeks, { one: { fy: 27, week: 2 } }))).toEqual([2702])
+    expect(resolvePeriod('last4', [])).toEqual([])
+  })
+  it('words a period', () => {
+    expect(periodText(resolvePeriod('custom', weeks, { from: 2702, to: 2704 }))).toContain('FY27 weeks 2 to 4')
+    expect(periodText([])).toBe('no weeks')
+  })
+  const sw = (week: number, ty: number, ly: number, trans: number, gp: number, basket: number, name = 'A'): StoreWeek => ({ fy: 27, week, store_id: 's', store_name: name, co_fran: 'Company', state: 'NSW', region: '', centre_type: '', retail_sqm: 100, ty_sales: ty, ly_sales: ly, ty_trans: trans, ly_trans: trans, member_sales: ty / 2, member_trans: 0, stock: week, sys_sales: 0, gp_ty: gp, gp_ly: gp, qty_sold: 0, basket, l4l_adjust: 0 })
+  it('adds weeks, weighting margin by sales and items per sale by sales made', () => {
+    const c = combineWeeks([sw(1, 100, 80, 10, 0.5, 2), sw(2, 300, 120, 30, 0.3, 4)])!
+    expect(c.ty_sales).toBe(400)
+    expect(c.ly_sales).toBe(200)
+    expect(c.gp_ty).toBeCloseTo(0.35)
+    expect(c.basket).toBeCloseTo(3.5)
+    expect(c.stock).toBe(2) // the latest week's
+    expect(combineWeeks([])).toBeNull()
+  })
+  it('adds each store across weeks', () => {
+    const r = combineLeague([[sw(1, 100, 0, 1, 0, 0, 'A'), sw(1, 50, 0, 1, 0, 0, 'B')], [sw(2, 10, 0, 1, 0, 0, 'A')]])
+    expect(r.find((x) => x.store_name === 'A')!.ty_sales).toBe(110)
+    expect(r).toHaveLength(2)
+  })
+})

@@ -6,10 +6,13 @@ import { demoItems } from './lib/demo'
 import { indexItems, loadPriceList } from './lib/items'
 import {
   MAX_QTY, TEMPLATES, buildLabelsPdf, discountOf, expand, labelCount, nowPrice, perSheet, problemOf, regroup, sheetState, splitFull, templateOf,
-  type QueueItem, type TemplateId,
+  type LabelJob, type QueueItem, type TemplateId,
 } from './lib/labels'
 import type { Item } from './lib/quote'
-import { DEMO } from './lib/supabase'
+import { DEMO, type StoreRow } from './lib/supabase'
+import { api } from './lib/api'
+import { trackError } from './lib/analytics/track'
+import { useLoad } from './lib/useLoad'
 
 const KEY = 'hsw-label-queue'
 interface Saved { template: TemplateId; queue: QueueItem[]; startAt: number; barcode: boolean; teal: boolean; defaultDiscount: string }
@@ -22,13 +25,17 @@ const load = (): Saved => {
   return fresh()
 }
 const money = (n: number) => `$${n.toFixed(2)}`
+const when = (iso: string) => new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 
 /** A print queue for price labels. Add items as they are scanned; the sheet fills up, then everything prints together. */
-export default function Labels() {
+export default function Labels({ stores, names }: { stores: StoreRow[]; names: Record<string, string> }) {
   const toast = useToast()
   const [ask, confirmDialog] = useConfirm()
   const [state, setState] = useState<Saved>(load)
   const [items, setItems] = useState<Item[]>([])
+  const [storeId, setStoreId] = useState(stores[0]?.id ?? '')
+  const [editing, setEditing] = useState<LabelJob | null>(null) // a past print being changed: printing saves the changes to it
+  const jobs = useLoad(() => (storeId ? api.listLabelJobs(storeId) : Promise.resolve([] as LabelJob[])), [storeId], !!storeId)
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* ignore */ } }, [state])
   useEffect(() => {
     let live = true
@@ -63,11 +70,37 @@ export default function Labels() {
     patch({ queue: [], startAt: 1 })
   }
 
+  // Every print is kept so it can be seen, changed, printed again or deleted. Printing never waits on this: if it fails, the labels are already out.
+  const keepPrint = async (labels: QueueItem[]) => {
+    if (!storeId) return
+    try {
+      await api.saveLabelJob({ id: editing?.id, store_id: storeId, template: state.template, start_at: state.startAt, barcode: state.barcode, teal: state.teal, lines: regroup(labels), label_count: labels.length })
+      setEditing(null)
+      jobs.retry()
+    } catch (e) { trackError('label job', e); toast.info('The labels are printing, but this print could not be saved to Past prints.') }
+  }
+  const editJob = async (j: LabelJob) => {
+    if (state.queue.length > 0 && !(await ask({ title: 'Replace the labels waiting?', body: <p>The {total} {total === 1 ? 'label' : 'labels'} in the queue will be replaced by this past print. Printing it will save your changes to that print.</p>, confirmLabel: 'Replace and edit' }))) return
+    setState({ ...fresh(), template: j.template, queue: j.lines.map((l) => ({ ...l })), startAt: j.start_at, barcode: j.barcode, teal: j.teal })
+    setEditing(j)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const reprintJob = (j: LabelJob) => {
+    const doc = buildLabelsPdf(expand(j.lines), templateOf(j.template), { startAt: j.start_at, barcode: j.barcode, teal: j.teal })
+    window.open(URL.createObjectURL(doc.output('blob')), '_blank')
+  }
+  const deleteJob = async (j: LabelJob) => {
+    if (!(await ask({ title: 'Delete this past print?', body: <p>{j.label_count} {j.label_count === 1 ? 'label' : 'labels'} printed {when(j.printed_at)}. This cannot be undone.</p>, confirmLabel: 'Delete', danger: true }))) return
+    try { await api.deleteLabelJob(j.id); if (editing?.id === j.id) setEditing(null); jobs.retry(); toast.success('Past print deleted.') }
+    catch (e) { trackError('label job delete', e); toast.error('Could not delete it. Try again.') }
+  }
+
   const printNow = (labels: QueueItem[], keep: QueueItem[]) => {
     if (problems.length) return toast.error(`Fix ${problems.length === 1 ? 'the item' : 'the items'} marked in the list first.`)
     if (!labels.length) return
     const doc = buildLabelsPdf(labels, t, { startAt: state.startAt, barcode: state.barcode, teal: state.teal })
     window.open(URL.createObjectURL(doc.output('blob')), '_blank')
+    void keepPrint(labels)
     const end = (state.startAt - 1 + labels.length) % per
     patch({ queue: regroup(keep), startAt: end === 0 ? 1 : end + 1 })
     toast.success(end === 0 ? 'Sent to print. The sheet was full.' : `Sent to print. Put the part-used sheet back in the printer: the next label goes in position ${end + 1}.`)
@@ -95,6 +128,16 @@ export default function Labels() {
         </div>
       </div>
 
+      {stores.length > 1 && (
+        <label className="inline">Store
+          <select name="labelstore" value={storeId} onChange={(e) => { setStoreId(e.target.value); setEditing(null) }}>
+            {stores.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
+      )}
+      {editing && (
+        <p className="note" role="status">Editing the print from {when(editing.printed_at)}. Printing saves your changes to it. <button type="button" className="quiet" onClick={() => { setEditing(null); setState(fresh()) }}>Stop editing</button></p>
+      )}
       <div className="filters">
         <div className="segmented" role="group" aria-label="Label type">
           {TEMPLATES.map((x) => <button key={x.id} type="button" aria-pressed={state.template === x.id} onClick={() => changeTemplate(x.id)}>{x.name} <small>{x.hint}</small></button>)}
@@ -165,6 +208,36 @@ export default function Labels() {
           </div>
         </>
       )}
+      <section className="pastprints" aria-label="Past prints">
+        <h2>Past prints <small className="muted">{jobs.data ? jobs.data.length : ''}</small></h2>
+        {jobs.loading ? <p className="muted">Loading past prints…</p> : jobs.failed ? (
+          <div className="state error" role="alert"><p>The past prints did not load</p><div className="actions"><button type="button" className="btn" onClick={jobs.retry}>Try again</button></div></div>
+        ) : !jobs.data || jobs.data.length === 0 ? (
+          <div className="state"><p>Nothing printed yet</p><p className="muted">Each print is kept here, so you can see it, change it, print it again or delete it.</p></div>
+        ) : (
+          <div className="tablewrap">
+            <table className="book jobs">
+              <thead><tr><th>Printed</th><th>By</th><th>Type</th><th className="r">Labels</th><th>Items</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
+              <tbody>
+                {jobs.data.map((j) => (
+                  <tr key={j.id}>
+                    <td data-label="Printed">{when(j.printed_at)}</td>
+                    <td data-label="By">{names[j.printed_by.toLowerCase()] ?? j.printed_by}</td>
+                    <td data-label="Type">{templateOf(j.template).name}</td>
+                    <td data-label="Labels" className="r">{j.label_count}</td>
+                    <td data-label="Items" className="desc">{j.lines.slice(0, 3).map((l) => `${l.qty} × ${l.code}`).join(', ')}{j.lines.length > 3 ? ` and ${j.lines.length - 3} more` : ''}</td>
+                    <td className="rowactions">
+                      <button type="button" className="btn" onClick={() => void editJob(j)}>Edit</button>
+                      <button type="button" className="btn" onClick={() => reprintJob(j)}>Print again</button>
+                      <button type="button" className="btn danger" onClick={() => void deleteJob(j)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       {confirmDialog}
     </>
   )

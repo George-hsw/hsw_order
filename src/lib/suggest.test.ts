@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEMAND, demandOf, suggestLine, type SuggestIn } from './suggest'
+import { DEMAND, demandOf, holdQty, pushQty, suggestLine, type SuggestIn } from './suggest'
 
 const flat = (n: number, v: number) => Array(n).fill(v)
 const base = (over: Partial<SuggestIn> = {}): SuggestIn => ({ series: flat(13, 6), storeUnits: flat(13, 1000), inventory: 0, onOrder: 0, transferIn: 0, inOrder: 0, waiting: 0, moq: 1, weeks: 4, ...over })
@@ -61,12 +61,46 @@ describe('a suggested line', () => {
     expect(suggestLine(base({ series: flat(13, 0), inventory: 0 })).qty).toBe(0) // never sold
     expect(suggestLine(base({ series: [...flat(12, 0), 1], inventory: 0 })).qty).toBe(0) // once is not a pattern
   })
+  it('says plainly what is in stock, sold and on order, and a covered item needs nothing', () => {
+    const s = suggestLine(base({ inventory: 3, onOrder: 40 }))
+    expect(s.brief).toContain('In stock 3')
+    expect(s.brief).toContain('On order 40')
+    expect(s.why).toContain('40 on a purchase order')
+    expect(s.qty).toBe(0)
+  })
   it('a customer order for an item that does not sell is still ordered', () => {
     expect(suggestLine(base({ series: flat(13, 0), waiting: 3 })).qty).toBe(3)
   })
   it('never suggests a negative quantity, and shows its working', () => {
     const s = suggestLine(base({ inventory: -4 }))
     expect(s.qty).toBeGreaterThanOrEqual(0)
-    expect(s.why).toMatch(/^Sells about 6 a week/)
+    expect(s.why).toMatch(/^In stock 0 · Sold \d+ in the last 13 weeks · On order 0/)
+  })
+})
+
+describe('what operations asks for', () => {
+  it('a hold orders up to the minimum, counting everything already coming, in whole MOQs', () => {
+    expect(holdQty(6, 2, 1)).toBe(4)
+    expect(holdQty(6, 2, 6)).toBe(6)
+    expect(holdQty(6, 6, 1)).toBe(0)
+    expect(holdQty(6, 9, 1)).toBe(0)
+    expect(holdQty(6, -3, 1)).toBe(6)
+  })
+  it('a push stops showing once it is ordered; stock on the shelf does not count', () => {
+    expect(pushQty(10, 0)).toBe(10)
+    expect(pushQty(10, 4)).toBe(6)
+    expect(pushQty(10, 10)).toBe(0)
+  })
+})
+
+describe('the working shows whole numbers only', () => {
+  it('has no decimals in the brief or the why, whatever the sales', () => {
+    for (const series of [flat(13, 1), [...flat(12, 0), 5], flat(13, 6), [...flat(8, 2), ...flat(5, 0)]]) {
+      for (const weeks of [1, 4, 6]) {
+        const s = suggestLine(base({ series, weeks, inventory: 1, moq: 3, storeUnits: [...flat(9, 1000), ...flat(4, 500)] }))
+        expect(s.brief).not.toMatch(/\d\.\d/)
+        expect(s.why).not.toMatch(/\d\.\d/)
+      }
+    }
   })
 })

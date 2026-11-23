@@ -21,6 +21,7 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
   const R = W - M
   const isInvoice = q.docType === 'Tax Invoice'
   const isOrder = q.docType === 'Customer Order'
+  const isMeasure = q.docType === 'Measurements'
   const store = c.store
   const text = (t: string, x: number, y: number, o: TextOpts = {}) => {
     doc.setFont('helvetica', o.bold ? 'bold' : 'normal').setFontSize(o.size ?? 9).setTextColor(...(o.color ?? INK))
@@ -40,7 +41,7 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
   }
 
   // Grey title
-  text(`Howards Storage World ${isInvoice ? 'tax invoice' : isOrder ? 'customer order' : 'quote'} #${c.docNumber}`, M, y, { bold: true, size: 11, color: GREY })
+  text(`Howards Storage World ${isInvoice ? 'tax invoice' : isOrder ? 'customer order' : isMeasure ? 'measurement record' : 'quote'} #${c.docNumber}`, M, y, { bold: true, size: 11, color: GREY })
   y += 8
 
   // Company block
@@ -78,8 +79,8 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
 
   // Facts grid
   const facts: [string, string, string, string][] = [
-    [isInvoice ? 'Invoice:' : isOrder ? 'Order:' : 'Quote:', `#${c.docNumber}`, 'Date:', dateAU(c.date)],
-    ['Served by:', q.servedBy.trim() || '-', isInvoice ? 'Due date:' : isOrder ? 'Expected by:' : 'Valid until:', dateAU(c.secondDate)],
+    [isInvoice ? 'Invoice:' : isOrder ? 'Order:' : isMeasure ? 'Record:' : 'Quote:', `#${c.docNumber}`, 'Date:', dateAU(c.date)],
+    isMeasure ? ['Served by:', q.servedBy.trim() || '-', '', ''] : ['Served by:', q.servedBy.trim() || '-', isInvoice ? 'Due date:' : isOrder ? 'Expected by:' : 'Valid until:', dateAU(c.secondDate)],
   ]
   facts.forEach(([l1, v1, l2, v2], i) => {
     const fy = y + i * 5.2
@@ -90,6 +91,7 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
   doc.setDrawColor(...RULE).setLineWidth(0.3).line(M, y, R, y)
   y += 6
 
+  if (!isMeasure) {
   // Items
   text('Items', M, y, { bold: true, size: 12 })
   const hasDisc = c.lines.some((l) => l.discount > 0)
@@ -139,6 +141,7 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
     total('Balance due', aud(c.balanceCents), true)
   }
   y += 4
+  }
 
   // Notes, how to accept or pay
   const block = (title: string, body: string[]) => {
@@ -150,10 +153,33 @@ export function buildPdf(q: QuoteInput, c: Computed, s: Settings, logo?: Logo | 
     })
     y += 3
   }
-  const measured = q.measurePrint ? (q.measurements ?? []).filter(hasMeasurement) : []
+  const measured = q.measurePrint || isMeasure ? (q.measurements ?? []).filter(hasMeasurement) : []
   if (measured.length) block('Measurements', measured.map((m) => measurementText(m, q.measureUnit)))
   if (q.notes.trim()) block('Notes', [q.notes.trim()])
-  if (isOrder) block('Your order', [
+  if (isMeasure && (q.photos ?? []).length) {
+    // Photos, two to a row, each as large as fits its half of the page and keeping its shape.
+    const gap = 6
+    const cell = (R - M - gap) / 2
+    const maxH = 75
+    text('Photos', M, y, { bold: true, size: 10 })
+    y += 5
+    let rowH = 0
+    ;(q.photos ?? []).forEach((ph, n) => {
+      const scale = Math.min(cell / ph.w, maxH / ph.h)
+      const w = ph.w * scale
+      const h = ph.h * scale
+      if (n % 2 === 0) {
+        if (n > 0) y += rowH + gap
+        const next = (q.photos ?? [])[n + 1]
+        rowH = Math.max(h, next ? next.h * Math.min(cell / next.w, maxH / next.h) : 0)
+        if (y + rowH > H - 25) { doc.addPage(); y = 20 }
+      }
+      doc.addImage(ph.data, 'JPEG', M + (n % 2) * (cell + gap), y, w, h)
+    })
+    y += rowH + gap
+  }
+  if (isMeasure) { /* no quote or payment text on a measurements record */ }
+  else if (isOrder) block('Your order', [
     'We will contact you when your order arrives. Please bring this order number when you collect it.',
     `Order number: ${c.docNumber}`,
   ])

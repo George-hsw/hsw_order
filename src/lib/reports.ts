@@ -1,7 +1,7 @@
 // Per-person summary for the Reports tab. Pure, so it is easy to test.
 export interface ReportDoc {
   created_by: string | null
-  doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order'
+  doc_type: 'Quote' | 'Tax Invoice' | 'Customer Order' | 'Measurements'
   total_cents: number
   status: 'open' | 'part_paid' | 'paid' | 'void'
   created_at: string

@@ -1,3 +1,4 @@
+import type { LabelJob } from './labels'
 import { codeLines, type CustomerOrderNeed, type Fulfilment } from './customerOrders'
 import { DEFAULT_COVER, stockInsight } from './insights'
 import { salesApi } from './sales/api'
@@ -38,6 +39,7 @@ const blocked = new Map<string, Map<string, { reason: string; by: string; at: st
 const hiddenNotices = new Map<string, string>() // notices hidden this session in the demo
 const fulfilled = new Map<string, Fulfilment>() // demo customer orders moved on this session
 const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ?? ''
+let labelJobs: LabelJob[] = []
 const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
 export const demoApi: OrdersApi = {
@@ -257,6 +259,15 @@ export const demoApi: OrdersApi = {
     if (sidesToPost(c, sp).length === 0) { c.status = 'posted'; c.posted_at = new Date().toISOString() }
     return wait({ ...c })
   },
+  async listLabelJobs(storeId) { return wait(labelJobs.filter((j) => j.store_id === storeId).sort((a, b) => (a.printed_at < b.printed_at ? 1 : -1))) },
+  async saveLabelJob(job) {
+    const now = new Date().toISOString()
+    const i = job.id ? labelJobs.findIndex((j) => j.id === job.id) : -1
+    const saved: LabelJob = { ...job, id: i >= 0 ? labelJobs[i].id : 'dl-' + (labelJobs.length + 1) + '-' + Date.now(), printed_by: 'demo@hsw.com.au', printed_at: now }
+    if (i >= 0) labelJobs[i] = saved; else labelJobs.push(saved)
+    return wait(saved)
+  },
+  async deleteLabelJob(id) { labelJobs = labelJobs.filter((j) => j.id !== id); await wait(null) },
   async deleteCount(countId) {
     const i = counts.findIndex((x) => x.id === countId)
     if (i < 0) throw new Error('No such count')

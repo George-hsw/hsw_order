@@ -24,8 +24,8 @@ describe('sections', () => {
   it('Closures is for operations and admins, and Transfers is for people in a store', () => {
     const transfer = AREAS.find((a) => a.id === 'transfer')!
     expect(visibleTabs(transfer, true).map((t) => t.tab)).toEqual(['transfers'])
-    expect(visibleTabs(transfer, true, true).map((t) => t.tab)).toEqual(['transfers', 'closures'])
-    expect(visibleTabs(transfer, false, true).map((t) => t.tab)).toEqual(['closures']) // operations with no store of their own
+    expect(visibleTabs(transfer, true, true).map((t) => t.tab)).toEqual(['transfers', 'closures', 'holds'])
+    expect(visibleTabs(transfer, false, true).map((t) => t.tab)).toEqual(['closures', 'holds']) // operations with no store of their own
     expect(visibleTabs(transfer, false).map((t) => t.tab)).toEqual([])
     expect(visibleTabs(AREAS.find((a) => a.id === 'order')!, true, true).map((t) => t.tab)).toEqual(['order', 'orders'])
   })

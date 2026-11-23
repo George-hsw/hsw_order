@@ -1,7 +1,6 @@
 // The suggested order. Plain rules, no guessing: the same numbers always give the same answer, and every line carries the working that produced it.
 // The way an item's weekly demand is estimated was chosen by testing it on the real FY27 item sales (weeks 1 to 11): each rule forecast the next
 // 4 weeks from the weeks before, and was scored on units short and units over. Adding back "lost sales" made forecasts worse, so it is not used.
-import { perWeekText } from './insights'
 
 export const DEMAND = {
   recentWeeks: 5, // how far back "lately" goes
@@ -55,6 +54,10 @@ export interface Suggestion extends Demand {
   hold: Hold
   have: number
   need: number
+  inventory: number // in stock now
+  onOrder: number // already coming: on a purchase order, in a transfer, or in this order
+  sold: number // units sold over the weeks loaded
+  soldWeeks: number // how many weeks that is
   why: string // the full working
   brief: string // one short line
 }
@@ -71,14 +74,42 @@ export function suggestLine(i: SuggestIn): Suggestion {
   const need = wanted - have
   const qty = need > 0 ? Math.ceil(need / step) * step : 0
   const hold: Hold = qty > 0 && d.rate > 0 && qty / d.rate > MAX_MOQ_WEEKS ? 'moq' : null
+  const inventory = Math.max(0, i.inventory)
+  const onOrder = Math.max(0, i.onOrder) + Math.max(0, i.transferIn) + Math.max(0, i.inOrder)
+  const soldWeeks = Math.min(i.series.length, DEMAND.longWeeks)
+  const sold = i.series.slice(-DEMAND.longWeeks).reduce((a, b) => a + b, 0)
+  const facts = `In stock ${inventory} · Sold ${sold} in the last ${soldWeeks} ${soldWeeks === 1 ? 'week' : 'weeks'} · On order ${onOrder}`
+  const parts: string[] = []
+  if (i.inOrder > 0) parts.push(`${i.inOrder} in this order`)
+  if (i.onOrder > 0) parts.push(`${i.onOrder} on a purchase order`)
+  if (i.transferIn > 0) parts.push(`${i.transferIn} coming in a transfer`)
   const working = [
-    d.rate > 0 ? `Sells about ${perWeekText(d.rate)} a week (lately ${perWeekText(d.recent)}, over ${Math.min(i.series.length, DEMAND.longWeeks)} weeks ${perWeekText(d.long)}${d.trend < 0.95 || d.trend > 1.05 ? `, store trend ${d.trend.toFixed(2)}` : ''}).` : units > 0 ? 'Has sold, but not lately.' : 'No sales in the weeks loaded.',
-    `Has ${have} counting stock, orders and transfers.`,
+    `${facts}.`,
+    onOrder > 0 ? `On order is ${parts.join(' + ')}, so it is not ordered twice.` : '',
     i.waiting > 0 ? `${i.waiting} wanted by customers.` : '',
-    slow ? 'A slow seller, so it is suggested only when it is out.' : `To hold ${i.weeks} ${i.weeks === 1 ? 'week' : 'weeks'} it needs ${perWeekText(wanted)}.`,
+    slow ? 'A slow seller, so it is suggested only when it is out.' : `To hold ${i.weeks} ${i.weeks === 1 ? 'week' : 'weeks'} of sales it needs ${Math.ceil(wanted)}; it has ${have}.`,
     qty > 0 ? `Order ${qty}${step > 1 ? ` (MOQ ${step})` : ''}.` : need > 0 ? '' : 'Nothing needed.',
     hold === 'moq' ? `One MOQ lasts about ${Math.round(qty / d.rate)} weeks of sales, so it is your call.` : '',
   ].filter(Boolean).join(' ')
-  const brief = d.rate > 0 ? `Sells about ${perWeekText(d.rate)} a week, has ${have}${i.waiting > 0 ? `, ${i.waiting} for customers` : ''}` : i.waiting > 0 ? `${i.waiting} wanted by customers, has ${have}` : `Out of stock, sold ${units} lately`
-  return { ...d, qty, fill: qty > 0 && hold === null, hold, have, need: Math.max(0, need), why: working, brief }
+  const brief = `${facts}${i.waiting > 0 ? ` · ${i.waiting} for customers` : ''}`
+  return { ...d, qty, fill: qty > 0 && hold === null, hold, have, need: Math.max(0, need), inventory, onOrder, sold, soldWeeks, why: working, brief }
+}
+
+/**
+ * Holds: operations says a store must always have at least `min` of an item. Counts stock, orders and transfers already coming,
+ * and rounds up to the item's minimum order. 0 when the store is at or above its minimum.
+ */
+export function holdQty(min: number, have: number, moq: number): number {
+  const need = min - Math.max(0, have)
+  if (need <= 0) return 0
+  const step = Math.max(1, Math.round(moq || 1))
+  return Math.ceil(need / step) * step
+}
+
+/**
+ * A push asks the store to order `asked` of an item. What is already on a purchase order or coming in a transfer counts towards it
+ * (stock on the shelf does not: the point is to order it), so a pushed item stops showing once it has been ordered.
+ */
+export function pushQty(asked: number, comingIn: number): number {
+  return Math.max(0, asked - Math.max(0, comingIn))
 }

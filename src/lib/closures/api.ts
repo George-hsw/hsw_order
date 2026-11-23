@@ -43,6 +43,9 @@ export interface RequestLineRow { request_id: string; item_code: string; descrip
 /** What a store could take of one item, worked out in the database. */
 export interface NeedRow { store_id: string; item_code: string; rate: number; have: number; wanted: number; shortfall: number; cost: number }
 
+/** Operations says a store must always have at least this many of an item: below it, the item is added to the store's suggested order. */
+export interface HoldRow { store_id: string; item_code: string; min_qty: number; set_by: string; set_at: string }
+
 export interface ClosureDetail {
   closure: ClosureRow
   lines: ClosureLineRow[]
@@ -77,6 +80,11 @@ export interface ClosuresApi {
   cancelRequest(requestId: string): Promise<void>
   deleteClosure(id: string): Promise<void>
   reoffer(id: string, rows: { store_id: string; item_code: string; qty: number }[]): Promise<string[]>
+  // ----- holds: items a store must always have in stock -----
+  /** Every hold at these stores (or at all stores when none are named: operations). */
+  holds(storeIds?: string[]): Promise<HoldRow[]>
+  setHold(stores: string[], code: string, minQty: number): Promise<void>
+  removeHold(storeId: string, code: string): Promise<void>
   // ----- the receiving store -----
   incoming(storeIds: string[]): Promise<{ requests: RequestRow[]; lines: RequestLineRow[] }>
   respond(requestId: string, accept: boolean, lines: { item_code: string; qty_accepted: number }[] | null, reason: string): Promise<void>
@@ -91,6 +99,7 @@ const offline: ClosuresApi = {
   opsStores: async () => notConnected(), knownCodes: async () => notConnected(), opsStock: async () => notConnected(), list: async () => notConnected(), opsRequests: async () => notConnected(), requestStatuses: async () => notConnected(), get: async () => notConnected(),
   create: async () => notConnected(), setLine: async () => notConnected(), addLines: async () => notConnected(), setStores: async () => notConnected(), need: async () => notConnected(), saveAlloc: async () => notConnected(),
   send: async () => notConnected(), cancelRequest: async () => notConnected(), deleteClosure: async () => notConnected(), reoffer: async () => notConnected(),
+  holds: async () => notConnected(), setHold: async () => notConnected(), removeHold: async () => notConnected(),
   incoming: async () => notConnected(), respond: async () => notConnected(), markCopied: async () => notConnected(), markReceived: async () => notConnected(),
   subscribe: () => notConnected(),
 }

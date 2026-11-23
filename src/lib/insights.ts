@@ -55,7 +55,14 @@ export function stockInsight(stock: { inventory: number; qty_on_po: number; tran
   return { rate: r, have, cover, low: cover !== null && cover < target, suggest }
 }
 
-/** "about 2.5 a week" style numbers: whole numbers stay whole, small ones keep one decimal. */
-export const perWeekText = (n: number) => (n >= 10 || Number.isInteger(n) ? String(Math.round(n)) : n.toFixed(1))
-export const coverText = (weeks: number | null) => (weeks === null ? 'not selling' : weeks === 0 ? 'no stock left' : weeks >= 52 ? 'over a year of stock' : `${weeks < 10 ? weeks.toFixed(1) : Math.round(weeks)} weeks of stock`)
+/** Whole weeks only: a store reads "2 weeks", never "1.7". Less than a week reads as "under 1 week". */
+const weeksOf = (n: number) => `${n} ${n === 1 ? 'week' : 'weeks'}`
+export const coverText = (weeks: number | null) => (weeks === null ? 'not selling' : weeks === 0 ? 'no stock left' : weeks >= 52 ? 'over a year of stock' : weeks < 1 ? 'under 1 week of stock' : `${weeksOf(Math.floor(weeks))} of stock`)
 
+/** Why an item is flagged Low, in the same words as the suggested order: what is in stock, what it sold, what is on order, and how long that lasts against the target. */
+export function lowWhy(i: { inventory: number; onOrder: number; sold: number; weeks: number; cover: number | null; target: number }): string {
+  const lasts = i.cover === null ? 'It is not selling' : i.cover === 0 ? 'Nothing is left' : i.cover < 1 ? 'That lasts under 1 week' : `That lasts ${weeksOf(Math.floor(i.cover))}`
+  return `In stock ${Math.max(0, i.inventory)} · Sold ${i.sold} in the last ${weeksOf(i.weeks)} · On order ${i.onOrder}. ${lasts}, and this store aims to hold ${weeksOf(i.target)}.`
+}
+/** The short label on a Low item: how long its stock lasts, in whole weeks. */
+export const lowLabel = (cover: number | null) => (cover === null ? 'Low' : cover === 0 ? 'Low · out of stock' : cover < 1 ? 'Low · under 1 week left' : `Low · ${weeksOf(Math.floor(cover))} left`)

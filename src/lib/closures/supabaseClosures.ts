@@ -1,6 +1,6 @@
 import { supabase } from '../supabase'
 import { readAll, countOpt } from '../readAll'
-import type { AllocRow, ClosureDetail, ClosureLineRow, ClosureRow, ClosuresApi, NeedRow, RequestLineRow, RequestRow, RequestStatus } from './api'
+import type { AllocRow, ClosureDetail, HoldRow, ClosureLineRow, ClosureRow, ClosuresApi, NeedRow, RequestLineRow, RequestRow, RequestStatus } from './api'
 
 const db = () => {
   if (!supabase) throw new Error('No Supabase connection')
@@ -138,6 +138,23 @@ export const supabaseClosuresApi: ClosuresApi = {
     const { data, error } = await db().rpc('reoffer_lines', { p_closure: id, p_rows: rows })
     fail(error)
     return (data ?? []) as string[]
+  },
+
+  async holds(storeIds) {
+    if (storeIds && !storeIds.length) return []
+    const rows = await readAll<HoldRow>((from, to, count) => {
+      const q = db().from('store_holds').select('*', countOpt(count))
+      return (storeIds ? q.in('store_id', storeIds) : q).order('store_id').order('item_code').range(from, to)
+    })
+    return rows.map((r) => ({ ...r, min_qty: num(r.min_qty) }))
+  },
+  async setHold(stores, code, minQty) {
+    const { error } = await db().rpc('set_store_holds', { p_stores: stores, p_code: code, p_qty: minQty })
+    fail(error)
+  },
+  async removeHold(storeId, code) {
+    const { error } = await db().rpc('remove_store_hold', { p_store: storeId, p_code: code })
+    fail(error)
   },
 
   async incoming(storeIds) {

@@ -205,3 +205,66 @@ export function itemTrend(history: ItemWeek[]): ItemTrend {
     best: weeks.reduce<ItemTrendWeek | null>((b, w) => (!b || w.qty > b.qty ? w : b), null),
   }
 }
+
+// ---- Periods: look at more than one week at a time ----
+
+export type PeriodKey = 'week' | 'last4' | 'last13' | 'month' | 'lastmonth' | 'fytd' | 'lastfy' | 'custom'
+export const PERIOD_LABEL: Record<PeriodKey, string> = {
+  week: 'One week', last4: 'Last 4 weeks', last13: 'Last 13 weeks', month: 'This month', lastmonth: 'Last month', fytd: 'Year to date', lastfy: 'Last financial year', custom: 'Choose weeks',
+}
+export const PERIODS: PeriodKey[] = ['week', 'last4', 'last13', 'month', 'lastmonth', 'fytd', 'lastfy', 'custom']
+
+const monthOf = (w: WeekDates) => w.week_end.slice(0, 7) // yyyy-mm
+const monthBefore = (ym: string) => { const [y, m] = ym.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}` }
+
+/**
+ * The loaded weeks that fall in a period, oldest first. "This month" is the month of the newest week loaded (reports arrive after the week ends),
+ * and a week belongs to the month it ends in. Year to date is the newest week's financial year up to that week. `one` is the week picked for 'week'.
+ */
+export function resolvePeriod(key: PeriodKey, weeks: WeekDates[], opts: { one?: WeekRef | null; from?: number; to?: number } = {}): WeekDates[] {
+  const asc = [...weeks].sort((a, b) => weekKey(a) - weekKey(b))
+  const newest = asc.at(-1)
+  if (!newest) return []
+  switch (key) {
+    case 'week': { const w = asc.find((x) => sameWeek(x, opts.one)) ?? newest; return [w] }
+    case 'last4': return asc.slice(-4)
+    case 'last13': return asc.slice(-13)
+    case 'month': return asc.filter((w) => w.week_end && monthOf(w) === monthOf(newest))
+    case 'lastmonth': return asc.filter((w) => w.week_end && monthOf(w) === monthBefore(monthOf(newest)))
+    case 'fytd': return asc.filter((w) => w.fy === newest.fy)
+    case 'lastfy': return asc.filter((w) => w.fy === newest.fy - 1)
+    case 'custom': { const lo = Math.min(opts.from ?? weekKey(newest), opts.to ?? weekKey(newest)); const hi = Math.max(opts.from ?? weekKey(newest), opts.to ?? weekKey(newest)); return asc.filter((w) => weekKey(w) >= lo && weekKey(w) <= hi) }
+  }
+}
+
+/** "FY27 weeks 5 to 8, 29 Sep to 26 Oct", or the single week's label. */
+export function periodText(ws: WeekDates[]): string {
+  if (!ws.length) return 'no weeks'
+  const a = ws[0], b = ws[ws.length - 1]
+  const dates = a.week_start && b.week_end ? `, ${rangeText(a.week_start, b.week_end)}` : ''
+  if (ws.length === 1) return weekLabel(a) + dates
+  const fy = a.fy === b.fy ? `FY${String(a.fy).slice(-2)} weeks ${a.week} to ${b.week}` : `${weekLabel(a)} to ${weekLabel(b)}`
+  return fy + dates
+}
+
+/** One store's weeks added into a single row. Margin and items per sale are weighted by sales and by sales made; stock and size are the latest week's. */
+export function combineWeeks(rows: StoreWeek[]): StoreWeek | null {
+  if (!rows.length) return null
+  const last = [...rows].sort((a, b) => weekKey(a) - weekKey(b)).at(-1)!
+  const sum = (f: (w: StoreWeek) => number) => rows.reduce((a, w) => a + f(w), 0)
+  const ty = sum((w) => w.ty_sales), ly = sum((w) => w.ly_sales), trans = sum((w) => w.ty_trans)
+  return {
+    ...last,
+    ty_sales: ty, ly_sales: ly, ty_trans: trans, ly_trans: sum((w) => w.ly_trans), member_sales: sum((w) => w.member_sales), member_trans: sum((w) => w.member_trans),
+    sys_sales: sum((w) => w.sys_sales), qty_sold: sum((w) => w.qty_sold), l4l_adjust: sum((w) => w.l4l_adjust),
+    gp_ty: ty > 0 ? sum((w) => w.gp_ty * w.ty_sales) / ty : 0, gp_ly: ly > 0 ? sum((w) => w.gp_ly * w.ly_sales) / ly : 0,
+    basket: trans > 0 ? sum((w) => w.basket * w.ty_trans) / trans : 0,
+  }
+}
+
+/** Every store's weeks added up across the period, keyed by store name (a closed store has no id). */
+export function combineLeague(weeksOfRows: StoreWeek[][]): StoreWeek[] {
+  const by = new Map<string, StoreWeek[]>()
+  for (const rows of weeksOfRows) for (const r of rows) by.set(r.store_name + '|' + r.co_fran, [...(by.get(r.store_name + '|' + r.co_fran) ?? []), r])
+  return [...by.values()].map((rs) => combineWeeks(rs)!)
+}

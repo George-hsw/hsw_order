@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverText, perWeekText, ratesFrom, stockInsight } from './insights'
+import { coverText, lowLabel, lowWhy, ratesFrom, stockInsight } from './insights'
 
 describe('ratesFrom', () => {
   it('averages over the weeks loaded, counting a missing week as nothing sold', () => {
@@ -52,13 +52,22 @@ describe('stockInsight', () => {
 
 describe('text', () => {
   it('words rates and cover plainly', () => {
-    expect(perWeekText(2.5)).toBe('2.5')
-    expect(perWeekText(3)).toBe('3')
-    expect(perWeekText(12.4)).toBe('12')
     expect(coverText(null)).toBe('not selling')
     expect(coverText(0)).toBe('no stock left')
-    expect(coverText(1.25)).toBe('1.3 weeks of stock')
+    expect(coverText(1.25)).toBe('1 week of stock')
+    expect(coverText(0.4)).toBe('under 1 week of stock')
+    expect(coverText(7.9)).toBe('7 weeks of stock')
     expect(coverText(60)).toBe('over a year of stock')
   })
 })
 
+
+describe('lowWhy', () => {
+  it('names the stock, sales, on order and the target, so the flag explains itself', () => {
+    const t = lowWhy({ inventory: 2, onOrder: 0, sold: 10, weeks: 13, cover: 2.5, target: 4 })
+    expect(t).toBe('In stock 2 · Sold 10 in the last 13 weeks · On order 0. That lasts 2 weeks, and this store aims to hold 4 weeks.')
+    expect(lowLabel(2.5)).toBe('Low · 2 weeks left')
+    expect(lowLabel(0.4)).toBe('Low · under 1 week left')
+    expect(lowLabel(0)).toBe('Low · out of stock')
+  })
+})

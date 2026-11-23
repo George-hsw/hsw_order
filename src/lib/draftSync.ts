@@ -6,6 +6,8 @@ import { DEMO, supabase } from './supabase'
 const SOURCE = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(Math.random()) // this browser, to ignore its own echo
 const PUSH_DELAY = 400 // ms of quiet before a change is sent
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+/** Photos are large and stay on the device they were added on: the shared draft never carries them. */
+const noPhotos = (q: QuoteInput): QuoteInput => (q.photos?.length ? { ...q, photos: [] } : q)
 
 /**
  * Three-way merge. `base` is what both devices last agreed on, `local` is this device now, `remote` is what the other
@@ -58,7 +60,7 @@ export function useDraftSync({ enabled, quote, setQuote, normalise, draftKey }: 
   const push = useRef(async () => {})
   push.current = async () => {
     if (!supabase || !ready.current || !uid.current) return
-    const sending = quoteRef.current
+    const sending = noPhotos(quoteRef.current)
     if (base.current ? same(sending, base.current) : same(sending, normaliseRef.current(undefined))) return // nothing to say
     const { error } = await supabase.from('quote_drafts').upsert({ user_id: uid.current, payload: sending, source: SOURCE, updated_at: new Date().toISOString() })
     if (!error) base.current = sending
@@ -73,10 +75,10 @@ export function useDraftSync({ enabled, quote, setQuote, normalise, draftKey }: 
     ready.current = false
 
     const adopt = (remote: QuoteInput) => {
-      const local = quoteRef.current
+      const local = noPhotos(quoteRef.current)
       const next = base.current && !same(local, base.current) ? mergeQuotes(base.current, local, remote) : remote
       base.current = remote
-      if (!same(next, local)) setQuote(next)
+      if (!same(next, local)) setQuote({ ...next, photos: quoteRef.current.photos ?? [] })
     }
 
     ;(async () => {

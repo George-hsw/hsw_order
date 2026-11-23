@@ -11,10 +11,11 @@ import { useToast } from './Toast'
 import { findByScan, indexBarcodes, indexItems, loadPriceList, searchItems, type PriceList } from './lib/items'
 import { buildPdf } from './lib/pdf'
 import {
-  MAX_LINES, compute, dateAU, emptyLine, emptyMeasurement, emptyQuote, firstNameOf, money, parseDate,
+  MAX_LINES, MAX_PHOTOS, compute, dateAU, emptyLine, emptyMeasurement, emptyQuote, firstNameOf, hasMeasurement, money, parseDate,
   type Item, type Line, type Measurement, type QuoteInput, type Settings, type Store,
 } from './lib/quote'
 import { loadLogo, type Logo } from './lib/logo'
+import { shrinkPhoto } from './lib/photos'
 import { DEMO, isoDate, supabase, type DocRow, type PaymentRow, type StoreRow } from './lib/supabase'
 
 interface Props {
@@ -34,6 +35,7 @@ const normalise = (d: Partial<QuoteInput> | undefined): QuoteInput => {
     ...base, ...d,
     date: d?.date || base.date,
     customer: { ...base.customer, ...d?.customer },
+    photos: d?.photos ?? [],
     lines: Array.from({ length: MAX_LINES }, (_, i) => d?.lines?.[i] ?? emptyLine()),
   }
 }
@@ -107,7 +109,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     () => compute(quoteEff, itemIndex, stores, settings, priceList?.items.length ?? 0),
     [quoteEff, itemIndex, stores, settings, priceList],
   )
-  /** The quote with its assigned number (a new one gets its number when first saved). */
+  /** The quote with its assigned number (a new one gets its number as soon as it opens). */
   const finalCompute = (placeholder = '') => {
     const q = quoteEff.number.trim() ? quoteEff : { ...quoteEff, number: numberRef.current || placeholder }
     return { q, c: compute(q, itemIndex, stores, settings, priceList?.items.length ?? 0) }
@@ -115,6 +117,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
   const matches = useMemo(() => searchItems(priceList?.items ?? [], find), [priceList, find])
   const isInvoice = quote.docType === 'Tax Invoice'
   const isOrder = quote.docType === 'Customer Order'
+  const isMeasure = quote.docType === 'Measurements' // measurements and photos only: no items, fees or payments
   // the valid-until and due dates show their real default, so there is nothing to guess at
   const addIso = (n: number) => { const d = parseDate(quote.date) ?? new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA') }
   const validDefault = addIso(settings.validDays)
@@ -125,6 +128,25 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     setQuote((q) => ({ ...q, customer: { ...q.customer, [k]: v } }))
   const setLine = (i: number, patch: Partial<Line>) =>
     setQuote((q) => ({ ...q, lines: q.lines.map((l, n) => (n === i ? { ...l, ...patch } : l)) }))
+
+  // A new document gets the store's next number as soon as it opens, so it is on screen from the start. The number is kept in the draft
+  // and reused when the draft is reopened; changing the store before saving takes that store's next number instead.
+  const numberStore = useRef<string | null>(null)
+  useEffect(() => {
+    if (docId || openDoc || !selRow) return
+    if (DEMO) { if (!quote.number.trim()) setQuote((q) => ({ ...q, number: '1001' })); return }
+    if (quote.number.trim() && (numberStore.current === null || numberStore.current === selRow.id)) { numberStore.current = selRow.id; return }
+    if (!supabase) return
+    let alive = true
+    numberStore.current = selRow.id
+    supabase.rpc('next_doc_number', { p_store: selRow.id }).then(({ data: n, error }) => {
+      if (!alive) return
+      if (error || n == null) { numberStore.current = null; toast.error(error?.message ?? 'Could not get the next number.'); return }
+      numberRef.current = String(n)
+      setQuote((q) => (docIdRef.current ? q : { ...q, number: String(n) }))
+    })
+    return () => { alive = false }
+  }, [docId, openDoc, selRow?.id, quote.number]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Converting a saved quote to an invoice creates a NEW document (same digits, INV- prefix); its deposit moves across.
   const changeType = (t: QuoteInput['docType']) => {
@@ -168,6 +190,16 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     const it = findByScan(find, itemIndex, barcodeIndex)
     if (it) addFromSearch(it)
     else if (matches.length === 1) addFromSearch(matches[0])
+  }
+  const addPhotos = async (files: FileList | null) => {
+    if (!files?.length) return
+    const room = MAX_PHOTOS - quote.photos.length
+    const picked = [...files].slice(0, room)
+    if (files.length > room) toast.info(`Only ${MAX_PHOTOS} photos fit on one record, so ${files.length - room} ${files.length - room === 1 ? 'was' : 'were'} left out.`)
+    try {
+      const made = await Promise.all(picked.map(shrinkPhoto))
+      setQuote((q) => ({ ...q, photos: [...q.photos, ...made].slice(0, MAX_PHOTOS) }))
+    } catch { toast.error('One of those photos could not be read. Try another.') }
   }
   const setMeasure = (i: number, patch: Partial<Measurement>) =>
     setQuote((q) => ({ ...q, measurements: q.measurements.map((m, n) => (n === i ? { ...m, ...patch } : m)) }))
@@ -275,15 +307,15 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
     return true
   }
   const firstName = firstNameOf(quote.customer.name)
-  const docWord = isInvoice ? 'tax invoice' : isOrder ? 'customer order' : 'quote'
-  const emailSubject = `${isInvoice ? 'Tax invoice' : isOrder ? 'Customer order' : 'Quote'} ${c.docNumber} from Howards Storage World${selRow ? ` ${selRow.name}` : ''}`
+  const docWord = isInvoice ? 'tax invoice' : isOrder ? 'customer order' : isMeasure ? 'measurement record' : 'quote'
+  const emailSubject = `${isInvoice ? 'Tax invoice' : isOrder ? 'Customer order' : isMeasure ? 'Measurement record' : 'Quote'} ${c.docNumber} from Howards Storage World${selRow ? ` ${selRow.name}` : ''}`
   const emailBody = [
     `Hi ${firstName},`,
     '',
     `Please find your ${docWord} ${c.docNumber} attached.`,
     '',
-    `Total (incl GST): ${money(c.totalCents)}`,
-    ...(isInvoice
+    ...(isMeasure ? [] : [`Total (incl GST): ${money(c.totalCents)}`]),
+    ...(isMeasure ? [] : isInvoice
       ? [c.balanceCents > 0 ? `Balance due: ${money(c.balanceCents)} by ${dateAU(c.secondDate)}` : 'Paid in full']
       : [`${isOrder ? 'Expected by' : 'Valid until'}: ${dateAU(c.secondDate)}`]),
     '',
@@ -338,7 +370,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
               <div className="grid">
                 <label>Document type
                   <select name="docType" value={quote.docType} onChange={(e) => changeType(e.target.value as QuoteInput['docType'])}>
-                    <option>Quote</option><option>Customer Order</option><option>Tax Invoice</option>
+                    <option>Quote</option><option>Customer Order</option><option>Tax Invoice</option><option>Measurements</option>
                   </select>
                 </label>
                 <label>Store
@@ -348,12 +380,12 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                   </select>
                 </label>
                 <label>Document no. <small>numbered by the system</small>
-                  <input readOnly value={c.docNumber || 'Assigned when saved'} />
+                  <input readOnly value={c.docNumber || (selRow ? 'Getting the number…' : 'Pick a store for the number')} />
                 </label>
                 <label>Date
                   <input name="date" type="date" value={quote.date} onChange={(e) => set('date', e.target.value)} />
                 </label>
-                {!isInvoice && (
+                {!isInvoice && !isMeasure && (
                   <label>{isOrder ? 'Expected by' : 'Valid until'}
                     <input name="validUntil" type="date" value={quote.validUntil || validDefault} onChange={(e) => set('validUntil', e.target.value)} />
                   </label>
@@ -370,9 +402,9 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                 <label>Customer name <small>required</small><input name="customerName" autoComplete="off" value={quote.customer.name} onChange={(e) => setCust('name', e.target.value)} /></label>
                 <label>Company<input name="company" autoComplete="off" value={quote.customer.company} onChange={(e) => setCust('company', e.target.value)} /></label>
                 <label>Customer ABN<input name="customerAbn" inputMode="numeric" autoComplete="off" value={quote.customer.abn} onChange={(e) => setCust('abn', e.target.value)} /></label>
-                <label>Phone <small>required</small><input name="phone" aria-required="true" type="tel" autoComplete="off" value={quote.customer.phone} onChange={(e) => setCust('phone', e.target.value)} /></label>
-                <label>Email <small>required</small><input name="email" aria-required="true" type="email" autoComplete="off" value={quote.customer.email} onChange={(e) => setCust('email', e.target.value)} /></label>
-                <label className="addr-field">Address <small>start typing to search</small><AddressInput name="address" value={quote.customer.address} onChange={(v) => setCust('address', v)}
+                <label>Phone {!isMeasure && <small>required</small>}<input name="phone" aria-required="true" type="tel" autoComplete="off" value={quote.customer.phone} onChange={(e) => setCust('phone', e.target.value)} /></label>
+                <label>Email {!isMeasure && <small>required</small>}<input name="email" aria-required="true" type="email" autoComplete="off" value={quote.customer.email} onChange={(e) => setCust('email', e.target.value)} /></label>
+                <label className="addr-field">Address <small>{isMeasure ? 'required, start typing to search' : 'start typing to search'}</small><AddressInput name="address" value={quote.customer.address} onChange={(v) => setCust('address', v)}
                   onPick={(a) => setQuote((q) => ({ ...q, customer: { ...q.customer, address: a.street, suburb: a.suburb } }))} /></label>
                 <label>Suburb / State / Postcode<input name="suburb" autoComplete="off" value={quote.customer.suburb} onChange={(e) => setCust('suburb', e.target.value)} /></label>
                 <label className="addr-field">Deliver / install to <small>if different</small><AddressInput name="deliverTo" value={quote.customer.deliverTo} onChange={(v) => setCust('deliverTo', v)}
@@ -380,6 +412,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
               </div>
             </section>
 
+            {!isMeasure && <>
             <section className="block">
               <h2>Items</h2>
               <div className="finder">
@@ -442,6 +475,8 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
               </div>
             </section>
 
+            </>}
+
             {isInvoice && (
               <section className="block">
                 <h2>Payment terms</h2>
@@ -455,7 +490,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
             )}
 
             <section className="block">
-              <h2>Measurements <small>taken for the customer, saved with this {isInvoice ? 'invoice' : isOrder ? 'order' : 'quote'}</small></h2>
+              <h2>Measurements <small>{isMeasure ? 'taken for the customer' : `taken for the customer, saved with this ${isInvoice ? 'invoice' : isOrder ? 'order' : 'quote'}`}</small></h2>
               {quote.measurements.map((m, i) => (
                 <div className="grid measure" key={i}>
                   <label>Where or what
@@ -485,11 +520,31 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                     <option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option>
                   </select>
                 </label>
-                {quote.measurements.length > 0 && (
+                {quote.measurements.length > 0 && !isMeasure && (
                   <label className="inline"><input type="checkbox" name="measurePrint" checked={quote.measurePrint} onChange={(e) => set('measurePrint', e.target.checked)} /> Print on the customer’s copy</label>
                 )}
               </div>
             </section>
+
+            {isMeasure && (
+              <section className="block">
+                <h2>Photos <small>of the products or the space, up to {MAX_PHOTOS}</small></h2>
+                <div className="photos">
+                  {quote.photos.map((ph, i) => (
+                    <figure key={i} className="photo">
+                      <img src={ph.data} alt={ph.name || `Photo ${i + 1}`} />
+                      <button type="button" className="btn" aria-label={`Remove photo ${i + 1}`} onClick={() => setQuote((q) => ({ ...q, photos: q.photos.filter((_, n) => n !== i) }))}>Remove</button>
+                    </figure>
+                  ))}
+                </div>
+                <div className="actions">
+                  <label className="btn" aria-disabled={quote.photos.length >= MAX_PHOTOS}>
+                    Add photos
+                    <input className="visually-hidden" type="file" name="photos" accept="image/*" multiple disabled={quote.photos.length >= MAX_PHOTOS} onChange={(e) => { void addPhotos(e.target.files); e.target.value = '' }} />
+                  </label>
+                </div>
+              </section>
+            )}
 
             <section className="block">
               <h2>Notes for the customer <small>printed: measurements, colours, lead times</small></h2>
@@ -506,6 +561,9 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
               : <ul>{c.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
           </div>
           <div className="ledger-body">
+            {isMeasure ? (
+              <dl><dt>Measurements</dt><dd>{quote.measurements.filter(hasMeasurement).length}</dd><dt>Photos</dt><dd>{quote.photos.length}</dd></dl>
+            ) : (
             <dl>
               <dt>Items</dt><dd>{money(c.itemsCents)}</dd>
               <dt>Delivery</dt><dd>{money(c.deliveryCents)}</dd>
@@ -516,13 +574,14 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                 <><dt>{isInvoice ? 'Paid' : 'Deposit received'}</dt><dd>{money(c.paidCents)}</dd><dt className="total">Balance due</dt><dd className="total">{money(c.balanceCents)}</dd></>
               )}
             </dl>
+            )}
             <dl className="ledger-meta">
-              <dt><label htmlFor="ledger-date">{isInvoice ? 'Due date' : isOrder ? 'Expected by' : 'Valid until'}</label></dt>
+              {!isMeasure && <><dt><label htmlFor="ledger-date">{isInvoice ? 'Due date' : isOrder ? 'Expected by' : 'Valid until'}</label></dt>
               <dd>
                 <input id="ledger-date" type="date" disabled={locked}
                   value={isInvoice ? quote.dueDate || dueDefault : quote.validUntil || validDefault}
                   onChange={(e) => (isInvoice ? set('dueDate', e.target.value) : set('validUntil', e.target.value))} />
-              </dd>
+              </dd></>}
               <dt>PDF name</dt><dd>{c.fileName ? <code>{c.fileName}.pdf</code> : 'Available once the store, number and customer name are set'}</dd>
             </dl>
             <div className="actions">
@@ -538,7 +597,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
         </aside>
       </div>
       <div className="stickybar">
-        <div><small>Total (incl GST)</small><b className="num">{money(c.totalCents)}</b></div>
+        <div>{isMeasure ? <><small>Measurements</small><b className="num">{c.docNumber || '–'}</b></> : <><small>Total (incl GST)</small><b className="num">{money(c.totalCents)}</b></>}</div>
         <button type="button" className={'btn primary' + (c.ready ? '' : ' blocked')} aria-disabled={!c.ready} onClick={download} disabled={busy}>{locked ? 'Download PDF' : 'Save & download PDF'}</button>
       </div>
       {paying && docIdRef.current && (

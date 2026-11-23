@@ -168,3 +168,34 @@ describe('measurements', () => {
     expect(emptyQuote().measurePrint).toBe(false)
   })
 })
+
+describe('Measurements records', () => {
+  const record = () => {
+    const q = emptyQuote()
+    q.docType = 'Measurements'
+    q.storeName = 'Mornington'; q.number = '1001'
+    q.customer.name = 'Jo Smith'; q.customer.address = '1 Test St'
+    q.measurements = [{ where: 'Pantry', width: '900', height: '2100', depth: '400', note: '' }]
+    return q
+  }
+  it('is numbered M, and needs a name, an address and a measurement or photo (no phone, email or items)', () => {
+    const c = compute(record(), items, stores, settings, items.size)
+    expect(c.docNumber).toBe('M-MOR-1001')
+    expect(c.problems).toEqual([])
+    expect(c.ready).toBe(true)
+    expect(c.totalCents).toBe(0)
+  })
+  it('says what is missing', () => {
+    const q = record(); q.customer.address = ''; q.measurements = []
+    expect(compute(q, items, stores, settings, items.size).problems).toEqual(['Enter the customer address', 'Add a measurement or a photo'])
+    q.customer.address = '1 Test St'; q.photos = [{ name: 'a.jpg', data: 'data:image/jpeg;base64,AA', w: 10, h: 10 }]
+    expect(compute(q, items, stores, settings, items.size).ready).toBe(true)
+  })
+  it('keeps no items or fees, so the price list does not matter', () => {
+    const q = record(); q.lines[0].code = 'ANA0001'; q.deliveryFee = '50'
+    const c = compute(q, items, stores, settings, 0)
+    expect(c.lines).toEqual([])
+    expect(c.totalCents).toBe(0)
+    expect(c.ready).toBe(true)
+  })
+})
