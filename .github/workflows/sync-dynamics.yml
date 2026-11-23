@@ -1,14 +1,15 @@
 name: Sync Dynamics → Supabase
 
-# Nightly: copies Retail Items and each store's Replen. Qty. into Supabase, writing only what changed.
+# Four times a day: copies Retail Items and each store's Replen. Qty. into Supabase, writing only what changed.
 # A store whose feed looks wrong keeps its previous data and the run ends in an error, so GitHub emails the repo owner.
-# 17:00 UTC = 3am AEST / 4am AEDT. Change it to run after the overnight replication has finished.
+# 23:00, 03:00, 07:00 and 11:00 UTC = 10am, 2pm, 6pm and 10pm Melbourne time while daylight saving is on (AEDT); an hour earlier
+# (9am, 1pm, 5pm, 9pm) in winter, because GitHub schedules in UTC only.
 #
 # If NAV is on HSW's private network, GitHub's own runners cannot reach it: change `runs-on` to a self-hosted runner
 # (runs-on: [self-hosted, hsw]) installed on a machine that can.
 on:
   schedule:
-    - cron: '0 17 * * *'
+    - cron: '0 23,3,7,11 * * *'
   workflow_dispatch:
     inputs:
       discover:
