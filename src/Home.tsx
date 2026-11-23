@@ -10,6 +10,7 @@ const ICON: Record<AreaId, string> = {
   transfer: 'M4 8h13 M13 4l4 4-4 4 M20 16H7 M11 12l-4 4 4 4',
   stocktake: 'M9 4h6l1 2h3v14H5V6h3z M9 13l2 2 4-4',
   price: 'M3 12V4h8l10 10-8 8z M7.5 7.5h.01',
+  labels: 'M4 5h7v6H4z M13 5h7v6h-7z M4 13h7v6H4z M13 13h7v6h-7z',
   sales: 'M4 20h16 M7 20v-7 M12 20V6 M17 20v-9',
   admin: 'M4 7h10 M18 7h2 M4 17h2 M10 17h10 M14 5v4 M6 15v4',
 }

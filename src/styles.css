@@ -217,7 +217,7 @@ tr.inactive { opacity: 0.6; }
   .builder { padding-bottom: 80px; }
 }
 /* The Order table has ten columns and needs room: below 82rem the totals go under it, with the same bottom bar as on a tablet, instead of squeezing it. */
-@media (min-width: 64.01rem) and (max-width: 82rem) {
+@media (min-width: 64.01rem) and (max-width: 84rem) {
   .workspace.wide { grid-template-columns: minmax(0, 1fr); }
   .workspace.wide .ledger { position: static; }
   .workspace.wide .ledger .actions .primary { display: none; }
@@ -225,6 +225,8 @@ tr.inactive { opacity: 0.6; }
   .builder:has(.workspace.wide) .stickybar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-sticky); padding: var(--space-sm) var(--space-md); background: var(--color-paper-2); border-top: var(--rule-hair) solid var(--color-ink); }
   .builder:has(.workspace.wide) .stickybar b { display: block; font-size: var(--text-lg); font-weight: 600; }
 }
+/* The Order table is the widest thing in the app: while it is open the page (and the bar above it, so their edges line up) is wider, so all ten columns fit beside the totals box. */
+body:has(.workspace.wide) .container { max-width: 1360px; }
 @media (max-width: 60rem) {
   .loginwrap { grid-template-columns: minmax(0, 1fr); } .hero { padding: var(--space-xl) var(--space-lg) var(--space-xs); } .hero .logo { height: 56px; }
 }

@@ -7,12 +7,12 @@ describe('sections', () => {
     expect(new Set(all).size).toBe(all.length)
   })
   it('finds the area of a tab', () => {
-    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['price', 'price'], ['tansel', 'quote'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin'], ['closures', 'transfer'], ['transfers', 'transfer']]
+    const cases: [Tab, string][] = [['new', 'quote'], ['docs', 'quote'], ['order', 'order'], ['price', 'price'], ['labels', 'labels'], ['tansel', 'quote'], ['orders', 'order'], ['sales', 'sales'], ['analytics', 'admin'], ['stores', 'admin'], ['closures', 'transfer'], ['transfers', 'transfer']]
     for (const [tab, area] of cases) expect(areaOf(tab).id).toBe(area)
   })
   it('only the admin sees the Admin area', () => {
-    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'transfer', 'stocktake', 'price', 'sales'])
-    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'transfer', 'stocktake', 'price', 'sales', 'admin'])
+    expect(visibleAreas(false).map((a) => a.id)).toEqual(['quote', 'order', 'transfer', 'stocktake', 'price', 'labels', 'sales'])
+    expect(visibleAreas(true).map((a) => a.id)).toEqual(['quote', 'order', 'transfer', 'stocktake', 'price', 'labels', 'sales', 'admin'])
     expect(visibleAreas(false, false).map((a) => a.id)).toEqual(['sales']) // a manager with no store of their own
     expect(visibleAreas(false, false, true).map((a) => a.id)).toEqual(['transfer', 'sales']) // operations with no store of their own gets Transfer
   })
