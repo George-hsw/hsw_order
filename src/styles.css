@@ -2,6 +2,7 @@
  * paper: oklch(96% 0.011 85) · accent: oklch(60.7% 0.107 214) · display: Myriad Pro · body: Myriad Pro
  * nav: top bar with segmented tabs · signature: the ruled ledger, live totals beside the form · states: loading, empty, error, full
  * axes: light/grotesk-sans/chromatic-teal · posture: committed · contrast: pass · v2.0.0 */
+/* Hallmark · waive 24b · the range table pads the first line by 10px so values sit level with the 36px quantity box · a token step would misalign the row */
 /* Hallmark · waive 28b · live camera feed in the scanner overlay, a MediaStream with no still to use as a poster · the video is the camera, never a file */
 /* Hallmark · dropped onChange={(e) => setType(e.target.value)} · the Documents type select became a segmented control (All, Quotes, Invoices) that sets the same type state from its buttons */
 /* Hallmark · reworded "Delivery & installation (incl GST, leave blank if not needed)" to "Delivery & installation" with the hint kept as small text beside it · the hint left the heading, the words are unchanged */

@@ -65,9 +65,9 @@ describe('text', () => {
 describe('lowWhy', () => {
   it('names the stock, sales, on order and the target, so the flag explains itself', () => {
     const t = lowWhy({ inventory: 2, onOrder: 0, sold: 10, weeks: 13, cover: 2.5, target: 4 })
-    expect(t).toBe('In stock 2 · Sold 10 in the last 13 weeks · On order 0. That lasts 2 weeks, and this store aims to hold 4 weeks.')
-    expect(lowLabel(2.5)).toBe('Low · 2 weeks left')
-    expect(lowLabel(0.4)).toBe('Low · under 1 week left')
-    expect(lowLabel(0)).toBe('Low · out of stock')
+    expect(t).toBe('In stock 2, sold 10 in the last 13 weeks, on order 0. That lasts 2 weeks, and this store aims to hold 4 weeks.')
+    expect(lowLabel(2.5)).toBe('Low, 2 weeks left')
+    expect(lowLabel(0.4)).toBe('Low, under 1 week left')
+    expect(lowLabel(0)).toBe('Low, out of stock')
   })
 })

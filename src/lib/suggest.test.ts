@@ -64,7 +64,7 @@ describe('a suggested line', () => {
   it('says plainly what is in stock, sold and on order, and a covered item needs nothing', () => {
     const s = suggestLine(base({ inventory: 3, onOrder: 40 }))
     expect(s.brief).toContain('In stock 3')
-    expect(s.brief).toContain('On order 40')
+    expect(s.brief).toContain('on order 40')
     expect(s.why).toContain('40 on a purchase order')
     expect(s.qty).toBe(0)
   })
@@ -74,7 +74,7 @@ describe('a suggested line', () => {
   it('never suggests a negative quantity, and shows its working', () => {
     const s = suggestLine(base({ inventory: -4 }))
     expect(s.qty).toBeGreaterThanOrEqual(0)
-    expect(s.why).toMatch(/^In stock 0 · Sold \d+ in the last 13 weeks · On order 0/)
+    expect(s.why).toMatch(/^In stock 0, sold \d+ in the last 13 weeks, on order 0/)
   })
 })
 

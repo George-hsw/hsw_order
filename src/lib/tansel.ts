@@ -202,24 +202,24 @@ export function fit(c: CabinetInput): Result {
   // The RESULT box (B35)
   const small = (n: number) => n > 0 && n < 100
   let headline: string
-  if (small(W) || small(D) || small(H)) headline = '✗ CHECK YOUR NUMBERS - type MILLIMETRES (e.g. 568), not centimetres'
+  if (small(W) || small(D) || small(H)) headline = '✗ Check your numbers - type millimetres (e.g. 568), not centimetres'
   else if (W === 0) headline = 'Enter the internal cabinet width (step 2)'
   else if (D === 0) headline = 'Enter the internal cabinet depth (step 2)'
   else if (H === 0) headline = 'Enter the cabinet height (step 2)'
-  else if (!depthOK) headline = `✗ CABINET TOO SHALLOW - need at least ${fam === 'MF' ? S.mfD : (fam === 'BSK' ? 400 : 485) + S.depthMargin}mm deep. Call Tansel 02 9440 9800`
+  else if (!depthOK) headline = `✗ Cabinet too shallow - need at least ${fam === 'MF' ? S.mfD : (fam === 'BSK' ? 400 : 485) + S.depthMargin}mm deep. Call Tansel 02 9440 9800`
   else if (fam === 'MF') {
-    if (mfWidest === 0) headline = `✗ TOO NARROW for the multi-frame (needs ${100 + S.mfExtra}mm clear of hinges)`
+    if (mfWidest === 0) headline = `✗ Too narrow for the multi-frame (needs ${100 + S.mfExtra}mm clear of hinges)`
     else if (mfNeed > mfWidest) headline = `✗ A ${mfNeed}mm basket will not fit - widest that fits is ${mfWidest}mm`
-    else if (!heightOK) headline = `✗ NOT ENOUGH HEIGHT - frame needs ${S.mfH}mm, cabinet has ${H}mm`
+    else if (!heightOK) headline = `✗ Not enough height - frame needs ${S.mfH}mm, cabinet has ${H}mm`
     else if (mfQty === 0) headline = `✓ Frame fits (up to ${mfWidest}mm wide baskets) - now enter how many baskets (step 4)`
-    else headline = '✓ IT FITS - see the set-up below'
+    else headline = '✓ It fits - see the set-up below'
   } else if (!heightOK) {
-    headline = `✗ NOT ENOUGH HEIGHT - needs ${needH}mm, cabinet has ${H}mm${mount === 'B' && (fam === 'LDY' || fam === 'USR') && H >= needH - S.raise && Ws > 0 ? ' - change Mount preference to Side mount (no height added)' : ''}`
+    headline = `✗ Not enough height - needs ${needH}mm, cabinet has ${H}mm${mount === 'B' && (fam === 'LDY' || fam === 'USR') && H >= needH - S.raise && Ws > 0 ? ' - change Mount preference to Side mount (no height added)' : ''}`
   } else if (split > 1 && !splitOK) headline = `✗ Too narrow to split into ${split} baskets - choose fewer`
-  else if (split === 1 && maxW === 0) headline = '✗ NOTHING FITS this width - call Tansel 02 9440 9800 for a custom solution'
+  else if (split === 1 && maxW === 0) headline = '✗ Nothing fits this width - call Tansel 02 9440 9800 for a custom solution'
   else if (split === 1 && wide === 0) headline = `✗ Nothing fits with ${c.mount === 'bottom' ? 'Bottom mount' : c.mount === 'side' ? 'Side mount' : 'Recommended'} - change Mount preference to Recommended`
   else if (missing) headline = "✗ That width isn't made in this height/depth - change the 150mm-high count or depth"
-  else headline = '✓ IT FITS - see the set-up below'
+  else headline = '✓ It fits - see the set-up below'
   const fits = headline.startsWith('✓')
 
   // What to pick, slides, packers, weight (C37 to C41)

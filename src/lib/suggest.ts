@@ -78,7 +78,7 @@ export function suggestLine(i: SuggestIn): Suggestion {
   const onOrder = Math.max(0, i.onOrder) + Math.max(0, i.transferIn) + Math.max(0, i.inOrder)
   const soldWeeks = Math.min(i.series.length, DEMAND.longWeeks)
   const sold = i.series.slice(-DEMAND.longWeeks).reduce((a, b) => a + b, 0)
-  const facts = `In stock ${inventory} · Sold ${sold} in the last ${soldWeeks} ${soldWeeks === 1 ? 'week' : 'weeks'} · On order ${onOrder}`
+  const facts = `In stock ${inventory}, sold ${sold} in the last ${soldWeeks} ${soldWeeks === 1 ? 'week' : 'weeks'}, on order ${onOrder}`
   const parts: string[] = []
   if (i.inOrder > 0) parts.push(`${i.inOrder} in this order`)
   if (i.onOrder > 0) parts.push(`${i.onOrder} on a purchase order`)
@@ -91,7 +91,7 @@ export function suggestLine(i: SuggestIn): Suggestion {
     qty > 0 ? `Order ${qty}${step > 1 ? ` (MOQ ${step})` : ''}.` : need > 0 ? '' : 'Nothing needed.',
     hold === 'moq' ? `One MOQ lasts about ${Math.round(qty / d.rate)} weeks of sales, so it is your call.` : '',
   ].filter(Boolean).join(' ')
-  const brief = `${facts}${i.waiting > 0 ? ` · ${i.waiting} for customers` : ''}`
+  const brief = `${facts}${i.waiting > 0 ? `, ${i.waiting} for customers` : ''}`
   return { ...d, qty, fill: qty > 0 && hold === null, hold, have, need: Math.max(0, need), inventory, onOrder, sold, soldWeeks, why: working, brief }
 }
 

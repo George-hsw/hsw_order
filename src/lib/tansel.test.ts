@@ -25,15 +25,15 @@ describe('Tansel finder', () => {
   })
 
   it('warns when centimetres were typed', () => {
-    expect(fit(cab({ width: 56.8 as number, depth: 560, heightFree: 1400 })).headline).toContain('type MILLIMETRES')
-    expect(fit(cab({ width: 568, depth: 56, heightFree: 1400 })).headline).toContain('type MILLIMETRES')
+    expect(fit(cab({ width: 56.8 as number, depth: 560, heightFree: 1400 })).headline).toContain('type millimetres')
+    expect(fit(cab({ width: 568, depth: 56, heightFree: 1400 })).headline).toContain('type millimetres')
   })
 
   it('says a cabinet is too shallow, and not enough height', () => {
     const shallow = fit(cab({ width: 568, depth: 390, heightFree: 1400 }))
     expect(shallow.fits).toBe(false)
-    expect(shallow.headline).toBe('✗ CABINET TOO SHALLOW - need at least 400mm deep. Call Tansel 02 9440 9800')
-    expect(fit(cab({ width: 568, depth: 560, heightFree: 200 })).headline).toBe('✗ NOT ENOUGH HEIGHT - needs 250mm, cabinet has 200mm')
+    expect(shallow.headline).toBe('✗ Cabinet too shallow - need at least 400mm deep. Call Tansel 02 9440 9800')
+    expect(fit(cab({ width: 568, depth: 560, heightFree: 200 })).headline).toBe('✗ Not enough height - needs 250mm, cabinet has 200mm')
   })
 
   it('splits a wide space into baskets side by side with bottom mount', () => {
@@ -66,7 +66,7 @@ describe('Tansel finder', () => {
   })
 
   it('the multi-frame needs its minimum height and depth', () => {
-    expect(fit(cab({ product: 'frame', width: 400, depth: 500, heightFree: 500 })).headline).toContain('NOT ENOUGH HEIGHT - frame needs 580mm')
+    expect(fit(cab({ product: 'frame', width: 400, depth: 500, heightFree: 500 })).headline).toContain('Not enough height - frame needs 580mm')
     const ok = fit(cab({ product: 'frame', width: 400, depth: 500, heightFree: 700, hinges: 'none', mf100: 2 }))
     expect(ok.fits).toBe(true)
     expect(line(ok)[0]).toBe('TAN055x1')

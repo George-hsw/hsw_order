@@ -234,7 +234,7 @@ export function compute(
       state = 'warn'
       message = 'Manual line (not in LS)'
     } else if (item.status && item.status.toUpperCase() !== 'ACTIVE') {
-      message = `OK · ${item.status}`
+      message = `OK, ${item.status}`
     }
 
     const unitCents = price !== undefined && price !== null ? toCents(price) : 0
@@ -291,7 +291,7 @@ export const dateAU = (d: Date) =>
 /** Customer block on the printed page: non-empty lines packed top to bottom (PRINT QUOTE E12:E17). */
 export function customerBlock(q: QuoteInput): string[] {
   const c = q.customer
-  const contact = [c.phone.trim(), c.email.trim()].filter(Boolean).join(' · ')
+  const contact = [c.phone.trim(), c.email.trim()].filter(Boolean).join(', ')
   return [
     c.name.trim(),
     c.company.trim(),

@@ -56,8 +56,8 @@ export default function ItemSheet({ storeId, product, existing, conflict, busy, 
         <h2 id="sheet-title">{item.description}</h2>
         <p className="muted">
           <span className="num">{item.code}</span>
-          {vendor && <> · {vendor}</>}
-          {item.status && item.status !== 'ACTIVE' && <> · <span className="chip quote">{item.status}</span></>}
+          {vendor && <>, {vendor}</>}
+          {item.status && item.status !== 'ACTIVE' && <>, <span className="chip quote">{item.status}</span></>}
         </p>
 
         <dl className="facts">

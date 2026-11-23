@@ -379,7 +379,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                     {storeRows.map((s) => <option key={s.id}>{s.name}</option>)}
                   </select>
                 </label>
-                <label>Document no. <small>numbered by the system</small>
+                <label>Document no. <small>automatic</small>
                   <input readOnly value={c.docNumber || (selRow ? 'Getting the number…' : 'Pick a store for the number')} />
                 </label>
                 <label>Date
@@ -404,7 +404,7 @@ export default function Builder({ email, isAdmin, stores: storeRows, openDoc, ca
                 <label>Customer ABN<input name="customerAbn" inputMode="numeric" autoComplete="off" value={quote.customer.abn} onChange={(e) => setCust('abn', e.target.value)} /></label>
                 <label>Phone {!isMeasure && <small>required</small>}<input name="phone" aria-required="true" type="tel" autoComplete="off" value={quote.customer.phone} onChange={(e) => setCust('phone', e.target.value)} /></label>
                 <label>Email {!isMeasure && <small>required</small>}<input name="email" aria-required="true" type="email" autoComplete="off" value={quote.customer.email} onChange={(e) => setCust('email', e.target.value)} /></label>
-                <label className="addr-field">Address <small>{isMeasure ? 'required, start typing to search' : 'start typing to search'}</small><AddressInput name="address" value={quote.customer.address} onChange={(v) => setCust('address', v)}
+                <label className="addr-field">Address <small>{isMeasure ? 'required' : 'start typing to search'}</small><AddressInput name="address" value={quote.customer.address} onChange={(v) => setCust('address', v)}
                   onPick={(a) => setQuote((q) => ({ ...q, customer: { ...q.customer, address: a.street, suburb: a.suburb } }))} /></label>
                 <label>Suburb / State / Postcode<input name="suburb" autoComplete="off" value={quote.customer.suburb} onChange={(e) => setCust('suburb', e.target.value)} /></label>
                 <label className="addr-field">Deliver / install to <small>if different</small><AddressInput name="deliverTo" value={quote.customer.deliverTo} onChange={(v) => setCust('deliverTo', v)}

@@ -271,13 +271,13 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
     const series = rates?.series?.get(code)
     const sold = sg?.sold ?? (series ? series.slice(-13).reduce((a, b) => a + b, 0) : 0)
     const soldWeeks = sg?.soldWeeks ?? Math.min(rates?.weeks ?? 0, 13)
-    const facts = `In stock ${inventory} · Sold ${sold} in the last ${soldWeeks} ${soldWeeks === 1 ? 'week' : 'weeks'} · On order ${coming}`
+    const facts = `In stock ${inventory}, sold ${sold} in the last ${soldWeeks} ${soldWeeks === 1 ? 'week' : 'weeks'}, on order ${coming}`
     const opsWhy = [
       pushN > 0 ? `Operations has asked this store to order ${asked}${coming > 0 ? `; ${coming} already on order` : ''}.` : '',
       holdN > 0 ? `Operations wants at least ${min} always in stock. It has ${inventory + coming} counting orders and transfers, so order ${holdN}${(p.stock?.moq ?? 1) > 1 ? ` (MOQ ${p.stock?.moq})` : ''}.` : '',
     ].filter(Boolean).join(' ')
     const why = ops ? `${facts}. ${opsWhy}${sugN > 0 ? ` Sales suggest ${sugN}.` : ''}` : sg!.why
-    const brief = ops ? `${source === 'push' ? 'Asked by operations' : `Always in stock, minimum ${min}`} · ${facts}` : sg!.brief
+    const brief = ops ? `${source === 'push' ? 'Asked by operations' : `Always in stock, minimum ${min}`}. ${facts}` : sg!.brief
     return [{ code, description: p.item.description, qty, cost: p.stock?.store_cost ?? 0, why, brief, hold: !ops && sg?.hold != null, source, stock: p.stock?.inventory ?? 0, sold, soldWeeks, onOrder: sg?.onOrder ?? coming, moq: p.stock?.moq ?? 1 }]
   }).sort((x, y) => Number(x.hold) - Number(y.hold) || Number(!!y.source) - Number(!!x.source) || y.qty * y.cost - x.qty * x.cost), [range, suggestions, lineOf, holdOf, pushed, rates]) // eslint-disable-line react-hooks/exhaustive-deps
   // Every held item for this vendor, and whether it is covered, for the Hold tab.
@@ -492,7 +492,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
       <div className="pagehead">
         <div>
           <h1>Order</h1>
-          <p className="muted">{storeName}{cat ? ` · ${syncedLabel(synced)}` : ''}{stale && cat && <> · <span className="chip warn">Out of date</span></>}</p>
+          <p className="muted">{storeName}{cat ? `, ${syncedLabel(synced)}` : ''}{stale && cat && <>, <span className="chip warn">Out of date</span></>}</p>
         </div>
         <div className="actions">
           {multi && (
@@ -508,7 +508,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                 <option value="">Choose a vendor…</option>
                 {vendors.map((v) => {
                   const d = draftOf.get(v.vendor)
-                  return <option key={v.vendor} value={v.vendor}>{v.vendor} ({v.items}){d && d.lines > 0 ? ` · ${d.lines} on order` : ''}</option>
+                  return <option key={v.vendor} value={v.vendor}>{v.vendor} ({v.items}){d && d.lines > 0 ? `, ${d.lines} on order` : ''}</option>
                 })}
               </select>
             </label>
@@ -624,7 +624,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
           <div className="workspace wide">
             <div className="sheet">
               <section className="block">
-                <h2>{vendor} <small>{range.length} items · {orderedCount} on order{pending > 0 ? ' · Saving…' : ''}</small></h2>
+                <h2>{vendor} <small>{range.length} items, {orderedCount} on order{pending > 0 ? ', saving…' : ''}</small></h2>
                 {showTabs && (
                   <div className="segmented vendortabs" role="group" aria-label="What to show">
                     <button type="button" aria-pressed={activePane === 'suggested'} onClick={() => setPane('suggested')}>Suggested order ({prepLines.filter((l) => !l.hold).length})</button>
@@ -732,7 +732,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                                   {blockedCodes.has(p.item.code) && <Tag tone="error" tip={`Blocked at this store (see Store preferences).${l ? ' Set the quantity to 0 to take it off the order.' : ''}`}>Blocked here</Tag>}
                                   {p.item.promotion && <Tag tone="promo" tip="The supplier has this item on promotion, so it may be cheaper to buy now.">Promotion</Tag>}
                                   {(waiting.get(p.item.code) ?? []).map((w) => <Tag key={w.id} tone="error" tip={`Customer order ${w.doc_number}: ${w.qty} for ${w.customer_name}. Add it to this order, then mark the customer order as ordered.`}>Customer: {w.qty}</Tag>)}
-                                  {(() => { const sg = suggestions.get(p.item.code); if (sg && sg.qty > 0) return <Tag tone="warn" tip={sg.why}>{sg.hold ? `Your call: ${sg.qty}` : `${ins?.low ? 'Low · ' : ''}Suggest ${sg.qty}`}</Tag>; if (!(ins?.low && orderable(p))) return null; const weekly13 = rates?.series?.get(p.item.code) ?? []; return <Tag tone="warn" tip={lowWhy({ inventory: p.stock?.inventory ?? 0, onOrder: ins.have - Math.max(0, p.stock?.inventory ?? 0), sold: soldOver(weekly13, CHART_WEEKS), weeks: Math.min(rates?.weeks ?? 0, CHART_WEEKS), cover: ins.cover, target })}>{lowLabel(ins.cover)}</Tag> })()}
+                                  {(() => { const sg = suggestions.get(p.item.code); if (sg && sg.qty > 0) return <Tag tone="warn" tip={sg.why}>{sg.hold ? `Your call: ${sg.qty}` : `${ins?.low ? 'Low, ' : ''}suggest ${sg.qty}`}</Tag>; if (!(ins?.low && orderable(p))) return null; const weekly13 = rates?.series?.get(p.item.code) ?? []; return <Tag tone="warn" tip={lowWhy({ inventory: p.stock?.inventory ?? 0, onOrder: ins.have - Math.max(0, p.stock?.inventory ?? 0), sold: soldOver(weekly13, CHART_WEEKS), weeks: Math.min(rates?.weeks ?? 0, CHART_WEEKS), cover: ins.cover, target })}>{lowLabel(ins.cover)}</Tag> })()}
                                   {warnings.map((w) => <Tag key={w.text} tone={w.level} tip={w.text}>{w.text.split(/[.:]/)[0]}</Tag>)}
                                 </span>
                               </td>
@@ -782,7 +782,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                 {holds.length > 0 && (
                   <div className="onhold">
                     <small>On hold</small>
-                    {holds.map((d) => <button key={d.id} type="button" className="quiet" onClick={() => chooseVendor(d.vendor_no)}>{d.vendor_no} · {d.lines} {d.lines === 1 ? 'line' : 'lines'}</button>)}
+                    {holds.map((d) => <button key={d.id} type="button" className="quiet" onClick={() => chooseVendor(d.vendor_no)}>{d.vendor_no}, {d.lines} {d.lines === 1 ? 'line' : 'lines'}</button>)}
                   </div>
                 )}
               </div>
@@ -790,7 +790,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
           </div>
 
           <div className="stickybar">
-            <div><small>{vendor} · {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b>{moqShort > 0 && <small className="chk error">MOQ not met on {moqShort}</small>}{mov && !mov.met && <MovFlag check={mov} total={t.cost} float />}</div>
+            <div><small>{vendor}: {t.lines} {t.lines === 1 ? 'line' : 'lines'}, {t.units} units</small><b className="num">{money(t.cost)}</b>{moqShort > 0 && <small className="chk error">MOQ not met on {moqShort}</small>}{mov && !mov.met && <MovFlag check={mov} total={t.cost} float />}</div>
             <button type="button" data-tourtarget="copy" className={'btn primary' + (t.lines ? '' : ' blocked')} aria-disabled={!t.lines} onClick={() => t.lines && setCopyOpen(true)}>Copy for NAV</button>
           </div>
 

@@ -162,7 +162,7 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
         <>
           <div className="note" role="status">
             <p><b>{sheet.sheets === 1 ? 'Sheet 1' : `${sheet.sheets} sheets`}: {sheet.onLast} of {per} used on the last</b>
-              {sheet.spaceLeft > 0 ? ` · ${sheet.spaceLeft} ${sheet.spaceLeft === 1 ? 'space' : 'spaces'} left. Add ${sheet.spaceLeft === 1 ? 'one more' : `${sheet.spaceLeft} more`} to fill it.` : ' · the sheet is full.'}</p>
+              {sheet.spaceLeft > 0 ? `. ${sheet.spaceLeft} ${sheet.spaceLeft === 1 ? 'space' : 'spaces'} left. Add ${sheet.spaceLeft === 1 ? 'one more' : `${sheet.spaceLeft} more`} to fill it.` : '. The sheet is full.'}</p>
             <div className="sheetmap" style={{ gridTemplateColumns: `repeat(${t.cols}, 1fr)` }} aria-hidden="true">
               {Array.from({ length: per }, (_, n) => <i key={n} className={sheet.sheets <= 1 ? (n < state.startAt - 1 ? 'used' : n < sheet.onLast ? 'on' : '') : 'on'} />)}
             </div>

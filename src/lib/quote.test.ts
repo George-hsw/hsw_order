@@ -80,7 +80,7 @@ describe('compute', () => {
     const c = compute(q, items, stores, settings, items.size)
     expect(c.lines[0].state).toBe('error')
     expect(c.lines[1].message).toBe('Price is $0 in LS – type an own price')
-    expect(c.lines[2].message).toBe('OK · EX-APL')
+    expect(c.lines[2].message).toBe('OK, EX-APL')
     expect(c.ready).toBe(false)
     expect(c.problems).toContain('Fix the red item checks')
   })

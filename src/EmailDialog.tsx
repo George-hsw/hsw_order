@@ -144,7 +144,7 @@ export default function EmailDialog({
               </label>
             </div>
             <p className="muted">
-              <span className={'chip' + (prepared ? ' paid' : '')}>{prepared ? `PDF attached · ${prepared.fileName} · ${Math.max(1, Math.round(prepared.blob.size / 1024))} KB` : 'Preparing the PDF…'}</span>
+              <span className={'chip' + (prepared ? ' paid' : '')}>{prepared ? `PDF attached: ${prepared.fileName}, ${Math.max(1, Math.round(prepared.blob.size / 1024))} KB` : 'Preparing the PDF…'}</span>
             </p>
             <p className="muted">
               {appTo === 'customer'

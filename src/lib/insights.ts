@@ -62,7 +62,7 @@ export const coverText = (weeks: number | null) => (weeks === null ? 'not sellin
 /** Why an item is flagged Low, in the same words as the suggested order: what is in stock, what it sold, what is on order, and how long that lasts against the target. */
 export function lowWhy(i: { inventory: number; onOrder: number; sold: number; weeks: number; cover: number | null; target: number }): string {
   const lasts = i.cover === null ? 'It is not selling' : i.cover === 0 ? 'Nothing is left' : i.cover < 1 ? 'That lasts under 1 week' : `That lasts ${weeksOf(Math.floor(i.cover))}`
-  return `In stock ${Math.max(0, i.inventory)} · Sold ${i.sold} in the last ${weeksOf(i.weeks)} · On order ${i.onOrder}. ${lasts}, and this store aims to hold ${weeksOf(i.target)}.`
+  return `In stock ${Math.max(0, i.inventory)}, sold ${i.sold} in the last ${weeksOf(i.weeks)}, on order ${i.onOrder}. ${lasts}, and this store aims to hold ${weeksOf(i.target)}.`
 }
 /** The short label on a Low item: how long its stock lasts, in whole weeks. */
-export const lowLabel = (cover: number | null) => (cover === null ? 'Low' : cover === 0 ? 'Low · out of stock' : cover < 1 ? 'Low · under 1 week left' : `Low · ${weeksOf(Math.floor(cover))} left`)
+export const lowLabel = (cover: number | null) => (cover === null ? 'Low' : cover === 0 ? 'Low, out of stock' : cover < 1 ? 'Low, under 1 week left' : `Low, ${weeksOf(Math.floor(cover))} left`)

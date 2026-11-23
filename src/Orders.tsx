@@ -153,8 +153,8 @@ function OrderDetail({ order, who, onClose, onMarkReceived }: { order: OrderSumm
         <button type="button" className="modal-x" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
         </button>
-        <h2 id="order-title">{order.stores?.name} · {order.vendor_no} · {when(order.created_at)}</h2>
-        <p className="muted"><StatusChip status={order.status} received={received} /> Started by {who(order.created_by)}{order.nav_ref ? <> · NAV order <span className="num">{order.nav_ref}</span></> : null}</p>
+        <h2 id="order-title">{order.stores?.name}, {order.vendor_no}, {when(order.created_at)}</h2>
+        <p className="muted"><StatusChip status={order.status} received={received} /> Started by {who(order.created_by)}{order.nav_ref ? <>, NAV order <span className="num">{order.nav_ref}</span></> : null}</p>
 
         {received && <p className="muted">Received {when(order.received_at!)} by {who(order.received_by ?? null)}.</p>}
         {failed ? (
