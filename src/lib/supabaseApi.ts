@@ -16,10 +16,10 @@ const db = () => {
 
 const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen,promotion'
-/** Actual stock: inventory less what has been sold but not yet posted in NAV. */
+/** Actual stock: inventory less what has been sold but not yet posted in NAV. NAV holds Qty. Sold not Posted as a negative (-3), so it is added: 14 + (-3) = 11. */
 export const actualStock = (s: StockRow): StockRow => {
   const n = Number(s.qty_sold_not_posted ?? 0)
-  return n ? { ...s, inventory: Number(s.inventory) - n, qty_sold_not_posted: n } : s
+  return n ? { ...s, inventory: Number(s.inventory) + n, qty_sold_not_posted: n } : s
 }
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,qty_sold_not_posted,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
@@ -178,7 +178,7 @@ export const supabaseApi: OrdersApi = {
     const { data: stock, error } = await db().from('store_stock').select(STOCK_COLUMNS).eq('store_id', storeId).in('item_code', items.map((i) => i.code))
     if (error) throw new Error(error.message)
     const byCode = new Map(((stock ?? []) as StockRow[]).map((s) => [s.item_code, s]))
-    return items.map((item) => ({ item: { ...item, price: item.price === null ? null : Number(item.price) }, stock: byCode.get(item.code) }))
+    return items.map((item) => ({ item: { ...item, price: item.price === null ? null : Number(item.price) }, stock: byCode.has(item.code) ? actualStock(byCode.get(item.code)!) : undefined }))
   },
 
   async orderNeeds(storeIds) {

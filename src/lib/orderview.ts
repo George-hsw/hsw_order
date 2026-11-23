@@ -45,6 +45,6 @@ export function noStock(inventory: number | undefined, soldNotPosted: number | u
 export function coverStatus(inventory: number | undefined, onOrder: number | undefined, sold: number, soldNotPosted = 0): Cover | null {
   if ((inventory ?? 0) < 0) return 'short'
   const have = Math.max(0, inventory ?? 0) + Math.max(0, onOrder ?? 0)
-  if (sold <= 0) return have > 0 ? 'covered' : soldNotPosted > 0 ? 'short' : null
+  if (sold <= 0) return have > 0 ? 'covered' : soldNotPosted !== 0 ? 'short' : null
   return have < sold ? 'short' : have === sold ? 'even' : 'covered'
 }
