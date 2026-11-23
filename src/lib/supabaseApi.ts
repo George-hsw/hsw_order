@@ -16,10 +16,10 @@ const db = () => {
 
 const HIDDEN_KEY = 'hsw-hidden-notices'
 const ITEM_COLUMNS = 'code,description,vendor_no,vendor_item_no,barcode,division,category,status,price,sales_uom,base_uom,blocked,exclude_from_replen,promotion'
-/** Actual stock: inventory less what has been sold but not yet posted in NAV. NAV holds Qty. Sold not Posted as a negative (-3), so it is added: 14 + (-3) = 11. */
+/** Actual stock: inventory less what has been sold but not yet posted in NAV. The feed's sign is not reliable (-3 at one store, +2 at another, both sales), so the size is subtracted: 14 and -3 gives 11. */
 export const actualStock = (s: StockRow): StockRow => {
   const n = Number(s.qty_sold_not_posted ?? 0)
-  return n ? { ...s, inventory: Number(s.inventory) + n, qty_sold_not_posted: n } : s
+  return n ? { ...s, inventory: Number(s.inventory) - Math.abs(n), qty_sold_not_posted: n } : s
 }
 const STOCK_COLUMNS = 'store_id,item_code,inventory,qty_on_po,transfer_in,unavailable,qty_sold_not_posted,moq,store_cost,sales_qty,vendor_no,po_blocked,synced_at'
 
