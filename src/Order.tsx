@@ -285,7 +285,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   }), [range, holdOf, lineOf])
   const hasOps = prepLines.some((l) => l.source) || holdLines.length > 0
   const showTabs = (enough || hasOps) && range.length > 0
-  const activePane = !showTabs ? 'items' : pane ?? (show !== 'all' || find.trim() ? 'items' : prepLines.length > 0 ? 'suggested' : 'items')
+  const activePane = !showTabs ? 'items' : (pane === 'hold' && holdLines.length === 0 ? null : pane) ?? (show !== 'all' || find.trim() ? 'items' : prepLines.length > 0 ? 'suggested' : 'items')
   const stillFilled = filled.filter((f) => lineOf.get(f.code)?.qty === f.qty) // quantities the person has since changed are theirs, and are left alone
 
   const statuses = useMemo(() => {
@@ -623,7 +623,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                 {showTabs && (
                   <div className="segmented vendortabs" role="group" aria-label="What to show">
                     <button type="button" aria-pressed={activePane === 'suggested'} onClick={() => setPane('suggested')}>Suggested order ({prepLines.filter((l) => !l.hold).length})</button>
-                    <button type="button" aria-pressed={activePane === 'hold'} onClick={() => setPane('hold')}>Hold ({holdLines.length})</button>
+                    {holdLines.length > 0 && <button type="button" aria-pressed={activePane === 'hold'} onClick={() => setPane('hold')}>Hold ({holdLines.length})</button>}
                     <button type="button" aria-pressed={activePane === 'items'} onClick={() => setPane('items')}>All items ({range.length})</button>
                   </div>
                 )}
