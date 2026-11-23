@@ -128,17 +128,17 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
         </div>
       </div>
 
-      {stores.length > 1 && (
-        <label className="inline">Store
-          <select name="labelstore" value={storeId} onChange={(e) => { setStoreId(e.target.value); setEditing(null) }}>
-            {stores.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </select>
-        </label>
-      )}
       {editing && (
         <p className="note" role="status">Editing the print from {when(editing.printed_at)}. Printing saves your changes to it. <button type="button" className="quiet" onClick={() => { setEditing(null); setState(fresh()) }}>Stop editing</button></p>
       )}
-      <div className="filters">
+      <div className="filters labelbar">
+        {stores.length > 1 && (
+          <label className="inline">Store
+            <select name="labelstore" value={storeId} onChange={(e) => { setStoreId(e.target.value); setEditing(null) }}>
+              {stores.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </label>
+        )}
         <div className="segmented" role="group" aria-label="Label type">
           {TEMPLATES.map((x) => <button key={x.id} type="button" aria-pressed={state.template === x.id} onClick={() => changeTemplate(x.id)}>{x.name} <small>{x.hint}</small></button>)}
         </div>

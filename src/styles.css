@@ -548,6 +548,8 @@ table.book.range tr.ordering input.qty { border-color: var(--color-accent-edge);
 /* Filters above a vendor's range: the stock limit and the sort sit beside the segmented control and wrap on narrower screens */
 .filters label.inline select { width: auto; min-width: 0; }
 .filters label.inline input.qty { width: 80px; min-width: 0; }
+.filters.labelbar { align-items: center; row-gap: var(--space-xs); }
+.filters.labelbar label.inline:has(> input[type="checkbox"]) { display: flex; flex: 0 1 auto; }
 .listcount { margin: 0 0 var(--space-sm); }
 .listcount .quiet { min-height: 36px; }
 @media (max-width: 44rem) {
