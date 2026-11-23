@@ -216,21 +216,11 @@ tr.inactive { opacity: 0.6; }
   .stickybar b { display: block; font-size: var(--text-lg); font-weight: 600; }
   .builder { padding-bottom: 80px; }
 }
-/* The Order table has ten columns and needs the whole width of the page, so on every desktop size the totals and details sit in a strip above it instead of squeezing it from the side. */
-@media (min-width: 64.01rem) {
-  .workspace.wide { grid-template-columns: minmax(0, 1fr); }
-  .workspace.wide .ledger { position: static; order: -1; display: flex; align-items: stretch; } /* totals and details on top, so the whole order fits one screen without scrolling to the end */
-  .workspace.wide .ledger-head { display: flex; align-items: center; padding: var(--space-sm) var(--space-lg); }
-  .workspace.wide .ledger-body { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-lg); padding: var(--space-sm) var(--space-lg); }
-  .workspace.wide .ledger-body > dl:first-child { min-width: 9rem; }
-  .workspace.wide .ledger dt.total, .workspace.wide .ledger dd.total { margin-top: 0; padding-top: 0; border-top: 0; }
-  .workspace.wide .ledger-meta { margin: 0; padding: 0; border: 0; grid-template-columns: auto auto auto auto; gap: 0 var(--space-sm); }
-  .workspace.wide .ledger-meta dd { padding-left: 0; text-align: left; margin-right: var(--space-md); }
-  .workspace.wide .ledger .actions { margin: 0; flex-direction: row; margin-left: auto; }
-  .workspace.wide .ledger .actions .wide { width: auto; }
-}
-/* Below 82rem the strip scrolls away, so the same bottom bar as on a tablet keeps the total and Copy for NAV in reach. */
+/* The Order table has ten columns and needs room: below 82rem the totals go under it, with the same bottom bar as on a tablet, instead of squeezing it. */
 @media (min-width: 64.01rem) and (max-width: 82rem) {
+  .workspace.wide { grid-template-columns: minmax(0, 1fr); }
+  .workspace.wide .ledger { position: static; }
+  .workspace.wide .ledger .actions .primary { display: none; }
   .builder:has(.workspace.wide) { padding-bottom: 80px; }
   .builder:has(.workspace.wide) .stickybar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-sticky); padding: var(--space-sm) var(--space-md); background: var(--color-paper-2); border-top: var(--rule-hair) solid var(--color-ink); }
   .builder:has(.workspace.wide) .stickybar b { display: block; font-size: var(--text-lg); font-weight: 600; }
