@@ -969,7 +969,7 @@ table.book.prep td { vertical-align: top; }
 table.book.prep td.desc small { display: block; }
 table.book.prep input.qty { width: 5rem; min-width: 0; text-align: right; }
 table.book.prep tr.off td { opacity: 0.55; }
-table.book.prep .why { min-height: 32px; padding: 0; }
+@media (min-width: 44.01rem) { table.book.prep td.desc { min-width: 16rem; } } /* the description and its line of figures: never squeezed into a thin column */
 .tick { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: var(--hit); font-weight: 400; cursor: pointer; }
 .tick input { width: 1.125rem; height: 1.125rem; min-height: 0; margin: 0; accent-color: var(--color-accent-edge); }
 .needs .who-line { flex-wrap: wrap; }

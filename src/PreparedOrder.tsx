@@ -4,7 +4,7 @@ import { money } from './lib/order'
 import { movCheck } from './lib/mov'
 import MovFlag from './MovFlag'
 
-export interface PrepLine { code: string; description: string; qty: number; cost: number; why: string; brief: string; hold: boolean; source: 'push' | 'hold' | null; stock: number; sold: number; soldWeeks: number; onOrder: number; moq: number }
+export interface PrepLine { code: string; description: string; qty: number; cost: number; brief: string; hold: boolean; source: 'push' | 'hold' | null; stock: number; sold: number; soldWeeks: number; onOrder: number; moq: number }
 
 const toQty = (text: string) => { const n = parseInt(text.replace(/\D/g, ''), 10); return Number.isFinite(n) ? n : 0 }
 
@@ -19,7 +19,6 @@ export default function PreparedOrder({ vendor, weeks, orderCost, lines, loading
 }) {
   const [qty, setQty] = useState<Record<string, string>>({})
   const [checked, setChecked] = useState<Record<string, boolean>>({})
-  const [open, setOpen] = useState<string | null>(null)
   const valueOf = (l: PrepLine) => qty[l.code] ?? String(l.qty)
   const isOn = (l: PrepLine) => checked[l.code] ?? !l.hold
   const chosen = lines.filter((l) => isOn(l) && toQty(valueOf(l)) > 0)
@@ -67,8 +66,6 @@ export default function PreparedOrder({ vendor, weeks, orderCost, lines, loading
                       <td data-label="Description" className="desc">
                         {l.description}
                         <small className="muted">{l.source && <span className="chk warn">{l.source === 'push' ? 'Asked by operations. ' : 'Always in stock. '}</span>}{l.brief}{l.hold && <span className="chk warn"> Your call: one MOQ lasts a long time</span>}</small>
-                        <button type="button" className="quiet why" aria-expanded={open === l.code} onClick={() => setOpen(open === l.code ? null : l.code)}>{open === l.code ? 'Hide the working' : 'Why?'}</button>
-                        {open === l.code && <small className="muted">{l.why}</small>}
                       </td>
                       <td data-label="In stock" className="r">{l.stock}</td>
                       <td data-label={`Sold, ${l.soldWeeks} wks`} className="r">{l.sold}</td>

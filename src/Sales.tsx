@@ -4,12 +4,11 @@ import { BarList, ChartCard, ColumnChart, Delta, Donut, Legend, Meter, StatTile 
 import SalesItem from './SalesItem'
 import SalesItems from './SalesItems'
 import SalesLeague from './SalesLeague'
-import SalesPeriod from './SalesPeriod'
 import SalesUpload from './SalesUpload'
 import { track } from './lib/analytics/track'
 import { salesApi } from './lib/sales/api'
 import {
-  PERIODS, PERIOD_LABEL, RANK_LABEL, WEEKDAYS, avgSale, avgSaleLy, change, memberShare, money2, pctText, rangeText, rankText, resolvePeriod, sameWeek, weekKey, weekLabel,
+  PERIOD_LABEL, RANK_LABEL, RANK_METRICS, WEEKDAYS, availablePeriods, avgSale, avgSaleLy, change, combineChain, combineWeeks, memberPct, money2, pctText, periodText, priorWeeks, rangeText, rankText, resolvePeriod, sameWeek, sumDays, weekKey, weekLabel,
   type PeriodKey, type RankMetric, type StoreWeek, type WeekDates, type WeekRef,
 } from './lib/sales/model'
 import { useLoad } from './lib/useLoad'
@@ -49,13 +48,19 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
     setWeek(have ?? weeks.data[0] ?? null)
   }, [weeks.data, history.data, week])
 
-  const dates = week ? weeks.data?.find((w) => sameWeek(w, week)) : undefined
   const weekOptions: WeekDates[] = useMemo(() => weeks.data ?? [], [weeks.data])
   const ranged = sub === 'store' || sub === 'all'
-  const periodWeeks = useMemo(() => resolvePeriod(period, weekOptions, { one: week, from: from ?? undefined, to: to ?? undefined }), [period, weekOptions, week, from, to])
+  // The store's page offers only weeks this store has results for; the stores league and the Items list offer every week loaded.
+  const calendar: WeekDates[] = useMemo(() => {
+    const mine = sub === 'store' && history.data ? weekOptions.filter((w) => history.data!.some((h) => sameWeek(h, w))) : weekOptions
+    return mine.length ? mine : weekOptions
+  }, [sub, history.data, weekOptions])
+  const periods = useMemo(() => availablePeriods(calendar), [calendar])
+  useEffect(() => { if (periods.length && !periods.includes(period)) setPeriod('week') }, [periods, period])
+  const periodWeeks = useMemo(() => resolvePeriod(period, calendar, { one: week, from: from ?? undefined, to: to ?? undefined }), [period, calendar, week, from, to])
   const weekSelect = (name: string, label: string, value: number | null, onChange: (k: number) => void) => (
     <select name={name} aria-label={label} value={value ?? ''} onChange={(e) => onChange(Number(e.target.value))} style={{ width: 'auto' }}>
-      {weekOptions.map((w) => <option key={weekKey(w)} value={weekKey(w)}>{weekLabel(w)}{w.week_start ? `, ${rangeText(w.week_start, w.week_end)}` : ''}</option>)}
+      {calendar.map((w) => <option key={weekKey(w)} value={weekKey(w)}>{weekLabel(w)}{w.week_start ? `, ${rangeText(w.week_start, w.week_end)}` : ''}</option>)}
     </select>
   )
 
@@ -83,9 +88,9 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        {ranged && weekOptions.length > 0 && (
+        {ranged && periods.length > 1 && (
           <select name="salesPeriod" aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value as PeriodKey)} style={{ width: 'auto' }}>
-            {PERIODS.map((k) => <option key={k} value={k}>{PERIOD_LABEL[k]}</option>)}
+            {periods.map((k) => <option key={k} value={k}>{PERIOD_LABEL[k]}</option>)}
           </select>
         )}
         {ranged && period === 'custom' && weekOptions.length > 0 && (
@@ -108,35 +113,52 @@ export default function Sales({ email, isAdmin, seesAll, stores, allStores, onOr
         ) : !week ? null
         : sub === 'all' && seesAll ? <SalesLeague weeks={periodWeeks} stores={allStores} />
         : sub === 'items' ? <SalesItems storeId={storeId} week={week} onOrder={onOrder && ((vendor, item) => onOrder({ storeId, vendor, item }))} onTrend={(code) => { setItemCode(code); setSub('item') }} />
-        : periodWeeks.length > 1 ? <SalesPeriod weeks={periodWeeks} history={history.data ?? []} />
-        : <MyStore storeId={storeId} week={period === 'week' ? week : periodWeeks[0]} dates={dates} history={history.data ?? []} onWeek={setWeek} />}
+        : !periodWeeks.length ? <div className="state"><p>No weeks to show for {PERIOD_LABEL[period].toLowerCase()}</p><p className="muted">Choose another period.</p></div>
+        : <MyStore storeId={storeId} weeks={periodWeeks} allWeeks={calendar} history={history.data ?? []} onWeek={(w) => { setWeek(w); setPeriod('week') }} />}
     </>
   )
 }
 
-function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; week: WeekRef; dates?: WeekDates; history: StoreWeek[]; onWeek: (w: WeekRef) => void }) {
-  const days = useLoad(() => salesApi.days(storeId, week), [storeId, weekKey(week)])
-  const ranks = useLoad(() => salesApi.ranks(storeId, week), [storeId, weekKey(week)])
-  const chain = useLoad(() => salesApi.chain(week), [weekKey(week)])
+function MyStore({ storeId, weeks, allWeeks, history, onWeek }: { storeId: string; weeks: WeekDates[]; allWeeks: WeekDates[]; history: StoreWeek[]; onWeek: (w: WeekRef) => void }) {
+  const keys = weeks.map(weekKey).join(',')
+  const single = weeks.length === 1
+  const last = weeks[weeks.length - 1]
+  const days = useLoad(() => Promise.all(weeks.map((w) => salesApi.days(storeId, w))).then(sumDays), [storeId, keys])
+  const ranks = useLoad(() => Promise.all(weeks.map((w) => salesApi.ranks(storeId, w))), [storeId, keys])
+  const chain = useLoad(() => Promise.all(weeks.map((w) => salesApi.chain(w))).then(combineChain), [keys])
   const [metric, setMetric] = useState<RankMetric | null>(null)
   const [dayIdx, setDayIdx] = useState<number | null>(null)
 
-  const cur = history.find((h) => sameWeek(h, week))
-  const upTo = history.slice(-LAST) // always the latest weeks, so picking an earlier week never hides the later ones
-  if (!cur) return <div className="state"><p>No results for this store in {weekLabel(week)}</p><p className="muted">Pick another week, or wait for head office to load this one.</p></div>
+  const rows = useMemo(() => history.filter((h) => weeks.some((w) => sameWeek(w, h))), [history, weeks])
+  const cur = useMemo(() => combineWeeks(rows), [rows])
+  const missing = weeks.length - rows.length
+  // The same number of weeks straight before, compared only when the store has every week of both, so both totals cover the same weeks.
+  const before = useMemo(() => {
+    if (single || missing > 0) return null
+    const prior = priorWeeks(allWeeks, weeks)
+    const have = prior.length ? history.filter((h) => prior.some((p) => sameWeek(p, h))) : []
+    return prior.length > 0 && have.length === prior.length ? combineWeeks(have) : null
+  }, [single, missing, allWeeks, weeks, history])
+  const chartRows = single ? history.slice(-LAST) : rows // one week shows the latest weeks around it, so picking an earlier week never hides the later ones
+  if (!cur) return <div className="state"><p>No results for this store in {periodText(weeks)}</p><p className="muted">Pick another period, or wait for head office to load it.</p></div>
 
   const growth = change(cur.ty_sales, cur.ly_sales)
-  const sales = ranks.data?.find((r) => r.metric === 'sales')
   const dayRows = days.data ?? []
   const bestDay = dayRows.length ? dayRows.reduce((a, b) => (b.ty > a.ty ? b : a)) : null
   const gpPts = (cur.gp_ty - cur.gp_ly) * 100
-  const ms = memberShare(cur)
+  const [memPct, elsePct] = memberPct(cur)
+  const lastRanks = ranks.data?.[ranks.data.length - 1] ?? [] // the latest week's place in each league
+  const sales = lastRanks.find((r) => r.metric === 'sales')
+  const picked = metric ?? 'sales'
+  const sub = single ? (weeks[0].week_start ? rangeText(weeks[0].week_start, weeks[0].week_end) : weekLabel(weeks[0])) : periodText(weeks)
 
   return (
     <div className="viz-stack" ref={reveal}>
       <p className="note">
-        {weekLabel(week)}{dates?.week_start ? ` (${rangeText(dates.week_start, dates.week_end)})` : ''}: sales {growth === null ? 'have no last-year figure to compare with' : `are ${pctText(growth)} on the same week last year`}
-        {sales ? `, ${rankText(sales)} stores for sales` : ''}{bestDay ? `. Best day: ${WEEKDAYS[bestDay.weekday - 1]}.` : '.'}
+        {periodText(weeks)}: sales {growth === null ? 'have no last-year figure to compare with' : `are ${pctText(growth)} on the same ${single ? 'week' : 'weeks'} last year`}
+        {before ? `, ${pctText(change(cur.ty_sales, before.ty_sales))} on the ${weeks.length} weeks before` : ''}
+        {sales ? `, ${rankText(sales)} stores for sales${single ? '' : ` in ${weekLabel(last)}`}` : ''}{bestDay ? `. Best day: ${WEEKDAYS[bestDay.weekday - 1]}.` : '.'}
+        {missing > 0 ? ` ${missing} of these weeks have no results for this store.` : ''}
       </p>
 
       <div className="kpis">
@@ -144,25 +166,25 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
         <StatTile label="Sales made" value={cur.ty_trans.toLocaleString('en-AU')} delta={change(cur.ty_trans, cur.ly_trans)} ly={`Last year ${cur.ly_trans.toLocaleString('en-AU')}`} />
         <StatTile label="Average sale" value={money2(avgSale(cur))} delta={change(avgSale(cur), avgSaleLy(cur))} ly={`Last year ${money2(avgSaleLy(cur))}`} />
         <StatTile label="Items per sale" value={cur.basket ? cur.basket.toFixed(2) : 'n/a'} ly={chain.data ? `Chain average ${chain.data.avg_basket.toFixed(2)}` : undefined} />
-        <StatTile label="Members" value={`${Math.round(ms * 100)}%`} ly="of sales" />
+        <StatTile label="Members" value={`${memPct}%`} ly="of sales" />
         <StatTile label="Margin" value={cur.gp_ty ? `${(cur.gp_ty * 100).toFixed(1)}%` : 'n/a'} ly={cur.gp_ly ? `${gpPts >= 0 ? '+' : '−'}${Math.abs(gpPts).toFixed(1)} points on last year` : undefined} />
       </div>
 
       <ChartCard
-        title="Week by week" sub="This year beside the same week last year. Press a week to open it."
+        title="Week by week" sub={single ? 'This year beside the same week last year. Press a week to open it.' : 'This year beside the same week last year. Press a week to open just that week.'}
         legend={<Legend items={[{ tone: 'ty', label: 'This year' }, { tone: 'ly', label: 'Same week last year' }]} />}
-        table={{ head: ['Week', 'Sales', 'Last year', 'Change', 'Sales made', 'Average sale'], rows: upTo.slice().reverse().map((h) => [weekLabel(h), money2(h.ty_sales), money2(h.ly_sales), pctText(change(h.ty_sales, h.ly_sales)), h.ty_trans.toLocaleString('en-AU'), money2(avgSale(h))]) }}>
-        <ColumnChart label="Weekly sales, this year and last year" cats={upTo.map((h) => `W${h.week}`)} fmt={money2}
-          series={[{ name: 'This year', tone: 'ty', values: upTo.map((h) => h.ty_sales) }, { name: 'Last year', tone: 'ly', values: upTo.map((h) => h.ly_sales) }]}
-          selected={upTo.findIndex((h) => sameWeek(h, week))} onSelect={(i) => onWeek({ fy: upTo[i].fy, week: upTo[i].week })} />
+        table={{ head: ['Week', 'Sales', 'Last year', 'Change', 'Sales made', 'Average sale'], rows: chartRows.slice().reverse().map((h) => [weekLabel(h), money2(h.ty_sales), money2(h.ly_sales), pctText(change(h.ty_sales, h.ly_sales)), h.ty_trans.toLocaleString('en-AU'), money2(avgSale(h))]) }}>
+        <ColumnChart label="Weekly sales, this year and last year" cats={chartRows.map((h) => `W${h.week}`)} fmt={money2}
+          series={[{ name: 'This year', tone: 'ty', values: chartRows.map((h) => h.ty_sales) }, { name: 'Last year', tone: 'ly', values: chartRows.map((h) => h.ly_sales) }]}
+          selected={single ? chartRows.findIndex((h) => sameWeek(h, weeks[0])) : -1} onSelect={(i) => onWeek({ fy: chartRows[i].fy, week: chartRows[i].week })} />
       </ChartCard>
 
       <div className="viz-two">
         <ChartCard
-          title="Day by day" sub={dates?.week_start ? rangeText(dates.week_start, dates.week_end) : weekLabel(week)}
+          title="Day by day" sub={sub}
           legend={<Legend items={[{ tone: 'ty', label: 'This year' }, { tone: 'ly', label: 'Same day last year' }]} />}
           table={{ head: ['Day', 'Sales', 'Last year', 'Change'], rows: dayRows.map((d) => [WEEKDAYS[d.weekday - 1], money2(d.ty), money2(d.ly), pctText(change(d.ty, d.ly))]) }}>
-          {days.loading ? <Loading rows={2} /> : !dayRows.length ? <p className="muted viz-empty">No daily figures for this week yet.</p> : (
+          {days.loading ? <Loading rows={2} /> : !dayRows.length ? <p className="muted viz-empty">No daily figures for {single ? 'this week' : 'these weeks'} yet.</p> : (
             <>
               <ColumnChart label="Daily sales, this year and last year" cats={WEEKDAYS} fmt={money2} height={208} selected={dayIdx} onSelect={(i) => setDayIdx(dayIdx === i ? null : i)}
                 series={[{ name: 'This year', tone: 'ty', values: WEEKDAYS.map((_, i) => dayRows.find((d) => d.weekday === i + 1)?.ty ?? 0) }, { name: 'Last year', tone: 'ly', values: WEEKDAYS.map((_, i) => dayRows.find((d) => d.weekday === i + 1)?.ly ?? 0) }]} />
@@ -173,29 +195,47 @@ function MyStore({ storeId, week, dates, history, onWeek }: { storeId: string; w
           )}
         </ChartCard>
 
-        <ChartCard title="Member sales" sub="Share of the week’s sales"
-          table={{ head: ['', 'Sales', 'Share'], rows: [['Members', money2(cur.member_sales), `${Math.round(ms * 100)}%`], ['Everyone else', money2(Math.max(0, cur.ty_sales - cur.member_sales)), `${Math.round((1 - ms) * 100)}%`]] }}>
+        <ChartCard title="Member sales" sub={single ? 'Share of the week’s sales' : 'Share of the period’s sales'}
+          table={{ head: ['', 'Sales', 'Share'], rows: [['Members', money2(cur.member_sales), `${memPct}%`], ['Everyone else', money2(Math.max(0, cur.ty_sales - cur.member_sales)), `${elsePct}%`]] }}>
           <Donut parts={[{ key: 'm', label: 'Members', value: cur.member_sales, tone: 'ty' }, { key: 'n', label: 'Everyone else', value: Math.max(0, cur.ty_sales - cur.member_sales), tone: 'ly' }]}
-            centre={`${Math.round(ms * 100)}%`} sub="members" fmt={money2} />
+            centre={`${memPct}%`} sub="members" fmt={money2} />
         </ChartCard>
       </div>
 
       <section className="sheet viz-card">
-        <div className="viz-head"><div><h2>How you rank</h2><p className="muted">Your place among the stores trading this week. Press a line to read it.</p></div></div>
-        {ranks.loading ? <Loading rows={2} /> : !ranks.data?.length ? <p className="muted viz-empty">Ranks appear once the week’s results are loaded for every store.</p> : (
+        <div className="viz-head">
+          <div><h2>How you rank</h2><p className="muted">{single ? 'Your place among the stores trading this week. Press a line to read it.' : 'Your place among the stores trading each week of the period. Pick a measure to see it week by week.'}</p></div>
+          {!single && lastRanks.length > 0 && (
+            <select name="rankMetric" aria-label="Measure" value={picked} onChange={(e) => setMetric(e.target.value as RankMetric)} style={{ width: 'auto' }}>
+              {RANK_METRICS.filter((m) => lastRanks.some((r) => r.metric === m)).map((m) => <option key={m} value={m}>{RANK_LABEL[m]}</option>)}
+            </select>
+          )}
+        </div>
+        {ranks.loading ? <Loading rows={2} /> : !lastRanks.length ? <p className="muted viz-empty">Ranks appear once {single ? 'the week’s' : 'the weeks’'} results are loaded for every store.</p> : single ? (
           <>
             <div className="meters">
-              {ranks.data.map((r) => <Meter key={r.metric} rank={r.rank} of={r.of} label={RANK_LABEL[r.metric]} text={rankText(r)} selected={metric === r.metric} onSelect={() => setMetric(metric === r.metric ? null : r.metric)} />)}
+              {lastRanks.map((r) => <Meter key={r.metric} rank={r.rank} of={r.of} label={RANK_LABEL[r.metric]} text={rankText(r)} selected={metric === r.metric} onSelect={() => setMetric(metric === r.metric ? null : r.metric)} />)}
             </div>
-            {metric && ranks.data.find((r) => r.metric === metric) && (
-              <p className="viz-pick">{RANK_LABEL[metric]}: {rankText(ranks.data.find((r) => r.metric === metric)!)}. {ranks.data.find((r) => r.metric === metric)!.rank === 1 ? 'Top of the chain.' : `${ranks.data.find((r) => r.metric === metric)!.of - ranks.data.find((r) => r.metric === metric)!.rank} stores are behind you.`}</p>
+            {metric && lastRanks.find((r) => r.metric === metric) && (
+              <p className="viz-pick">{RANK_LABEL[metric]}: {rankText(lastRanks.find((r) => r.metric === metric)!)}. {lastRanks.find((r) => r.metric === metric)!.rank === 1 ? 'Top of the chain.' : `${lastRanks.find((r) => r.metric === metric)!.of - lastRanks.find((r) => r.metric === metric)!.rank} stores are behind you.`}</p>
             )}
           </>
+        ) : (
+          <div className="tablewrap">
+            <table className="viz-table">
+              <thead><tr><th>Week</th><th className="r">{RANK_LABEL[picked]}</th></tr></thead>
+              <tbody>
+                {weeks.map((w, i) => ({ w, r: ranks.data?.[i]?.find((x) => x.metric === picked) })).reverse().map(({ w, r }) => (
+                  <tr key={weekKey(w)}><td data-label="Week">{weekLabel(w)}</td><td className="r" data-label={RANK_LABEL[picked]}>{r ? rankText(r) : 'not ranked'}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
       {chain.data && (
-        <ChartCard title="You and the average store" sub={`Across ${chain.data.stores} stores this week`}
+        <ChartCard title="You and the average store" sub={`Across ${chain.data.stores} stores${single ? ' this week' : ', added up over these weeks'}`}
           table={{ head: ['', 'You', 'Average store'], rows: [['Sales', money2(cur.ty_sales), money2(chain.data.avg_store_sales)], ['Margin', `${(cur.gp_ty * 100).toFixed(1)}%`, `${(chain.data.avg_gp * 100).toFixed(1)}%`], ['Items per sale', cur.basket.toFixed(2), chain.data.avg_basket.toFixed(2)]] }}>
           <div className="vs">
             <div><p className="stat-label">Sales</p><BarList rows={[{ key: 'you', label: 'You', value: cur.ty_sales, text: money2(cur.ty_sales) }, { key: 'avg', tone: 'ly', label: 'Average store', value: chain.data.avg_store_sales, text: money2(chain.data.avg_store_sales) }]} tone="ty" /></div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chainAvg, change, compact, flagCounts, itemFlag, money2, ordinal, pctText, rangeText, rankText, topBy, weekLabel, weeksOf, type ItemSale, distinct, divisionLabel, topSellers } from './model'
+import { availablePeriods, combineChain, memberPct, priorWeeks, sumDays, chainAvg, change, compact, flagCounts, itemFlag, money2, ordinal, pctText, rangeText, rankText, topBy, weekLabel, weeksOf, type ItemSale, distinct, divisionLabel, topSellers } from './model'
 
 const item = (over: Partial<ItemSale>): ItemSale => ({
   item_code: 'A', description: 'a', vendor_no: 'V', division: null, qty: 0, net_sales: 0, store_rank: 0, group_qty: 0, group_net: 0, stores_stocking: 0,
@@ -149,5 +149,45 @@ describe('periods', () => {
     const r = combineLeague([[sw(1, 100, 0, 1, 0, 0, 'A'), sw(1, 50, 0, 1, 0, 0, 'B')], [sw(2, 10, 0, 1, 0, 0, 'A')]])
     expect(r.find((x) => x.store_name === 'A')!.ty_sales).toBe(110)
     expect(r).toHaveLength(2)
+  })
+})
+
+describe('periods and totals', () => {
+  const wk = (fy: number, week: number, end: string) => ({ fy, week, week_start: end, week_end: end })
+  const weeks = [wk(2026, 52, '2026-06-28'), wk(2027, 1, '2026-07-05'), wk(2027, 2, '2026-07-12'), wk(2027, 3, '2026-07-19'), wk(2027, 4, '2026-07-26'), wk(2027, 5, '2026-08-02')]
+  it('only offers periods that have weeks, and are what their name says', () => {
+    const k = availablePeriods(weeks)
+    expect(k).toContain('week'); expect(k).toContain('last4'); expect(k).toContain('fytd'); expect(k).toContain('custom'); expect(k).toContain('lastfy')
+    expect(k).not.toContain('last13') // only six weeks loaded
+    expect(availablePeriods(weeks.filter((w) => w.fy === 2027))).not.toContain('lastfy') // nothing loaded from last year
+    expect(availablePeriods([weeks[0]])).toEqual(['week', 'month', 'fytd'])
+    expect(availablePeriods([])).toEqual([])
+  })
+  it('finds the weeks straight before a period, or none', () => {
+    expect(priorWeeks(weeks, weeks.slice(3, 5)).map((w) => w.week)).toEqual([1, 2])
+    expect(priorWeeks(weeks, weeks.slice(1, 3))).toEqual([weeks[0]].slice(0, 0)) // only one week before, two needed
+    expect(priorWeeks(weeks, [])).toEqual([])
+  })
+  it('adds days across weeks', () => {
+    const d = (weekday: number, ty: number, ly: number) => ({ fy: 2027, week: 1, store_id: 's', weekday, ty, ly })
+    expect(sumDays([[d(1, 10, 5), d(2, 20, 5)], [d(1, 30, 5), d(3, 1, 1)]])).toEqual([{ weekday: 1, ty: 40, ly: 10 }, { weekday: 2, ty: 20, ly: 5 }, { weekday: 3, ty: 1, ly: 1 }])
+  })
+  it('combines the chain only when every week has it, margin weighted by sales', () => {
+    const c = (ty: number, gp: number) => ({ stores: 40, ty_sales: ty, ly_sales: ty, avg_store_sales: ty / 40, avg_gp: gp, avg_basket: 2 })
+    const both = combineChain([c(400, 0.4), c(1200, 0.6)])!
+    expect(both.avg_store_sales).toBeCloseTo(40)
+    expect(both.avg_gp).toBeCloseTo((400 * 0.4 + 1200 * 0.6) / 1600)
+    expect(combineChain([c(400, 0.4), null])).toBeNull()
+    expect(combineChain([])).toBeNull()
+  })
+  it('member shares always add up to 100', () => {
+    const w = (m: number, t: number) => ({ member_sales: m, ty_sales: t }) as never
+    expect(memberPct(w(335, 1000))).toEqual([34, 66]) // each rounded alone would give 34 and 67
+    expect(memberPct(w(2000, 1000))).toEqual([100, 0]) // more member sales than sales is clamped, never negative
+    expect(memberPct(w(0, 0))).toEqual([0, 0])
+  })
+  it('a change too small to show has no sign', () => {
+    expect(pctText(-0.00001)).toBe('0.0%')
+    expect(pctText(0.00004)).toBe('0.0%')
   })
 })

@@ -97,7 +97,7 @@ export default function SalesItem({ storeId, initialCode, onOrder }: { storeId: 
             <>
               <div className="kpis">
                 <StatTile label={trend.last ? `Sold in ${weekLabel(trend.last)}` : 'Sold'} value={`${trend.last?.qty ?? 0} units`} delta={trend.growth1} deltaLabel="on the week before" />
-                <StatTile label="Last four weeks" value={`${units(weeks.slice(-4).reduce((a, w) => a + w.qty, 0))} units`} delta={trend.growth4} deltaLabel="on the four weeks before" />
+                <StatTile label="Last four weeks" value={`${units(trend.recent4)} units`} delta={trend.growth4} deltaLabel="on the four weeks before" />
                 <StatTile label="All weeks loaded" value={`${trend.total_qty} units`} ly={`${money2(trend.total_sales)} in ${weeks.length} ${weeks.length === 1 ? 'week' : 'weeks'}`} />
                 <StatTile label="Stock now" value={String(item.inventory)} ly={item.moq > 1 ? `Order in multiples of ${item.moq}` : undefined} />
                 <StatTile label="Rank" value={trend.last?.store_rank ? `${ordinal(trend.last.store_rank)} in store` : 'not ranked'} ly={trend.last?.business_rank ? `${ordinal(trend.last.business_rank)} in the business, ${weekLabel(trend.last)}` : trend.last ? weekLabel(trend.last) : undefined} />

@@ -74,7 +74,8 @@ export function change(ty: number, ly: number): number | null {
 export function pctText(f: number | null, digits = 1): string {
   if (f === null || !Number.isFinite(f)) return 'no comparison'
   const s = (Math.abs(f) * 100).toFixed(digits)
-  return `${f > 0 ? '+' : f < 0 ? '−' : ''}${s}%`
+  if (Number(s) === 0) return `${s}%` // a change too small to show is no change: never "−0.0%"
+  return `${f > 0 ? '+' : '−'}${s}%`
 }
 
 /** Dollars and cents, never rounded to the dollar: 243.68 stays $243.68. */
@@ -96,7 +97,13 @@ export function ordinal(n: number): string {
 }
 export const rankText = (r: RankRow) => `${ordinal(r.rank)} of ${r.of}`
 
-export const memberShare = (w: StoreWeek) => (w.ty_sales > 0 ? w.member_sales / w.ty_sales : 0)
+export const memberShare = (w: StoreWeek) => (w.ty_sales > 0 ? Math.min(1, Math.max(0, w.member_sales / w.ty_sales)) : 0)
+/** Members and everyone else as whole percentages that always add up to 100 (rounding each on its own can give 101). [0, 0] when nothing was sold. */
+export function memberPct(w: StoreWeek): [number, number] {
+  if (!(w.ty_sales > 0)) return [0, 0]
+  const m = Math.round(memberShare(w) * 100)
+  return [m, 100 - m]
+}
 export const avgSale = (w: StoreWeek) => (w.ty_trans > 0 ? w.ty_sales / w.ty_trans : 0)
 export const avgSaleLy = (w: StoreWeek) => (w.ly_trans > 0 ? w.ly_sales / w.ly_trans : 0)
 
@@ -182,12 +189,20 @@ export interface ItemTrend {
   total_sales: number
   total_lost: number
   last: ItemTrendWeek | null
-  /** Units in the last four recorded weeks against the four before, as a fraction; null when there is nothing to compare. */
+  /** Units sold in the four weeks ending with the latest recorded week (a week with no row counts as nothing sold). */
+  recent4: number
+  /** Those four weeks against the four weeks before them, as a fraction; null when there is no earlier data to compare with. */
   growth4: number | null
-  /** Latest recorded week against the one before it. */
+  /** Latest recorded week against the week straight before it; null when that week has no sales to compare with. */
   growth1: number | null
   best: ItemTrendWeek | null
 }
+
+/**
+ * How many weeks `w` is before `last`. Exact within a financial year; across a year end a year is taken as 52 weeks.
+ * A week with no row means nothing sold, so trends are worked on the calendar, not on the recorded weeks alone.
+ */
+export const weeksBefore = (w: WeekRef, last: WeekRef) => (last.fy - w.fy) * 52 + last.week - w.week
 
 /** Weekly figures for one item, with the average store that stocks it beside it, and how the item is trending. Pure: no network. */
 export function itemTrend(history: ItemWeek[]): ItemTrend {
@@ -195,13 +210,18 @@ export function itemTrend(history: ItemWeek[]): ItemTrend {
     fy: h.fy, week: h.week, qty: h.qty, net_sales: h.net_sales, chain_avg: h.stores_stocking > 0 ? h.group_qty / h.stores_stocking : 0, store_rank: h.store_rank, business_rank: h.business_rank, potential_loss: h.potential_loss,
   }))
   const sum = (xs: ItemTrendWeek[], f: (w: ItemTrendWeek) => number) => xs.reduce((a, w) => a + f(w), 0)
-  const recent = weeks.slice(-4), before = weeks.slice(-8, -4)
-  const prev = weeks.length > 1 ? weeks[weeks.length - 2] : null
   const last = weeks.length ? weeks[weeks.length - 1] : null
+  const back = (w: ItemTrendWeek) => (last ? weeksBefore(w, last) : 0)
+  const recent = weeks.filter((w) => back(w) < 4)
+  const before = weeks.filter((w) => back(w) >= 4 && back(w) < 8)
+  const prev = weeks.filter((w) => back(w) === 1)
+  // The earlier four weeks are only known when the item's history reaches back that far; otherwise there is nothing honest to compare with.
+  const reachesBack = weeks.length > 0 && back(weeks[0]) >= 7
   return {
     weeks, total_qty: sum(weeks, (w) => w.qty), total_sales: sum(weeks, (w) => w.net_sales), total_lost: sum(weeks, (w) => w.potential_loss), last,
-    growth4: before.length && sum(before, (w) => w.qty) > 0 ? change(sum(recent, (w) => w.qty), sum(before, (w) => w.qty)) : null,
-    growth1: last && prev && prev.qty > 0 ? change(last.qty, prev.qty) : null,
+    recent4: sum(recent, (w) => w.qty),
+    growth4: reachesBack && sum(before, (w) => w.qty) > 0 ? change(sum(recent, (w) => w.qty), sum(before, (w) => w.qty)) : null,
+    growth1: last && prev.length && prev[0].qty > 0 ? change(last.qty, prev[0].qty) : null,
     best: weeks.reduce<ItemTrendWeek | null>((b, w) => (!b || w.qty > b.qty ? w : b), null),
   }
 }
@@ -237,6 +257,14 @@ export function resolvePeriod(key: PeriodKey, weeks: WeekDates[], opts: { one?: 
   }
 }
 
+/** The same number of loaded weeks straight before a period, or none when the calendar does not reach back that far. */
+export function priorWeeks(all: WeekDates[], period: WeekDates[]): WeekDates[] {
+  if (!period.length) return []
+  const asc = [...all].sort((a, b) => weekKey(a) - weekKey(b))
+  const at = asc.findIndex((w) => weekKey(w) === weekKey(period[0]))
+  return at >= period.length ? asc.slice(at - period.length, at) : []
+}
+
 /** "FY27 weeks 5 to 8, 29 Sep to 26 Oct", or the single week's label. */
 export function periodText(ws: WeekDates[]): string {
   if (!ws.length) return 'no weeks'
@@ -267,4 +295,46 @@ export function combineLeague(weeksOfRows: StoreWeek[][]): StoreWeek[] {
   const by = new Map<string, StoreWeek[]>()
   for (const rows of weeksOfRows) for (const r of rows) by.set(r.store_name + '|' + r.co_fran, [...(by.get(r.store_name + '|' + r.co_fran) ?? []), r])
   return [...by.values()].map((rs) => combineWeeks(rs)!)
+}
+
+/**
+ * The periods worth offering for the weeks loaded: a period with no weeks in it is left out, and so is one that would not be what its name says
+ * ("Last 13 weeks" with eight weeks loaded). One week is always there, and a custom range needs at least two weeks to choose between.
+ */
+export function availablePeriods(weeks: WeekDates[]): PeriodKey[] {
+  if (!weeks.length) return []
+  return PERIODS.filter((k) => {
+    if (k === 'week') return true
+    if (k === 'custom') return weeks.length > 1
+    const n = resolvePeriod(k, weeks).length
+    return k === 'last4' ? n === 4 : k === 'last13' ? n === 13 : n > 0
+  })
+}
+
+/** A store's days added across the weeks of a period: Monday of every week together, and so on. */
+export function sumDays(weeks: StoreDay[][]): { weekday: number; ty: number; ly: number }[] {
+  const by = new Map<number, { weekday: number; ty: number; ly: number }>()
+  for (const rows of weeks) for (const d of rows) {
+    const t = by.get(d.weekday) ?? { weekday: d.weekday, ty: 0, ly: 0 }
+    t.ty += d.ty; t.ly += d.ly
+    by.set(d.weekday, t)
+  }
+  return [...by.values()].sort((a, b) => a.weekday - b.weekday)
+}
+
+/**
+ * The average store over several weeks: sales added up, margin weighted by each week's sales, items per sale as the average of the weeks.
+ * Null unless the chain figures exist for every week (a week with fewer than three stores gives none), so the two sides cover the same weeks.
+ */
+export function combineChain(weeks: (ChainWeek | null)[]): ChainWeek | null {
+  if (!weeks.length || weeks.some((w) => !w)) return null
+  const ws = weeks as ChainWeek[]
+  const sales = ws.reduce((a, w) => a + w.ty_sales, 0)
+  return {
+    stores: ws[ws.length - 1].stores,
+    ty_sales: sales, ly_sales: ws.reduce((a, w) => a + w.ly_sales, 0),
+    avg_store_sales: ws.reduce((a, w) => a + w.avg_store_sales, 0),
+    avg_gp: sales > 0 ? ws.reduce((a, w) => a + w.avg_gp * w.ty_sales, 0) / sales : 0,
+    avg_basket: ws.reduce((a, w) => a + w.avg_basket, 0) / ws.length,
+  }
 }

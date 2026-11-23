@@ -272,13 +272,8 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
     const sold = sg?.sold ?? (series ? series.slice(-13).reduce((a, b) => a + b, 0) : 0)
     const soldWeeks = sg?.soldWeeks ?? Math.min(rates?.weeks ?? 0, 13)
     const facts = `In stock ${inventory}, sold ${sold} in the last ${soldWeeks} ${soldWeeks === 1 ? 'week' : 'weeks'}, on order ${coming}`
-    const opsWhy = [
-      pushN > 0 ? `Operations has asked this store to order ${asked}${coming > 0 ? `; ${coming} already on order` : ''}.` : '',
-      holdN > 0 ? `Operations wants at least ${min} always in stock. It has ${inventory + coming} counting orders and transfers, so order ${holdN}${(p.stock?.moq ?? 1) > 1 ? ` (MOQ ${p.stock?.moq})` : ''}.` : '',
-    ].filter(Boolean).join(' ')
-    const why = ops ? `${facts}. ${opsWhy}${sugN > 0 ? ` Sales suggest ${sugN}.` : ''}` : sg!.why
     const brief = ops ? `${source === 'push' ? 'Asked by operations' : `Always in stock, minimum ${min}`}. ${facts}` : sg!.brief
-    return [{ code, description: p.item.description, qty, cost: p.stock?.store_cost ?? 0, why, brief, hold: !ops && sg?.hold != null, source, stock: p.stock?.inventory ?? 0, sold, soldWeeks, onOrder: sg?.onOrder ?? coming, moq: p.stock?.moq ?? 1 }]
+    return [{ code, description: p.item.description, qty, cost: p.stock?.store_cost ?? 0, brief, hold: !ops && sg?.hold != null, source, stock: p.stock?.inventory ?? 0, sold, soldWeeks, onOrder: sg?.onOrder ?? coming, moq: p.stock?.moq ?? 1 }]
   }).sort((x, y) => Number(x.hold) - Number(y.hold) || Number(!!y.source) - Number(!!x.source) || y.qty * y.cost - x.qty * x.cost), [range, suggestions, lineOf, holdOf, pushed, rates]) // eslint-disable-line react-hooks/exhaustive-deps
   // Every held item for this vendor, and whether it is covered, for the Hold tab.
   const holdLines = useMemo<HoldLine[]>(() => range.flatMap((p) => {
