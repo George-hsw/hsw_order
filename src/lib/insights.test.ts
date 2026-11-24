@@ -18,6 +18,18 @@ describe('ratesFrom', () => {
   })
 })
 
+describe('ratesFrom history', () => {
+  it('works the rate over the latest 13 weeks but keeps the longer history', () => {
+    const rows = Array.from({ length: 20 }, (_, i) => ({ item_code: 'A', qty: i < 7 ? 100 : 2, wk: 202601 + i }))
+    const r = ratesFrom(rows)
+    expect(r.weeks).toBe(13)
+    expect(r.perWeek.get('A')).toBe(2)
+    expect(r.series!.get('A')).toHaveLength(13)
+    expect(r.history!.get('A')).toHaveLength(20)
+    expect(r.history!.get('A')!.slice(-4).reduce((a, b) => a + b, 0)).toBe(8)
+  })
+})
+
 describe('stockInsight', () => {
   it('counts stock, on order and transfers, and suggests up to the target in MOQ steps', () => {
     const s = stockInsight({ inventory: 2, qty_on_po: 1, transfer_in: 1 }, 3, 4, 6) // needs 12, has 4

@@ -219,6 +219,8 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const range = useMemo(() => (vendor ? rangeList.filter((p) => !blockedCodes.has(p.item.code) || seesBlocked || lines.some((l) => l.item_code === p.item.code) || jump?.item === p.item.code) : []), [vendor, rangeList, blockedCodes, lines, jump?.item, seesBlocked])
   const lineOf = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
   const enough = !!rates && rates.weeks >= MIN_WEEKS
+  const loadedWeeks = Math.max(rates?.weeks ?? 0, rates?.history?.values().next().value?.length ?? 0) // weeks of item sales loaded
+  const soldWeeks = Math.min(target, loadedWeeks) // the Sold column follows the Hold choice, up to what is loaded
   const insightOf = useMemo(() => {
     const m = new Map<string, StockInsight>()
     if (enough) for (const p of range) m.set(p.item.code, stockInsight(p.stock, rates!.perWeek.get(p.item.code) ?? 0, target, p.stock?.moq ?? 1, lineOf.get(p.item.code)?.qty ?? 0))
@@ -705,7 +707,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                   <div className="tablewrap">
                     <table className="book range">
                       <thead>
-                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th className="r">GP</th><th className="r">Sold 13 wks</th><th className="r">Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
+                        <tr><th>Item</th><th>Description</th><th className="r">In stock</th><th className="r">On order</th>{SHOW_SALES && <th className="r">Sold last wk</th>}<th className="r">MOQ</th><th className="r">GP</th><th className="r">Sold {enough ? soldWeeks : target} wks</th><th className="r">Order qty</th><th className="r">Cost</th><th><span className="visually-hidden">Details</span></th></tr>
                       </thead>
                       <tbody>
                         {rows.slice(0, limit).map((p) => {
@@ -736,7 +738,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                               {SHOW_SALES && <td data-label="Sold last week" className="r">{p.stock?.sales_qty ?? '–'}</td>}
                               <td data-label="MOQ" className="r">{p.stock?.moq ?? '–'}</td>
                               <td data-label="GP" className="r">{gp === null ? '–' : <span className={gp < 0 ? 'chk error' : undefined}>{gp.toFixed(1)}%</span>}</td>
-                              <td data-label="Sold 13 wks" className="r">{enough ? <span className="soldtip" tabIndex={0} data-tip={`Units sold in the last ${CHART_WEEKS} weeks. Last week ${weekly.at(-1) ?? 0}, last 4 weeks ${soldOver(weekly, 4)}.${ins && ins.rate > 0 ? ` Stock lasts ${coverText(ins.cover).replace(' of stock', '')}${l ? ' with this order' : ''}.` : ''}`}>{soldOver(weekly, CHART_WEEKS)}</span> : '–'}</td>
+                              <td data-label={`Sold ${soldWeeks} wks`} className="r">{enough ? <span className="soldtip" tabIndex={0} data-tip={`Units sold in the last ${soldWeeks} weeks. Last week ${weekly.at(-1) ?? 0}, last 4 weeks ${soldOver(weekly, 4)}.${ins && ins.rate > 0 ? ` Stock lasts ${coverText(ins.cover).replace(' of stock', '')}${l ? ' with this order' : ''}.` : ''}`}>{soldOver(rates!.history?.get(p.item.code) ?? weekly, soldWeeks)}</span> : '–'}</td>
                               <td data-label="Order qty" className="r"><QtyCell key={p.item.code + (l?.revision ?? 0)} item={p.item.description} qty={l?.qty} locked={noOrder(p) !== null && !l} onCommit={(text) => setQty(p, text)} /></td>
                               <td data-label="Cost" className="r">{l ? money(lineCost(l.qty, l.unit_cost)) : ''}</td>
                               <td className="rowactions"><button type="button" className="btn" aria-label={`Details for ${p.item.description}`} onClick={() => open(p)}>Details</button></td>

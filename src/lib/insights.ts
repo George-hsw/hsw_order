@@ -5,34 +5,44 @@
 export const MIN_WEEKS = 4
 /** How many recent weeks the rate is worked over. */
 export const RATE_WEEKS = 13
+/** How many recent weeks are loaded, so the Order table's Sold column can follow the Hold choice past 13 weeks. */
+export const HISTORY_WEEKS = 26
 /** Weeks of stock a store aims to hold when it has not chosen its own target. */
 export const DEFAULT_COVER = 4
-export const COVER_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12]
+export const COVER_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20]
 
 /**
  * Units sold a week at one store, per item, over the weeks loaded. A week with no row for an item counts as nothing sold.
  * `series` is each item's units in every loaded week, oldest first, and `storeUnits` the store's units in those same weeks: the suggested order
  * uses them to see how an item sold lately and how the whole store is trending.
  */
-export interface Rates { weeks: number; perWeek: Map<string, number>; series?: Map<string, number[]>; storeUnits?: number[] }
+export interface Rates { weeks: number; perWeek: Map<string, number>; series?: Map<string, number[]>; storeUnits?: number[]; history?: Map<string, number[]> /* up to HISTORY_WEEKS weeks, oldest first */ }
 
 /** Work out the weekly rates from item-week rows. `weeks` is the number of weeks the rows cover for this store. */
 export function ratesFrom(rows: { item_code: string; qty: number; wk: number }[]): Rates {
-  const wks = [...new Set(rows.map((r) => r.wk))].sort((a, b) => a - b)
+  const all = [...new Set(rows.map((r) => r.wk))].sort((a, b) => a - b)
+  const wks = all.slice(-RATE_WEEKS) // the rate, suggestions and flags only ever use the latest RATE_WEEKS weeks
   const weeks = wks.length
   const at = new Map(wks.map((w, i) => [w, i]))
   const series = new Map<string, number[]>()
   const storeUnits: number[] = Array(weeks).fill(0)
+  const histAt = new Map(all.map((w, i) => [w, i]))
+  const history = new Map<string, number[]>()
   for (const r of rows) {
     const q = Math.max(0, Number(r.qty) || 0)
+    let h = history.get(r.item_code)
+    if (!h) { h = Array(all.length).fill(0); history.set(r.item_code, h) }
+    h[histAt.get(r.wk)!] += q
+    const i = at.get(r.wk)
+    if (i === undefined) continue
     let s = series.get(r.item_code)
     if (!s) { s = Array(weeks).fill(0); series.set(r.item_code, s) }
-    s[at.get(r.wk)!] += q
-    storeUnits[at.get(r.wk)!] += q
+    s[i] += q
+    storeUnits[i] += q
   }
   const perWeek = new Map<string, number>()
   if (weeks > 0) for (const [code, s] of series) perWeek.set(code, s.reduce((a, b) => a + b, 0) / weeks)
-  return { weeks, perWeek, series, storeUnits }
+  return { weeks, perWeek, series, storeUnits, history }
 }
 
 export interface StockInsight {

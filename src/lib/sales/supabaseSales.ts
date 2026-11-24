@@ -1,5 +1,5 @@
 import { supabase, type StoreRow } from '../supabase'
-import { RATE_WEEKS, ratesFrom, type Rates } from '../insights'
+import { HISTORY_WEEKS, ratesFrom, type Rates } from '../insights'
 import { persistGet, persistSet } from '../persist'
 import { countOpt, readAll } from '../readAll'
 import type { ItemInfo, SalesApi, SavedSource, UploadRecord } from './api'
@@ -100,7 +100,7 @@ export const supabaseSalesApi: SalesApi = {
     return ((data ?? []) as ItemWeek[]).map((r) => ({ ...r, qty: Number(r.qty), net_sales: Number(r.net_sales), group_qty: Number(r.group_qty), potential_loss: Number(r.potential_loss) }))
   },
   async itemRates(storeId) {
-    const weeks = (await supabaseSalesApi.weeks()).slice(0, RATE_WEEKS) // newest first
+    const weeks = (await supabaseSalesApi.weeks()).slice(0, HISTORY_WEEKS) // newest first; ratesFrom works the rate over the latest RATE_WEEKS of these
     if (!weeks.length) return { weeks: 0, perWeek: new Map() }
     const tag = weeks.map((w) => w.fy * 100 + w.week).join(',')
     const hit = ratesCache.get(storeId)
