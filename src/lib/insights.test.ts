@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverText, lowLabel, lowWhy, ratesFrom, stockInsight } from './insights'
+import { coverChoices, coverText, lowLabel, lowWhy, ratesFrom, stockInsight } from './insights'
 
 describe('ratesFrom', () => {
   it('averages over the weeks loaded, counting a missing week as nothing sold', () => {
@@ -27,6 +27,15 @@ describe('ratesFrom history', () => {
     expect(r.series!.get('A')).toHaveLength(13)
     expect(r.history!.get('A')).toHaveLength(20)
     expect(r.history!.get('A')!.slice(-4).reduce((a, b) => a + b, 0)).toBe(8)
+  })
+})
+
+describe('coverChoices', () => {
+  it('runs to 12, then every 2 weeks to the last week loaded, and keeps a saved target', () => {
+    expect(coverChoices(0, 4)).toEqual([1, 2, 3, 4, 5, 6, 8, 10, 12])
+    expect(coverChoices(17, 4).slice(-3)).toEqual([14, 16, 17])
+    expect(coverChoices(26, 4).slice(-4)).toEqual([20, 22, 24, 26])
+    expect(coverChoices(13, 20)).toContain(20)
   })
 })
 

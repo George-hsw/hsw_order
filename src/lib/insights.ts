@@ -9,7 +9,16 @@ export const RATE_WEEKS = 13
 export const HISTORY_WEEKS = 26
 /** Weeks of stock a store aims to hold when it has not chosen its own target. */
 export const DEFAULT_COVER = 4
-export const COVER_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20]
+export const COVER_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12]
+/** The Hold choices: the fixed ones to 12 weeks, then every 2 weeks up to the last week of item sales loaded (so a new weekly upload adds a choice), keeping a saved target visible. */
+export function coverChoices(loadedWeeks: number, current: number): number[] {
+  const out = new Set(COVER_CHOICES)
+  const top = Math.min(loadedWeeks, HISTORY_WEEKS)
+  for (let w = 14; w < top; w += 2) out.add(w)
+  if (top > 12) out.add(top)
+  out.add(current)
+  return [...out].sort((a, b) => a - b)
+}
 
 /**
  * Units sold a week at one store, per item, over the weeks loaded. A week with no row for an item counts as nothing sold.

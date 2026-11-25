@@ -16,7 +16,7 @@ import MovFlag from './MovFlag'
 import StorePrefs from './StorePrefs'
 import Tag from './Tag'
 import { CHART_WEEKS, COVER_HELP, COVER_LABEL, COVER_WEEKS, coverStatus, gpPercent, noStock, shownStock, soldOver } from './lib/orderview'
-import { COVER_CHOICES, DEFAULT_COVER, MIN_WEEKS, coverText, lowLabel, lowWhy, stockInsight, type Rates, type StockInsight } from './lib/insights'
+import { DEFAULT_COVER, MIN_WEEKS, coverChoices, coverText, lowLabel, lowWhy, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
 import { persistGet, persistSet } from './lib/persist'
 import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
@@ -658,7 +658,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                     {enough && (
                       <label className="inline">Hold
                         <select name="cover" value={target} onChange={(e) => changeTarget(Number(e.target.value))} aria-describedby="cover-help">
-                          {COVER_CHOICES.map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
+                          {coverChoices(loadedWeeks, target).map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
                         </select>
                       </label>
                     )}

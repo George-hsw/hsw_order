@@ -102,7 +102,10 @@ export const supabaseSalesApi: SalesApi = {
   async itemRates(storeId) {
     const weeks = (await supabaseSalesApi.weeks()).slice(0, HISTORY_WEEKS) // newest first; ratesFrom works the rate over the latest RATE_WEEKS of these
     if (!weeks.length) return { weeks: 0, perWeek: new Map() }
-    const tag = weeks.map((w) => w.fy * 100 + w.week).join(',')
+    // The item rows are uploaded apart from the week list (Detailed Sales), so what is stored for this store goes into the tag: a new or replaced upload is picked up at once.
+    const probe = await db().from('sales_item_week').select('wk', { count: 'exact' }).eq('store_id', storeId).order('wk', { ascending: false }).limit(1)
+    fail(probe.error)
+    const tag = weeks.map((w) => w.fy * 100 + w.week).join(',') + `|${(probe.data as { wk: number }[] | null)?.[0]?.wk ?? 0}|${probe.count ?? 0}`
     const hit = ratesCache.get(storeId)
     if (hit && hit.tag === tag && Date.now() - hit.at < RATES_TTL) return hit.rates
     const saved = await persistGet<Rates>('rates|' + storeId, tag)
