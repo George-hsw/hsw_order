@@ -64,6 +64,46 @@ export function discountOf(raw: string): number | null {
 /** The clearance price: was × (1 − discount), to the cent. */
 export const nowPrice = (was: number, discountPct: number) => Math.round(was * (1 - discountPct / 100) * 100) / 100
 
+/** How this device prints. The labels waiting are the store's, shared by every device; these choices stay with the device and its printer. */
+export interface LabelSettings { template: TemplateId; startAt: number; barcode: boolean; teal: boolean; defaultDiscount: string }
+const SETTINGS_KEY = 'hsw-label-settings'
+const OLD_KEY = 'hsw-label-queue' // before the queue was shared, the labels waiting and the settings were kept together here
+const read = (key: string): Record<string, unknown> | null => { try { return JSON.parse(localStorage.getItem(key) ?? 'null') } catch { return null } }
+export function loadSettings(): LabelSettings {
+  const raw = (read(SETTINGS_KEY) ?? read(OLD_KEY) ?? {}) as Partial<LabelSettings>
+  return { template: raw.template ?? 'shelf', startAt: raw.startAt ?? 1, barcode: !!raw.barcode, teal: !!raw.teal, defaultDiscount: raw.defaultDiscount ?? '' }
+}
+export function saveSettings(s: LabelSettings) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)) } catch { /* ignore */ }
+}
+/** Labels still waiting on this device from before the queue was shared. They are moved to the store's queue once. */
+export function deviceQueue(): QueueItem[] {
+  const q = read(OLD_KEY)?.queue
+  return Array.isArray(q) ? (q as QueueItem[]) : []
+}
+/** Keeps only what has still to be moved. */
+export function keepDeviceQueue(queue: QueueItem[]) {
+  try { localStorage.setItem(OLD_KEY, JSON.stringify({ ...read(OLD_KEY), queue })) } catch { /* ignore */ }
+}
+
+/** The queue with more labels of an item: added to its line if it is already waiting, otherwise a new line at the end. The database's queue_label does the same. */
+export function addToQueue(queue: QueueItem[], item: Omit<QueueItem, 'qty' | 'discount'>, qty: number): QueueItem[] {
+  return queue.some((i) => i.code === item.code)
+    ? queue.map((i) => (i.code === item.code ? { ...i, qty: Math.min(MAX_QTY, i.qty + qty) } : i))
+    : [...queue, { ...item, qty: Math.min(MAX_QTY, qty), discount: '' }]
+}
+
+/** The queue once these quantities have been printed or cleared. Anything added since (from another device) stays. */
+export function takeFromQueue(queue: QueueItem[], taken: { code: string; qty: number }[]): QueueItem[] {
+  const by = new Map<string, number>()
+  for (const t of taken) by.set(t.code, (by.get(t.code) ?? 0) + t.qty)
+  return queue.flatMap((i) => {
+    const n = by.get(i.code)
+    if (n === undefined) return [i]
+    return i.qty > n ? [{ ...i, qty: i.qty - n }] : []
+  })
+}
+
 /** What stops an item from being printed on this template (empty when it is fine). */
 export function problemOf(i: QueueItem, t: Template): string {
   if (i.price === null || i.price <= 0) return 'No price'

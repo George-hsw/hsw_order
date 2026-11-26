@@ -1,4 +1,4 @@
-import type { LabelJob } from './labels'
+import { addToQueue, labelCount, takeFromQueue, type LabelJob, type QueueItem } from './labels'
 import { codeLines, type CustomerOrderNeed, type Fulfilment } from './customerOrders'
 import { DEFAULT_COVER, stockInsight } from './insights'
 import { salesApi } from './sales/api'
@@ -40,6 +40,9 @@ const hiddenNotices = new Map<string, string>() // notices hidden this session i
 const fulfilled = new Map<string, Fulfilment>() // demo customer orders moved on this session
 const storeName = (id: string) => demoStores().find((s) => s.id === id)?.name ?? ''
 let labelJobs: LabelJob[] = []
+const labelQueues = new Map<string, QueueItem[]>()
+const queueSubs = new Map<string, Set<(q: QueueItem[]) => void>>()
+const setQueue = (storeId: string, q: QueueItem[]) => { labelQueues.set(storeId, q); queueSubs.get(storeId)?.forEach((cb) => cb(q)) }
 const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
 export const demoApi: OrdersApi = {
@@ -259,6 +262,16 @@ export const demoApi: OrdersApi = {
     if (sidesToPost(c, sp).length === 0) { c.status = 'posted'; c.posted_at = new Date().toISOString() }
     return wait({ ...c })
   },
+  async labelQueue(storeId) { return wait(labelQueues.get(storeId) ?? []) },
+  subscribeLabelQueue(storeId, cb) {
+    const set = queueSubs.get(storeId) ?? new Set()
+    set.add(cb)
+    queueSubs.set(storeId, set)
+    return () => { set.delete(cb) }
+  },
+  async queueLabel(storeId, { qty, ...item }) { const q = addToQueue(labelQueues.get(storeId) ?? [], item, qty); setQueue(storeId, q); return wait(labelCount(q)) },
+  async setQueuedLabel(storeId, code, change) { setQueue(storeId, (labelQueues.get(storeId) ?? []).map((i) => (i.code === code ? { ...i, ...change } : i))); await wait(null) },
+  async takeLabels(storeId, taken) { setQueue(storeId, takeFromQueue(labelQueues.get(storeId) ?? [], taken)); await wait(null) },
   async listLabelJobs(storeId) { return wait(labelJobs.filter((j) => j.store_id === storeId).sort((a, b) => (a.printed_at < b.printed_at ? 1 : -1))) },
   async saveLabelJob(job) {
     const now = new Date().toISOString()

@@ -1,4 +1,4 @@
-import type { LabelJob } from './labels'
+import type { LabelJob, QueueItem } from './labels'
 import { codeLines, type CustomerOrderNeed } from './customerOrders'
 import type { Counted, OverdueInvoice } from './notifications'
 import { DEFAULT_COVER } from './insights'
@@ -37,6 +37,13 @@ const countLinesOf = async (countId: string): Promise<CountLine[]> =>
   (await readAll<CountLine>((from, to, count) =>
     db().from('stock_count_lines').select('*', countOpt(count)).eq('count_id', countId).order('updated_at', { ascending: false }).order('id').range(from, to)))
     .map((l) => ({ ...l, counted: Number(l.counted), system_qty: Number(l.system_qty), unit_cost: Number(l.unit_cost) }))
+
+async function labelQueueOf(storeId: string): Promise<QueueItem[]> {
+  const { data, error } = await db().from('label_queue').select('item_code,description,price,barcode,qty,discount').eq('store_id', storeId).order('added_at').order('item_code')
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as { item_code: string; description: string; price: number | string | null; barcode: string | null; qty: number; discount: string }[])
+    .map((r) => ({ code: r.item_code, description: r.description, price: r.price === null ? null : Number(r.price), barcode: r.barcode ?? undefined, qty: r.qty, discount: r.discount }))
+}
 
 export const supabaseApi: OrdersApi = {
   async vendors(storeId): Promise<VendorList> {
@@ -341,6 +348,35 @@ export const supabaseApi: OrdersApi = {
     const { data, error } = await db().rpc('post_count_side', { p_count: countId, p_side: side, p_ref: ref })
     if (error) throw new Error(error.message)
     return data as CountRow
+  },
+
+  labelQueue: labelQueueOf,
+
+  subscribeLabelQueue(storeId, onQueue) {
+    // Any change from any device reloads the whole queue; only the newest answer is shown. A delete cannot be filtered by store
+    // in Realtime, so every delete reloads (Row Level Security still decides what the reload returns).
+    let latest = 0
+    const reload = () => { const n = ++latest; labelQueueOf(storeId).then((q) => { if (n === latest) onQueue(q) }).catch(() => { /* the next change or reconnect tries again */ }) }
+    const channel = db()
+      .channel(`label-queue-${storeId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'label_queue', filter: `store_id=eq.${storeId}` }, reload)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'label_queue' }, reload)
+      .subscribe((status) => { if (status === 'SUBSCRIBED') reload() })
+    return () => { latest++; void db().removeChannel(channel) }
+  },
+
+  async queueLabel(storeId, item) {
+    const { data, error } = await db().rpc('queue_label', { p_store: storeId, p_item: item.code, p_description: item.description, p_price: item.price, p_barcode: item.barcode ?? null, p_qty: item.qty })
+    if (error) throw new Error(error.message)
+    return Number(data)
+  },
+  async setQueuedLabel(storeId, code, change) {
+    const { error } = await db().from('label_queue').update(change).eq('store_id', storeId).eq('item_code', code)
+    if (error) throw new Error(error.message)
+  },
+  async takeLabels(storeId, taken) {
+    const { error } = await db().rpc('take_labels', { p_store: storeId, p_taken: taken })
+    if (error) throw new Error(error.message)
   },
 
   async listLabelJobs(storeId) {

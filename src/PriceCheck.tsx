@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Scanner from './Scanner'
+import { useToast } from './Toast'
 import { api } from './lib/api'
 import { trackError, track } from './lib/analytics/track'
 import { beep, primeAudio } from './lib/beep'
@@ -16,10 +17,11 @@ const LIVE_DELAY = 220 // ms after the last key
 
 /**
  * Scan a barcode or type an item number or name, and see the price, the stock at this store and how it has sold here.
- * A price label can be printed from the phone or computer through the device's own print dialog (AirPrint, Mopria or a
- * desktop printer), so any printer on the same Wi-Fi works without setting anything up in the app.
+ * An item can be added to the store's label print queue, which shows in Labels on every device straight away.
  */
 export default function PriceCheck({ stores, multi, onOrder, onQuote, onSales }: { stores: StoreRow[]; multi: boolean; onOrder: (j: OrderJump) => void; onQuote: (lines: Line[]) => void; onSales: (storeId: string, code: string) => void }) {
+  const toast = useToast()
+  const [queuing, setQueuing] = useState(false)
   const [storeId, setStoreId] = useState(() => { try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ } return stores[0]?.id ?? '' })
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'looking' | 'none' | 'error'>('idle')
@@ -73,6 +75,17 @@ export default function PriceCheck({ stores, multi, onOrder, onQuote, onSales }:
   const st = p?.stock
   const price = it?.price ?? null
   const status = it?.status.trim().toUpperCase() ?? ''
+
+  const queueLabel = async () => {
+    if (!it || price === null) return
+    setQueuing(true)
+    try {
+      const waiting = await api.queueLabel(storeId, { code: it.code, description: it.description || it.code, price, barcode: it.barcode || undefined, qty: 1 })
+      track('price_label_queue', {}, storeId)
+      toast.success(`Added to the print queue${multi ? ` for ${store?.name}` : ''}. ${waiting} ${waiting === 1 ? 'label' : 'labels'} waiting in Labels.`)
+    } catch (e) { trackError('label queue', e); toast.error('Could not add it to the print queue. Check your connection and try again.') }
+    finally { setQueuing(false) }
+  }
 
   return (
     <div className="pricecheck">
@@ -152,17 +165,8 @@ export default function PriceCheck({ stores, multi, onOrder, onQuote, onSales }:
           <div className="actions">
             <button type="button" className="btn" onClick={() => onSales(storeId, it.code)}>How it has sold here</button>
             <button type="button" className="btn" onClick={() => { track('price_check_quote', {}, storeId); onQuote([{ code: it.code, qty: '1', ownDescription: '', ownPrice: '', discPct: '' }]) }}>Start a quote</button>
-            <button type="button" className="btn" onClick={() => { track('price_label_print', {}, storeId); window.print() }}>Print price label</button>
+            {price !== null && <button type="button" className="btn" onClick={() => void queueLabel()} disabled={queuing}>Add to print queue</button>}
             {(st?.vendor_no ?? it.vendor_no) && <button type="button" className="btn primary" onClick={() => onOrder({ storeId, vendor: (st?.vendor_no ?? it.vendor_no)!, item: it.code })}>Order this item</button>}
-          </div>
-          <p className="muted viz-foot">Printing uses this device’s print dialog: choose a printer on the same Wi-Fi (AirPrint on iPhone, the print service on Android).</p>
-
-          {/* What the printer gets: only this label, nothing else on the page. */}
-          <div className="printlabel" aria-hidden="true">
-            <p className="pl-name">{it.description}</p>
-            <p className="pl-price">{price !== null ? money(price) : ''}</p>
-            <p className="pl-code">{it.code}{it.barcode ? `  ${it.barcode}` : ''}</p>
-            <p className="pl-store">{store?.name ?? ''}</p>
           </div>
         </section>
       )}

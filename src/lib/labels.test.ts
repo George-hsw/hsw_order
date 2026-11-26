@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TEMPLATES, buildLabelsPdf, discountOf, expand, labelCount, nowPrice, perSheet, problemOf, regroup, sheetState, splitFull, templateOf, type QueueItem } from './labels'
+import { MAX_QTY, TEMPLATES, addToQueue, buildLabelsPdf, discountOf, expand, labelCount, nowPrice, perSheet, problemOf, regroup, sheetState, splitFull, takeFromQueue, templateOf, type QueueItem } from './labels'
 
 const item = (code: string, qty: number, over: Partial<QueueItem> = {}): QueueItem => ({ code, description: `Item ${code}`, price: 109, qty, discount: '', ...over })
 
@@ -27,6 +27,23 @@ describe('label sheets', () => {
   it('counts copies', () => {
     expect(labelCount([item('A', 2), item('B', 3)])).toBe(5)
     expect(expand([item('A', 2)])).toHaveLength(2)
+  })
+})
+
+describe('the shared print queue', () => {
+  const a = { code: 'A', description: 'Item A', price: 109 }
+  it('adds a new line, then counts up the same item', () => {
+    const once = addToQueue([], a, 1)
+    expect(once).toEqual([{ ...a, qty: 1, discount: '' }])
+    expect(addToQueue(once, a, 1)).toEqual([{ ...a, qty: 2, discount: '' }])
+    expect(addToQueue(once, a, 500)[0].qty).toBe(MAX_QTY)
+  })
+  it('keeps what another device added while printing', () => {
+    const now = [item('A', 3), item('B', 2), item('C', 1)] // one more A and a new C arrived after A x2 and B x2 were sent to print
+    expect(takeFromQueue(now, [{ code: 'A', qty: 2 }, { code: 'B', qty: 2 }]).map((i) => [i.code, i.qty])).toEqual([['A', 1], ['C', 1]])
+  })
+  it('removes a line with no labels when it is taken', () => {
+    expect(takeFromQueue([item('A', 0)], [{ code: 'A', qty: 0 }])).toEqual([])
   })
 })
 

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import CommitInput from './CommitInput'
 import { useConfirm } from './Confirm'
 import ItemPicker from './ItemPicker'
+import Loading from './Loading'
 import { useToast } from './Toast'
 import { demoItems } from './lib/demo'
 import { indexItems, loadPriceList } from './lib/items'
 import {
-  MAX_QTY, TEMPLATES, buildLabelsPdf, discountOf, expand, labelCount, nowPrice, perSheet, problemOf, regroup, sheetState, splitFull, templateOf,
-  type LabelJob, type QueueItem, type TemplateId,
+  MAX_QTY, TEMPLATES, addToQueue, buildLabelsPdf, deviceQueue, discountOf, expand, keepDeviceQueue, labelCount, loadSettings, nowPrice, perSheet, problemOf, regroup, saveSettings, sheetState, splitFull, takeFromQueue, templateOf,
+  type LabelJob, type LabelSettings, type QueueItem, type TemplateId,
 } from './lib/labels'
 import type { Item } from './lib/quote'
 import { DEMO, type StoreRow } from './lib/supabase'
@@ -14,75 +16,102 @@ import { api } from './lib/api'
 import { trackError } from './lib/analytics/track'
 import { useLoad } from './lib/useLoad'
 
-const KEY = 'hsw-label-queue'
-interface Saved { template: TemplateId; queue: QueueItem[]; startAt: number; barcode: boolean; teal: boolean; defaultDiscount: string }
-const fresh = (): Saved => ({ template: 'shelf', queue: [], startAt: 1, barcode: false, teal: false, defaultDiscount: '' })
-const load = (): Saved => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null')
-    if (raw && Array.isArray(raw.queue)) return { ...fresh(), ...raw }
-  } catch { /* ignore */ }
-  return fresh()
-}
+const STORE_KEY = 'hsw-orders-store' // the same store Price check and the Order tab last used
+let moving = false // the old on-device queue is being moved: never twice at once
 const money = (n: number) => `$${n.toFixed(2)}`
 const when = (iso: string) => new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 
-/** A print queue for price labels. Add items as they are scanned; the sheet fills up, then everything prints together. */
+/** A past print being changed. It is worked on here, apart from the store's queue, and printing saves the changes to it. */
+interface Draft extends LabelSettings { job: LabelJob; queue: QueueItem[] }
+
+/** A print queue for price labels, shared by every device in the store and kept up to date live. Print when the sheet is full, or print what you have. */
 export default function Labels({ stores, names }: { stores: StoreRow[]; names: Record<string, string> }) {
   const toast = useToast()
   const [ask, confirmDialog] = useConfirm()
-  const [state, setState] = useState<Saved>(load)
+  const [settings, setSettings] = useState<LabelSettings>(loadSettings)
   const [items, setItems] = useState<Item[]>([])
-  const [storeId, setStoreId] = useState(stores[0]?.id ?? '')
-  const [editing, setEditing] = useState<LabelJob | null>(null) // a past print being changed: printing saves the changes to it
+  const [storeId, setStoreId] = useState(() => { try { const s = localStorage.getItem(STORE_KEY); if (s && stores.some((x) => x.id === s)) return s } catch { /* ignore */ } return stores[0]?.id ?? '' })
+  const [draft, setDraft] = useState<Draft | null>(null)
   const jobs = useLoad(() => (storeId ? api.listLabelJobs(storeId) : Promise.resolve([] as LabelJob[])), [storeId], !!storeId)
-  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* ignore */ } }, [state])
+  const waiting = useLoad(() => (storeId ? api.labelQueue(storeId) : Promise.resolve([] as QueueItem[])), [storeId], !!storeId)
+  const [live, setLive] = useState<{ storeId: string; queue: QueueItem[] } | null>(null) // the newest queue heard of; tagged so another store's never shows
+  useEffect(() => { saveSettings(settings) }, [settings])
+  useEffect(() => { if (waiting.data) setLive({ storeId, queue: waiting.data }) }, [waiting.data]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => (storeId ? api.subscribeLabelQueue(storeId, (queue) => setLive({ storeId, queue })) : undefined), [storeId])
   useEffect(() => {
-    let live = true
+    let alive = true
     const source: Promise<Item[]> = DEMO
       ? Promise.resolve(demoItems().map((i) => ({ code: i.code, description: i.description, price: i.price, status: 'ACTIVE', barcode: i.barcode || undefined })))
       : loadPriceList().then((p) => p.items)
-    source.then((l) => { if (live) setItems(l) }).catch(() => { /* the picker reports it */ })
-    return () => { live = false }
+    source.then((l) => { if (alive) setItems(l) }).catch(() => { /* the picker reports it */ })
+    return () => { alive = false }
   }, [])
 
-  const byCode = useMemo(() => indexItems(items), [items])
-  const t = templateOf(state.template)
-  const per = perSheet(t)
-  const total = labelCount(state.queue)
-  const sheet = sheetState(total, per, state.startAt)
-  const problems = state.queue.filter((i) => problemOf(i, t))
-  const patch = (p: Partial<Saved>) => setState((s) => ({ ...s, ...p }))
-  const setItem = (code: string, p: Partial<QueueItem>) => patch({ queue: state.queue.map((i) => (i.code === code ? { ...i, ...p } : i)) })
+  // Labels left waiting on this device from before the queue was shared move to the store's queue, once.
+  useEffect(() => {
+    const left = deviceQueue()
+    if (moving || !storeId || !left.length) return
+    moving = true
+    void (async () => {
+      try {
+        for (const [n, { discount, ...i }] of left.entries()) {
+          if (i.qty > 0) await api.queueLabel(storeId, i)
+          keepDeviceQueue(left.slice(n + 1)) // forgotten only once the store's queue has it
+          if (i.qty > 0 && discount) await api.setQueuedLabel(storeId, i.code, { discount })
+        }
+      } catch (e) { trackError('label queue move', e); toast.error('Labels waiting on this device could not all be moved to the store’s queue. They will be tried again next time.') }
+      moving = false
+      waiting.retry()
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const add = (picked: { code: string; description: string }, qty: number) => {
+  const shared = live?.storeId === storeId ? live.queue : null
+  const view: LabelSettings = draft ?? settings
+  const byCode = useMemo(() => indexItems(items), [items])
+  const t = templateOf(view.template)
+  // A clearance line with no discount of its own takes this device's usual discount.
+  const queue = (draft ? draft.queue : shared ?? []).map((i) => (t.clearance && !i.discount ? { ...i, discount: view.defaultDiscount } : i))
+  const per = perSheet(t)
+  const total = labelCount(queue)
+  const sheet = sheetState(total, per, view.startAt)
+  const problems = queue.filter((i) => problemOf(i, t))
+  const patch = (p: Partial<LabelSettings>) => (draft ? setDraft((d) => d && { ...d, ...p }) : setSettings((s) => ({ ...s, ...p })))
+
+  // A change shows here at once, then is saved to the store's queue; if saving fails, what is really there is loaded again.
+  const change = async (next: (q: QueueItem[]) => QueueItem[], save: () => Promise<unknown>) => {
+    if (draft) return setDraft((d) => d && { ...d, queue: next(d.queue) })
+    setLive((l) => l && { ...l, queue: next(l.queue) })
+    try { await save() } catch (e) { trackError('label queue', e); toast.error('That change was not saved. Check your connection and try again.'); waiting.retry() }
+  }
+  const setItem = (code: string, p: { qty?: number; discount?: string }) => void change((q) => q.map((i) => (i.code === code ? { ...i, ...p } : i)), () => api.setQueuedLabel(storeId, code, p))
+  const take = (taken: { code: string; qty: number }[]) => change((q) => takeFromQueue(q, taken), () => api.takeLabels(storeId, taken))
+
+  const add = async (picked: { code: string; description: string }, qty: number) => {
     const it = byCode.get(picked.code)
-    const existing = state.queue.find((i) => i.code === picked.code)
-    if (existing) { setItem(picked.code, { qty: Math.min(MAX_QTY, existing.qty + qty) }); return }
-    patch({ queue: [...state.queue, { code: picked.code, description: picked.description, price: it?.price ?? null, barcode: it?.barcode, qty: Math.min(MAX_QTY, qty), discount: t.clearance ? state.defaultDiscount : '' }] })
+    const line = { code: picked.code, description: picked.description, price: it?.price ?? null, barcode: it?.barcode }
+    if (draft) return setDraft((d) => d && { ...d, queue: addToQueue(d.queue, line, qty) })
+    try {
+      await api.queueLabel(storeId, { ...line, qty: Math.min(MAX_QTY, qty) })
+      waiting.retry()
+    } catch (e) { trackError('label queue', e); toast.error('Could not add it. Check your connection and try again.'); return false }
   }
-  const changeTemplate = (id: TemplateId) => {
-    const next = templateOf(id)
-    patch({ template: id, startAt: 1, queue: state.queue.map((i) => ({ ...i, discount: next.clearance && !i.discount ? state.defaultDiscount : i.discount })) })
-  }
+  const changeTemplate = (id: TemplateId) => patch({ template: id, startAt: 1 })
   const clearAll = async () => {
-    if (!(await ask({ title: 'Clear the queue?', body: <p>The {total} {total === 1 ? 'label' : 'labels'} waiting will be removed.</p>, confirmLabel: 'Clear queue', danger: true }))) return
-    patch({ queue: [], startAt: 1 })
+    if (!(await ask({ title: 'Clear the queue?', body: <p>The {total} {total === 1 ? 'label' : 'labels'} waiting will be removed{draft ? '' : ' on every device in this store'}.</p>, confirmLabel: 'Clear queue', danger: true }))) return
+    void take(queue)
+    patch({ startAt: 1 })
   }
 
   // Every print is kept so it can be seen, changed, printed again or deleted. Printing never waits on this: if it fails, the labels are already out.
   const keepPrint = async (labels: QueueItem[]) => {
     if (!storeId) return
     try {
-      await api.saveLabelJob({ id: editing?.id, store_id: storeId, template: state.template, start_at: state.startAt, barcode: state.barcode, teal: state.teal, lines: regroup(labels), label_count: labels.length })
-      setEditing(null)
+      await api.saveLabelJob({ id: draft?.job.id, store_id: storeId, template: view.template, start_at: view.startAt, barcode: view.barcode, teal: view.teal, lines: regroup(labels), label_count: labels.length })
       jobs.retry()
     } catch (e) { trackError('label job', e); toast.info('The labels are printing, but this print could not be saved to Past prints.') }
   }
-  const editJob = async (j: LabelJob) => {
-    if (state.queue.length > 0 && !(await ask({ title: 'Replace the labels waiting?', body: <p>The {total} {total === 1 ? 'label' : 'labels'} in the queue will be replaced by this past print. Printing it will save your changes to that print.</p>, confirmLabel: 'Replace and edit' }))) return
-    setState({ ...fresh(), template: j.template, queue: j.lines.map((l) => ({ ...l })), startAt: j.start_at, barcode: j.barcode, teal: j.teal })
-    setEditing(j)
+  const editJob = (j: LabelJob) => {
+    setDraft({ job: j, template: j.template, queue: j.lines.map((l) => ({ ...l })), startAt: j.start_at, barcode: j.barcode, teal: j.teal, defaultDiscount: '' })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const reprintJob = (j: LabelJob) => {
@@ -91,18 +120,29 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
   }
   const deleteJob = async (j: LabelJob) => {
     if (!(await ask({ title: 'Delete this past print?', body: <p>{j.label_count} {j.label_count === 1 ? 'label' : 'labels'} printed {when(j.printed_at)}. This cannot be undone.</p>, confirmLabel: 'Delete', danger: true }))) return
-    try { await api.deleteLabelJob(j.id); if (editing?.id === j.id) setEditing(null); jobs.retry(); toast.success('Past print deleted.') }
+    try { await api.deleteLabelJob(j.id); if (draft?.job.id === j.id) setDraft(null); jobs.retry(); toast.success('Past print deleted.') }
     catch (e) { trackError('label job delete', e); toast.error('Could not delete it. Try again.') }
   }
 
-  const printNow = (labels: QueueItem[], keep: QueueItem[]) => {
+  const printNow = (labels: QueueItem[], taken: { code: string; qty: number }[]) => {
     if (problems.length) return toast.error(`Fix ${problems.length === 1 ? 'the item' : 'the items'} marked in the list first.`)
     if (!labels.length) return
-    const doc = buildLabelsPdf(labels, t, { startAt: state.startAt, barcode: state.barcode, teal: state.teal })
+    const doc = buildLabelsPdf(labels, t, { startAt: view.startAt, barcode: view.barcode, teal: view.teal })
     window.open(URL.createObjectURL(doc.output('blob')), '_blank')
     void keepPrint(labels)
-    const end = (state.startAt - 1 + labels.length) % per
-    patch({ queue: regroup(keep), startAt: end === 0 ? 1 : end + 1 })
+    const end = (view.startAt - 1 + labels.length) % per
+    const startAt = end === 0 ? 1 : end + 1
+    if (draft) {
+      // Anything of the past print not printed this time joins the store's queue.
+      const left = takeFromQueue(queue, taken).filter((i) => i.qty > 0)
+      setDraft(null)
+      setSettings((s) => ({ ...s, startAt }))
+      void Promise.all(left.map(({ discount: _d, ...i }) => api.queueLabel(storeId, i))).then(() => waiting.retry())
+        .catch((e) => { trackError('label queue', e); toast.error('The labels not printed could not be added to the queue.') })
+    } else {
+      void take(taken)
+      patch({ startAt })
+    }
     toast.success(end === 0 ? 'Sent to print. The sheet was full.' : `Sent to print. Put the part-used sheet back in the printer: the next label goes in position ${end + 1}.`)
   }
   const printAll = async () => {
@@ -114,49 +154,53 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
       })
       if (!go) return
     }
-    printNow(expand(state.queue), [])
+    printNow(expand(queue), queue)
   }
-  const full = splitFull(state.queue, per, state.startAt)
-  const printFull = () => printNow(full.print, full.keep)
+  const full = splitFull(queue, per, view.startAt)
+  const printFull = () => printNow(full.print, regroup(full.print))
 
   return (
     <>
       <div className="pagehead">
         <div>
           <h1>Labels</h1>
-          <p className="muted">Scan or search items to add their labels. Print when the sheet is full, or print what you have.</p>
+          <p className="muted">Scan or search items to add their labels, here or from Price check on any device. Print when the sheet is full, or print what you have.</p>
         </div>
       </div>
 
-      {editing && (
-        <p className="note" role="status">Editing the print from {when(editing.printed_at)}. Printing saves your changes to it. <button type="button" className="quiet" onClick={() => { setEditing(null); setState(fresh()) }}>Stop editing</button></p>
+      {draft && (
+        <p className="note" role="status">Editing the print from {when(draft.job.printed_at)}. Printing saves your changes to it. <button type="button" className="quiet" onClick={() => setDraft(null)}>Stop editing</button></p>
       )}
       <div className="filters labelbar">
         {stores.length > 1 && (
           <label className="inline">Store
-            <select name="labelstore" value={storeId} onChange={(e) => { setStoreId(e.target.value); setEditing(null) }}>
+            <select name="labelstore" value={storeId} onChange={(e) => { setStoreId(e.target.value); setDraft(null); try { localStorage.setItem(STORE_KEY, e.target.value) } catch { /* ignore */ } }}>
               {stores.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
           </label>
         )}
         <div className="segmented" role="group" aria-label="Label type">
-          {TEMPLATES.map((x) => <button key={x.id} type="button" aria-pressed={state.template === x.id} onClick={() => changeTemplate(x.id)}>{x.name} <small>{x.hint}</small></button>)}
+          {TEMPLATES.map((x) => <button key={x.id} type="button" aria-pressed={view.template === x.id} onClick={() => changeTemplate(x.id)}>{x.name} <small>{x.hint}</small></button>)}
         </div>
         {t.clearance ? (
-          <label className="inline">Discount % for new items
-            <input className="qty" name="defaultDiscount" inputMode="decimal" autoComplete="off" value={state.defaultDiscount} onChange={(e) => patch({ defaultDiscount: e.target.value })} />
+          <label className="inline">Usual discount %
+            <input className="qty" name="defaultDiscount" inputMode="decimal" autoComplete="off" value={view.defaultDiscount} onChange={(e) => patch({ defaultDiscount: e.target.value })} />
           </label>
         ) : (
           <>
-            <label className="inline"><input type="checkbox" name="barcode" checked={state.barcode} onChange={(e) => patch({ barcode: e.target.checked })} /> Barcode number</label>
-            <label className="inline"><input type="checkbox" name="teal" checked={state.teal} onChange={(e) => patch({ teal: e.target.checked })} /> Teal band</label>
+            <label className="inline"><input type="checkbox" name="barcode" checked={view.barcode} onChange={(e) => patch({ barcode: e.target.checked })} /> Barcode number</label>
+            <label className="inline"><input type="checkbox" name="teal" checked={view.teal} onChange={(e) => patch({ teal: e.target.checked })} /> Teal band</label>
           </>
         )}
       </div>
 
       <ItemPicker onAdd={add} />
 
-      {state.queue.length === 0 ? (
+      {!draft && shared === null ? (
+        waiting.failed ? (
+          <div className="state error" role="alert"><p>The labels waiting did not load</p><div className="actions"><button type="button" className="btn" onClick={waiting.retry}>Try again</button></div></div>
+        ) : <Loading />
+      ) : queue.length === 0 ? (
         <div className="state"><p>No labels waiting</p><p className="muted">Scan an item or search for it, give the number of labels, and add it.</p></div>
       ) : (
         <>
@@ -164,7 +208,7 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
             <p><b>{sheet.sheets === 1 ? 'Sheet 1' : `${sheet.sheets} sheets`}: {sheet.onLast} of {per} used on the last</b>
               {sheet.spaceLeft > 0 ? `. ${sheet.spaceLeft} ${sheet.spaceLeft === 1 ? 'space' : 'spaces'} left. Add ${sheet.spaceLeft === 1 ? 'one more' : `${sheet.spaceLeft} more`} to fill it.` : '. The sheet is full.'}</p>
             <div className="sheetmap" style={{ gridTemplateColumns: `repeat(${t.cols}, 1fr)` }} aria-hidden="true">
-              {Array.from({ length: per }, (_, n) => <i key={n} className={sheet.sheets <= 1 ? (n < state.startAt - 1 ? 'used' : n < sheet.onLast ? 'on' : '') : 'on'} />)}
+              {Array.from({ length: per }, (_, n) => <i key={n} className={sheet.sheets <= 1 ? (n < view.startAt - 1 ? 'used' : n < sheet.onLast ? 'on' : '') : 'on'} />)}
             </div>
           </div>
 
@@ -172,7 +216,7 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
             <table className="book labels">
               <thead><tr><th>Item</th><th>Description</th><th className="r">{t.clearance ? 'Was' : 'Price'}</th>{t.clearance && <><th className="r">Discount %</th><th className="r">Now</th></>}<th className="r">Labels</th><th><span className="visually-hidden">Actions</span></th></tr></thead>
               <tbody>
-                {state.queue.map((i) => {
+                {queue.map((i) => {
                   const bad = problemOf(i, t)
                   const d = discountOf(i.discount)
                   return (
@@ -182,12 +226,12 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
                       <td data-label={t.clearance ? 'Was' : 'Price'} className="r num">{i.price !== null ? money(i.price) : '–'}</td>
                       {t.clearance && (
                         <>
-                          <td data-label="Discount %" className="r"><input className="qty" name={`disc-${i.code}`} inputMode="decimal" autoComplete="off" aria-label={`Discount percent for ${i.code}`} value={i.discount} onChange={(e) => setItem(i.code, { discount: e.target.value })} /></td>
+                          <td data-label="Discount %" className="r"><CommitInput name={`disc-${i.code}`} inputMode="decimal" label={`Discount percent for ${i.code}`} value={i.discount} onCommit={(v) => setItem(i.code, { discount: v.trim().slice(0, 8) })} /></td>
                           <td data-label="Now" className="r num">{i.price !== null && d !== null ? money(nowPrice(i.price, d)) : '–'}</td>
                         </>
                       )}
-                      <td data-label="Labels" className="r"><input className="qty" name={`qty-${i.code}`} inputMode="numeric" autoComplete="off" aria-label={`Number of labels for ${i.code}`} value={String(i.qty)} onChange={(e) => { const n = Math.floor(Number(e.target.value.replace(/[^\d]/g, ''))); setItem(i.code, { qty: Math.min(MAX_QTY, Math.max(0, n || 0)) }) }} /></td>
-                      <td className="rowactions"><button type="button" className="btn" onClick={() => patch({ queue: state.queue.filter((x) => x.code !== i.code) })}>Remove</button></td>
+                      <td data-label="Labels" className="r"><CommitInput name={`qty-${i.code}`} inputMode="numeric" label={`Number of labels for ${i.code}`} value={String(i.qty)} onCommit={(v) => setItem(i.code, { qty: Math.min(MAX_QTY, Math.floor(Number(v.replace(/[^\d]/g, ''))) || 0) })} /></td>
+                      <td className="rowactions"><button type="button" className="btn" onClick={() => void take([{ code: i.code, qty: MAX_QTY }])}>Remove</button></td>
                     </tr>
                   )
                 })}
@@ -197,7 +241,7 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
 
           <div className="filters">
             <label className="inline">First label goes in position
-              <input className="qty" name="startAt" inputMode="numeric" autoComplete="off" value={String(state.startAt)} onChange={(e) => patch({ startAt: Math.min(per, Math.max(1, Math.floor(Number(e.target.value.replace(/[^\d]/g, ''))) || 1)) })} />
+              <input className="qty" name="startAt" inputMode="numeric" autoComplete="off" value={String(view.startAt)} onChange={(e) => patch({ startAt: Math.min(per, Math.max(1, Math.floor(Number(e.target.value.replace(/[^\d]/g, ''))) || 1)) })} />
             </label>
             <span className="muted">of {per}. Use this to carry on with a sheet that is already part used.</span>
           </div>
@@ -227,7 +271,7 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
                     <td data-label="Labels" className="r">{j.label_count}</td>
                     <td data-label="Items" className="desc">{j.lines.slice(0, 3).map((l) => `${l.qty} × ${l.code}`).join(', ')}{j.lines.length > 3 ? ` and ${j.lines.length - 3} more` : ''}</td>
                     <td className="rowactions">
-                      <button type="button" className="btn" onClick={() => void editJob(j)}>Edit</button>
+                      <button type="button" className="btn" onClick={() => editJob(j)}>Edit</button>
                       <button type="button" className="btn" onClick={() => reprintJob(j)}>Print again</button>
                       <button type="button" className="btn danger" onClick={() => void deleteJob(j)}>Delete</button>
                     </td>

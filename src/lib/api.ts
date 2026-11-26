@@ -1,4 +1,4 @@
-import type { LabelJob, LabelJobInput } from './labels'
+import type { LabelJob, LabelJobInput, QueueItem } from './labels'
 import type { Counted, OverdueInvoice } from './notifications'
 import type { OrderNeed } from './suggest'
 import type { CustomerOrderNeed, Fulfilment } from './customerOrders'
@@ -92,6 +92,16 @@ export interface OrdersApi {
   /** Record that one side's journal is entered in NAV. When every side is entered the count is posted. */
   postCountSide(countId: string, side: 'positive' | 'negative', ref: string): Promise<CountRow>
   deleteCount(countId: string): Promise<void>
+  /** The labels waiting to be printed at a store, in the order they were added. */
+  labelQueue(storeId: string): Promise<QueueItem[]>
+  /** Called with the whole queue whenever any device changes it. Returns an unsubscribe. */
+  subscribeLabelQueue(storeId: string, onQueue: (queue: QueueItem[]) => void): () => void
+  /** Adds labels of an item to the store's queue (more of one already waiting). Returns how many labels are then waiting. */
+  queueLabel(storeId: string, item: Omit<QueueItem, 'discount'>): Promise<number>
+  /** Changes a waiting line's number of labels or discount. */
+  setQueuedLabel(storeId: string, code: string, change: { qty?: number; discount?: string }): Promise<void>
+  /** Takes printed or cleared quantities off the queue; a line with none left goes. */
+  takeLabels(storeId: string, taken: { code: string; qty: number }[]): Promise<void>
   /** Past label prints at a store, newest first. */
   listLabelJobs(storeId: string): Promise<LabelJob[]>
   /** Keeps a print: a new one, or (with an id) changes one already kept. */
@@ -113,7 +123,7 @@ const offline: OrdersApi = {
   subscribe: () => notConnected(), setStatus: async () => notConnected(), deleteOrder: async () => notConnected(), listOrders: async () => notConnected(), receiveOrder: async () => notConnected(),
   orderLines: async () => notConnected(), syncRuns: async () => notConnected(), coverTarget: async () => notConnected(), orderNeeds: async () => notConnected(), findItems: async () => notConnected(), customerOrders: async () => notConnected(), lowStock: async () => notConnected(), newItems: async () => notConnected(), overdueInvoices: async () => notConnected(), dismissals: async () => notConnected(), dismiss: async () => notConnected(), setFulfilment: async () => notConnected(), setCoverTarget: async () => notConnected(), blockedItems: async () => notConnected(), setBlocked: async () => notConnected(),
   listCounts: async () => notConnected(), openCount: async () => notConnected(), countLines: async () => notConnected(), saveCountLine: async () => notConnected(), subscribeCount: () => notConnected(),
-  setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), listLabelJobs: async () => notConnected(), saveLabelJob: async () => notConnected(), deleteLabelJob: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),
+  setCountStatus: async () => notConnected(), postCountSide: async () => notConnected(), deleteCount: async () => notConnected(), labelQueue: async () => notConnected(), subscribeLabelQueue: () => notConnected(), queueLabel: async () => notConnected(), setQueuedLabel: async () => notConnected(), takeLabels: async () => notConnected(), listLabelJobs: async () => notConnected(), saveLabelJob: async () => notConnected(), deleteLabelJob: async () => notConnected(), uncounted: async () => notConnected(), zeroUncounted: async () => notConnected(),
   categories: async () => notConnected(), categoryRange: async () => notConnected(),
 }
 
