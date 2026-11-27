@@ -16,7 +16,7 @@ import MovFlag from './MovFlag'
 import StorePrefs from './StorePrefs'
 import Tag from './Tag'
 import { CHART_WEEKS, COVER_HELP, COVER_LABEL, COVER_WEEKS, coverStatus, gpPercent, noStock, shownStock, soldOver } from './lib/orderview'
-import { DEFAULT_COVER, MIN_WEEKS, coverChoices, coverText, lowLabel, lowWhy, stockInsight, type Rates, type StockInsight } from './lib/insights'
+import { DEFAULT_COVER, MIN_WEEKS, coverChoices, coverFor, coverText, loadedWeeksOf, lowLabel, lowWhy, stockInsight, type Rates, type StockInsight } from './lib/insights'
 import { salesApi } from './lib/sales/api'
 import { persistGet, persistSet } from './lib/persist'
 import { needsByItem, type CustomerOrderNeed } from './lib/customerOrders'
@@ -75,7 +75,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const [copyOpen, setCopyOpen] = useState(false)
   const [pending, setPending] = useState(0)
   const [rates, setRates] = useState<Rates | null>(null) // weekly sales per item at this store, from the loaded Sales weeks
-  const [target, setTarget] = useState(DEFAULT_COVER) // weeks of stock this store aims to hold
+  const [savedCover, setSavedCover] = useState(DEFAULT_COVER) // weeks of stock this store aims to hold, as saved
   const [needs, setNeeds] = useState<CustomerOrderNeed[]>([]) // customer orders still to order
   const [needsAttempt, setNeedsAttempt] = useState(0)
   const [filling, setFilling] = useState(false) // the suggested quantities are being filled in or taken out
@@ -117,7 +117,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   useEffect(() => {
     if (!storeId) return
     let live = true
-    api.coverTarget(storeId).then((w) => live && setTarget(w)).catch(() => live && setTarget(DEFAULT_COVER))
+    api.coverTarget(storeId).then((w) => live && setSavedCover(w)).catch(() => live && setSavedCover(DEFAULT_COVER))
     return () => { live = false }
   }, [storeId])
   // The sales history is the heavy read, and only a chosen vendor's page uses it. Waiting for a vendor keeps it from slowing the Needs ordering list down.
@@ -219,7 +219,8 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const range = useMemo(() => (vendor ? rangeList.filter((p) => !blockedCodes.has(p.item.code) || seesBlocked || lines.some((l) => l.item_code === p.item.code) || jump?.item === p.item.code) : []), [vendor, rangeList, blockedCodes, lines, jump?.item, seesBlocked])
   const lineOf = useMemo(() => new Map(lines.map((l) => [l.item_code, l])), [lines])
   const enough = !!rates && rates.weeks >= MIN_WEEKS
-  const loadedWeeks = Math.max(rates?.weeks ?? 0, rates?.history?.values().next().value?.length ?? 0) // weeks of item sales loaded
+  const loadedWeeks = loadedWeeksOf(rates) // weeks of item sales loaded
+  const target = coverFor(savedCover, loadedWeeks) // the Hold choice in use
   const soldWeeks = Math.min(target, loadedWeeks) // the Sold column follows the Hold choice, up to what is loaded
   const insightOf = useMemo(() => {
     const m = new Map<string, StockInsight>()
@@ -476,7 +477,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
   const storeName = stores.find((s) => s.id === storeId)?.name ?? ''
   const holds = drafts.filter((d) => d.lines > 0 && d.vendor_no !== vendor)
   const changeTarget = (w: number) => {
-    setTarget(w)
+    setSavedCover(w)
     api.setCoverTarget(storeId, w, email)
       .then(() => toast.success(`${storeName} now aims to hold ${w} ${w === 1 ? 'week' : 'weeks'} of stock.`))
       .catch((e) => { trackError('cover target', e); toast.error('That did not save. The target applies on this screen only until it does.') })
@@ -658,7 +659,7 @@ export default function Order({ email, isAdmin = false, multi, stores, names, on
                     {enough && (
                       <label className="inline">Hold
                         <select name="cover" value={target} onChange={(e) => changeTarget(Number(e.target.value))} aria-describedby="cover-help">
-                          {coverChoices(loadedWeeks, target).map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
+                          {coverChoices(loadedWeeks).map((w) => <option key={w} value={w}>{w} {w === 1 ? 'week' : 'weeks'}</option>)}
                         </select>
                       </label>
                     )}

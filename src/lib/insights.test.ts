@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverChoices, coverText, lowLabel, lowWhy, ratesFrom, stockInsight } from './insights'
+import { coverChoices, coverFor, coverText, lowLabel, lowWhy, ratesFrom, stockInsight } from './insights'
 
 describe('ratesFrom', () => {
   it('averages over the weeks loaded, counting a missing week as nothing sold', () => {
@@ -31,11 +31,21 @@ describe('ratesFrom history', () => {
 })
 
 describe('coverChoices', () => {
-  it('runs to 12, then every 2 weeks to the last week loaded, and keeps a saved target', () => {
-    expect(coverChoices(0, 4)).toEqual([1, 2, 3, 4, 5, 6, 8, 10, 12])
-    expect(coverChoices(17, 4).slice(-3)).toEqual([14, 16, 17])
-    expect(coverChoices(26, 4).slice(-4)).toEqual([20, 22, 24, 26])
-    expect(coverChoices(13, 20)).toContain(20)
+  it('starts at 12 and steps by 4, ending on the last week loaded', () => {
+    expect(coverChoices(9)).toEqual([9])
+    expect(coverChoices(12)).toEqual([12])
+    expect(coverChoices(19)).toEqual([12, 16, 19])
+    expect(coverChoices(20)).toEqual([12, 16, 20])
+    expect(coverChoices(26)).toEqual([12, 16, 20, 24, 26])
+    expect(coverChoices(40)).toEqual([12, 16, 20, 24, 26])
+    expect(coverChoices(0)).toEqual([12])
+  })
+  it('counts a saved target as the first choice at or above it, else the last', () => {
+    expect(coverFor(4, 19)).toBe(12)
+    expect(coverFor(14, 19)).toBe(16)
+    expect(coverFor(20, 19)).toBe(19)
+    expect(coverFor(19, 20)).toBe(20)
+    expect(coverFor(12, 9)).toBe(9)
   })
 })
 

@@ -1,6 +1,6 @@
 import { addToQueue, labelCount, takeFromQueue, type LabelJob, type QueueItem } from './labels'
 import { codeLines, type CustomerOrderNeed, type Fulfilment } from './customerOrders'
-import { DEFAULT_COVER, stockInsight } from './insights'
+import { DEFAULT_COVER, coverFor, loadedWeeksOf, stockInsight } from './insights'
 import { salesApi } from './sales/api'
 import type { Counted } from './notifications'
 import { suggestLine, type OrderNeed } from './suggest'
@@ -151,7 +151,7 @@ export const demoApi: OrdersApi = {
         const it = items.find((i) => i.code === s.item_code)
         const series = rates.series?.get(s.item_code); const wait = waiting.get(s.item_code) ?? 0
         if (!it || it.blocked || blocked.get(store_id)?.has(s.item_code) || it.exclude_from_replen || s.po_blocked || !s.vendor_no || (!series && !wait)) continue
-        const g = suggestLine({ series: series ?? Array(rates.weeks).fill(0), storeUnits: rates.storeUnits ?? [], inventory: s.inventory, onOrder: s.qty_on_po, transferIn: s.transfer_in ?? 0, inOrder: 0, waiting: wait, moq: s.moq, weeks: covers.get(store_id) ?? DEFAULT_COVER })
+        const g = suggestLine({ series: series ?? Array(rates.weeks).fill(0), storeUnits: rates.storeUnits ?? [], inventory: s.inventory, onOrder: s.qty_on_po, transferIn: s.transfer_in ?? 0, inOrder: 0, waiting: wait, moq: s.moq, weeks: coverFor(covers.get(store_id) ?? DEFAULT_COVER, loadedWeeksOf(rates)) })
         if (g.qty <= 0) continue
         const n = per.get(s.vendor_no) ?? { store_id, vendor_no: s.vendor_no, items: 0, units: 0, cost: 0, held: 0, customers: 0 }
         if (g.hold) n.held++; else { n.items++; n.units += g.qty; n.cost += g.qty * s.store_cost; if (wait > 0) n.customers++ }
@@ -170,7 +170,7 @@ export const demoApi: OrdersApi = {
       for (const s of demoStock(store_id)) {
         const it = items.find((i) => i.code === s.item_code)
         if (!it || it.blocked || blocked.get(store_id)?.has(s.item_code) || it.exclude_from_replen || s.po_blocked || !s.vendor_no) continue
-        if (stockInsight(s, rates.perWeek.get(s.item_code) ?? 0, covers.get(store_id) ?? DEFAULT_COVER, s.moq).low) per.set(s.vendor_no, (per.get(s.vendor_no) ?? 0) + 1)
+        if (stockInsight(s, rates.perWeek.get(s.item_code) ?? 0, coverFor(covers.get(store_id) ?? DEFAULT_COVER, loadedWeeksOf(rates)), s.moq).low) per.set(s.vendor_no, (per.get(s.vendor_no) ?? 0) + 1)
       }
       for (const [vendor_no, n] of per) out.push({ store_id, vendor_no, items: n })
     }
