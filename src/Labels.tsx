@@ -194,7 +194,7 @@ export default function Labels({ stores, names }: { stores: StoreRow[]; names: R
         )}
       </div>
 
-      <ItemPicker onAdd={add} />
+      <ItemPicker onAdd={add} scan />
 
       {!draft && shared === null ? (
         waiting.failed ? (
